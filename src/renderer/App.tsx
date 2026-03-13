@@ -77,15 +77,14 @@ export function App() {
     }
   }, [claudeSessions])
 
-  // On startup, check for orphaned sessions from previous run
+  // On startup, check for sessions from previous run and offer to resume them
   useEffect(() => {
     const saved = localStorage.getItem('devdock-claude-sessions')
     if (saved) {
       try {
         const sessions: ClaudeSession[] = JSON.parse(saved)
-        const withWorktrees = sessions.filter(s => s.worktreePath)
-        if (withWorktrees.length > 0) {
-          setOrphanedSessions(withWorktrees)
+        if (sessions.length > 0) {
+          setOrphanedSessions(sessions)
         }
       } catch { /* ignore bad data */ }
       localStorage.removeItem('devdock-claude-sessions')
@@ -237,6 +236,35 @@ export function App() {
       }
     } catch (err) {
       alert(`Error opening pipeline session: ${err}`)
+    }
+  }, [])
+
+  const handleResumeAllSessions = useCallback(async (sessions: ClaudeSession[]) => {
+    setOrphanedSessions([])
+    setActiveTab('claude')
+    for (const session of sessions) {
+      const newSessionId = `claude-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`
+      try {
+        const result = await window.api.ptyCreate({
+          sessionId: newSessionId,
+          folderName: session.folderName,
+          folderPath: session.folderPath,
+          useWorktree: false,
+          resumeClaudeId: session.claudeSessionId || undefined,
+          existingWorktreePath: session.worktreePath || undefined,
+        })
+        if (result.success) {
+          const restored: ClaudeSession = {
+            id: newSessionId,
+            folderName: result.folderName || session.folderName,
+            folderPath: session.folderPath,
+            worktreePath: result.worktreePath ?? session.worktreePath,
+            branchName: result.branchName ?? session.branchName,
+            claudeSessionId: session.claudeSessionId ?? null,
+          }
+          setClaudeSessions(prev => [...prev, restored])
+        }
+      } catch { /* skip failed sessions */ }
     }
   }, [])
 
@@ -588,21 +616,27 @@ export function App() {
       )}
 
       {orphanedSessions.length > 0 && (
-        <div className="modal-overlay" onClick={() => setOrphanedSessions([])}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 450 }}>
-            <h2>Previous Claude Sessions</h2>
+        <div className="modal-overlay">
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <h2>Resume Previous Sessions?</h2>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
-              Found {orphanedSessions.length} worktree{orphanedSessions.length > 1 ? 's' : ''} from a previous session. What would you like to do?
+              DevDock found {orphanedSessions.length} Claude session{orphanedSessions.length > 1 ? 's' : ''} from your last run.
             </p>
-            {orphanedSessions.map(s => (
-              <div key={s.id} style={{ padding: '6px 0', fontSize: 12, color: 'var(--text-muted)' }}>
-                {s.folderName} — {s.branchName}
-              </div>
-            ))}
-            <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-              <button className="btn btn-sm" onClick={() => setOrphanedSessions([])}>
-                Keep Worktrees
-              </button>
+            <div style={{ marginBottom: 16 }}>
+              {orphanedSessions.map(s => (
+                <div key={s.id} style={{ padding: '8px 10px', marginBottom: 6, borderRadius: 6, background: 'var(--bg-secondary)', fontSize: 12 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 2 }}>{s.folderName}</div>
+                  <div style={{ color: 'var(--text-muted)', display: 'flex', gap: 10 }}>
+                    {s.branchName && <span>⎇ {s.branchName.replace('devdock/claude-', '').slice(0, 20)}</span>}
+                    {s.claudeSessionId
+                      ? <span style={{ color: 'var(--green)' }}>✓ conversation saved</span>
+                      : <span>new session</span>
+                    }
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button className="btn btn-sm btn-danger" onClick={async () => {
                 for (const s of orphanedSessions) {
                   if (s.worktreePath && s.folderPath) {
@@ -610,9 +644,15 @@ export function App() {
                   }
                 }
                 setOrphanedSessions([])
-                showToast('Cleaned up previous worktrees', 'success')
+                showToast('Sessions discarded', 'info')
               }}>
-                Delete All Worktrees
+                Discard
+              </button>
+              <button className="btn btn-sm" onClick={() => setOrphanedSessions([])}>
+                Later
+              </button>
+              <button className="btn btn-sm btn-primary" onClick={() => handleResumeAllSessions(orphanedSessions)}>
+                Resume {orphanedSessions.length > 1 ? `All ${orphanedSessions.length}` : 'Session'}
               </button>
             </div>
           </div>
