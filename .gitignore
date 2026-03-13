@@ -1,0 +1,13 @@
+node_modules/
+dist/
+out/
+coverage/
+.DS_Store
+*.log
+.env
+.env.*
+*.pem
+*.key
+*.cert
+*.p12
+package-lock.json
