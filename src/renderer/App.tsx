@@ -672,8 +672,9 @@ export function App() {
       {showSettings && (
         <SettingsModal
           currentPath={state.scanPath}
-          onSave={(newPath) => {
-            persist({ ...state, scanPath: newPath })
+          rtkEnabled={state.rtkEnabled ?? false}
+          onSave={(newPath, rtkEnabled) => {
+            persist({ ...state, scanPath: newPath, rtkEnabled })
             setShowSettings(false)
           }}
           onClose={() => setShowSettings(false)}

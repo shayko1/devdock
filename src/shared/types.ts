@@ -23,6 +23,7 @@ export interface AppState {
   tags: string[]
   scanPath: string
   removedPaths?: string[]
+  rtkEnabled?: boolean
 }
 
 export interface ProcessStatus {

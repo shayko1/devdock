@@ -13,6 +13,7 @@ import { pipelineManager } from './pipeline-manager'
 import { scanAgents, getAgentLogs, triggerAgent } from './agent-scanner'
 import { loadState, saveState } from './store'
 import { scanWorkspace } from './scanner'
+import { detectRtk, installRtkHook, uninstallRtkHook, getRtkGainStats } from './rtk-manager'
 import { AppState, Project, WorkspaceFolder } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
@@ -54,18 +55,34 @@ browser eval 'document.title'
 - The browser window persists across commands — you don't need to reopen it each time
 `
 
-function ensureDevDockClaudeMd(cwd: string) {
+const DEVDOCK_RTK_MD = `
+
+## RTK Token Compression
+
+RTK (Rust Token Killer) is active. Commands like \`git status\`, \`ls\`, \`grep\`, and test runners
+are automatically rewritten to compressed equivalents via the rtk hook.
+This reduces token usage by 60-90% with <10ms overhead.
+
+- Check savings: \`rtk gain\`
+- See what could be optimized: \`rtk discover\`
+`
+
+function ensureDevDockClaudeMd(cwd: string, rtkEnabled?: boolean) {
   try {
     const claudeMdPath = join(cwd, 'CLAUDE.md')
     const marker = '# DevDock Browser Tool'
 
+    let fullContent = DEVDOCK_CLAUDE_MD
+    if (rtkEnabled) {
+      fullContent += DEVDOCK_RTK_MD
+    }
+
     if (existsSync(claudeMdPath)) {
       const content = readFileSync(claudeMdPath, 'utf-8')
-      if (content.includes(marker)) return // already has DevDock instructions
-      // Append to existing CLAUDE.md
-      writeFileSync(claudeMdPath, content + '\n\n' + DEVDOCK_CLAUDE_MD)
+      if (content.includes(marker)) return
+      writeFileSync(claudeMdPath, content + '\n\n' + fullContent)
     } else {
-      writeFileSync(claudeMdPath, DEVDOCK_CLAUDE_MD)
+      writeFileSync(claudeMdPath, fullContent)
     }
   } catch { /* ignore — non-critical */ }
 }
@@ -467,9 +484,10 @@ function setupIPC() {
       // If not a git repo, continue without worktree (open in original folder)
     }
 
-    // Write CLAUDE.md with browser instructions into the session cwd if not already there
+    // Write CLAUDE.md with browser instructions (and RTK info if enabled) into the session cwd
     const sessionCwd = worktreePath || opts.folderPath
-    ensureDevDockClaudeMd(sessionCwd)
+    const currentState = loadState()
+    ensureDevDockClaudeMd(sessionCwd, currentState.rtkEnabled)
 
     // Build command: resume if we have a Claude session ID, otherwise start fresh
     let command = 'claude --dangerously-skip-permissions'
@@ -699,6 +717,23 @@ function setupIPC() {
 
   ipcMain.handle('pipeline-set-config', (_event, folderPath: string, config: any) => {
     pipelineManager.setConfig(folderPath, config)
+  })
+
+  // RTK (Rust Token Killer) handlers
+  ipcMain.handle('rtk-detect', () => {
+    return detectRtk()
+  })
+
+  ipcMain.handle('rtk-enable', () => {
+    return installRtkHook()
+  })
+
+  ipcMain.handle('rtk-disable', () => {
+    return uninstallRtkHook()
+  })
+
+  ipcMain.handle('rtk-gain', () => {
+    return getRtkGainStats()
   })
 
   // Agent scanner handlers

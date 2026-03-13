@@ -115,6 +115,16 @@ const api = {
     return () => ipcRenderer.removeListener('pipeline-event', handler)
   },
 
+  // RTK (Rust Token Killer) — optional token compression
+  rtkDetect: (): Promise<{ installed: boolean; version: string | null; hookActive: boolean; path: string | null }> =>
+    ipcRenderer.invoke('rtk-detect'),
+  rtkEnable: (): Promise<{ success: boolean; output: string }> =>
+    ipcRenderer.invoke('rtk-enable'),
+  rtkDisable: (): Promise<{ success: boolean; output: string }> =>
+    ipcRenderer.invoke('rtk-disable'),
+  rtkGain: (): Promise<{ totalSaved: number; totalOriginal: number; totalCompressed: number; savingsPercent: number; commandCount: number; raw: string } | null> =>
+    ipcRenderer.invoke('rtk-gain'),
+
   // Agent scanner
   scanAgents: (): Promise<AgentInfo[]> => ipcRenderer.invoke('scan-agents'),
   getAgentLogs: (agentId: string, logType: 'history' | 'stdout'): Promise<string[]> =>

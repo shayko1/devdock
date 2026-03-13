@@ -123,9 +123,11 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
         return false
       }
 
-      // Shift+Enter — send CSI u encoded Shift+Enter for multiline input in Claude
+      // Shift+Enter — insert newline via bracketed paste so Claude treats it as
+      // a literal newline character rather than "submit", regardless of whether
+      // kitty keyboard protocol is active. This works in all terminal apps.
       if (e.shiftKey && e.key === 'Enter') {
-        window.api.ptyWrite(sessionId, '\x1b[13;2u')
+        window.api.ptyWrite(sessionId, '\x1b[200~\n\x1b[201~')
         return false
       }
 
