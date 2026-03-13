@@ -8,8 +8,11 @@ APP_DIR="$DIST_DIR/$APP_NAME.app"
 INSTALL_DIR="/Applications/$APP_NAME.app"
 ELECTRON_APP="$PROJECT_DIR/node_modules/electron/dist/Electron.app"
 
-echo "==> Building $APP_NAME..."
+echo "==> Rebuilding native modules for Electron..."
 cd "$PROJECT_DIR"
+npx electron-rebuild -f -w node-pty
+
+echo "==> Building $APP_NAME..."
 npx electron-vite build
 
 echo "==> Packaging $APP_NAME.app..."

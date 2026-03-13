@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "npx playwright test"
+    "test:e2e": "npx playwright test",
+    "postinstall": "electron-rebuild -f -w node-pty"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
@@ -21,6 +22,7 @@
     "node-pty": "^1.1.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
     "@playwright/test": "^1.58.2",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
