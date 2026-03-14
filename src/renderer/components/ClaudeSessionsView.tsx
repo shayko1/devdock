@@ -79,14 +79,23 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
     window.api.rtkDetect().then(status => setRtkAvailable(status.installed))
   }, [rtkEnabled])
 
+  // Re-check coach config on mount and periodically (catches settings changes)
   useEffect(() => {
-    window.api.coachGetConfig?.()
-      .then(cfg => {
-        const enabled = cfg.enabled && cfg.apiKey.length > 0
-        setCoachEnabled(enabled)
-        if (!enabled) setSidePanel(prev => prev === 'coach' ? 'none' : prev)
-      })
-      .catch(() => { /* coach not available */ })
+    const checkCoach = () => {
+      window.api.coachGetConfig?.()
+        .then(cfg => {
+          const enabled = cfg.enabled && cfg.apiKey.length > 0
+          setCoachEnabled(enabled)
+          if (!enabled) {
+            setSidePanel(prev => prev === 'coach' ? 'none' : prev)
+            setCoachBadge(0)
+          }
+        })
+        .catch(() => {})
+    }
+    checkCoach()
+    const interval = setInterval(checkCoach, 3000)
+    return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
