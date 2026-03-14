@@ -6,7 +6,7 @@ import { CoachConfig, CoachSuggestion, CoachAnalysis, CoachSessionCost } from '.
 const api = {
   getState: (): Promise<AppState> => ipcRenderer.invoke('get-state'),
   saveState: (state: AppState): Promise<boolean> => ipcRenderer.invoke('save-state', state),
-  scanWorkspace: (scanPath: string): Promise<Project[]> => ipcRenderer.invoke('scan-workspace', scanPath),
+  scanWorkspace: (scanPath: string, maxDepth?: number): Promise<Project[]> => ipcRenderer.invoke('scan-workspace', scanPath, maxDepth),
   startProject: (project: Project): Promise<ProcessStatus> => ipcRenderer.invoke('start-project', project),
   stopProject: (projectId: string): Promise<boolean> => ipcRenderer.invoke('stop-project', projectId),
   getProcessStatuses: (): Promise<ProcessStatus[]> => ipcRenderer.invoke('get-process-statuses'),

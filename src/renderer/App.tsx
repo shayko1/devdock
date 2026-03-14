@@ -683,10 +683,11 @@ export function App() {
       {showSettings && (
         <SettingsModal
           currentPath={state.scanPath}
+          currentScanDepth={state.scanDepth ?? 50}
           rtkEnabled={state.rtkEnabled ?? false}
           dangerousMode={state.dangerousMode ?? false}
-          onSave={(newPath, rtkEnabled, dangerousMode) => {
-            persist({ ...state, scanPath: newPath, rtkEnabled, dangerousMode })
+          onSave={(newPath, scanDepth, rtkEnabled, dangerousMode) => {
+            persist({ ...state, scanPath: newPath, scanDepth, rtkEnabled, dangerousMode })
             setShowSettings(false)
           }}
           onClose={() => setShowSettings(false)}

@@ -354,70 +354,90 @@ function detectPort(pkgJson: PackageJson | null, projectPath: string): number | 
   return null
 }
 
-export function scanWorkspace(scanPath: string): Project[] {
-  const projects: Project[] = []
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.git', '__pycache__', 'vendor', 'target', '.next', '.nuxt'])
+
+const DEFAULT_MAX_DEPTH = 50
+
+function isProjectDir(dirPath: string): { isProject: boolean; pkgJson: PackageJson | null } {
+  let pkgJson: PackageJson | null = null
+  const pkgPath = join(dirPath, 'package.json')
+  if (existsSync(pkgPath)) {
+    try {
+      pkgJson = JSON.parse(readFileSync(pkgPath, 'utf-8'))
+    } catch { /* ignore */ }
+  }
+
+  const hasDockerCompose = existsSync(join(dirPath, 'docker-compose.yml')) ||
+                           existsSync(join(dirPath, 'docker-compose.yaml'))
+  const hasMakefile = existsSync(join(dirPath, 'Makefile'))
+  const hasPython = existsSync(join(dirPath, 'requirements.txt')) ||
+                    existsSync(join(dirPath, 'pyproject.toml')) ||
+                    existsSync(join(dirPath, 'Pipfile'))
+  const hasSbt = existsSync(join(dirPath, 'build.sbt'))
+  const hasGradle = existsSync(join(dirPath, 'build.gradle')) ||
+                    existsSync(join(dirPath, 'build.gradle.kts'))
+  const hasMaven = existsSync(join(dirPath, 'pom.xml'))
+  const hasGo = existsSync(join(dirPath, 'go.mod'))
+  const hasRust = existsSync(join(dirPath, 'Cargo.toml'))
+  const hasRuby = existsSync(join(dirPath, 'Gemfile'))
+
+  const isProject = !!(pkgJson || hasDockerCompose || hasMakefile || hasPython ||
+                       hasSbt || hasGradle || hasMaven || hasGo || hasRust || hasRuby)
+
+  return { isProject, pkgJson }
+}
+
+function scanRecursive(dirPath: string, depth: number, maxDepth: number, projects: Project[]): void {
+  if (depth > maxDepth) return
 
   let entries: string[]
   try {
-    entries = readdirSync(scanPath)
+    entries = readdirSync(dirPath)
   } catch {
-    return projects
+    return
   }
 
   for (const entry of entries) {
-    const fullPath = join(scanPath, entry)
+    const fullPath = join(dirPath, entry)
     try {
       if (!statSync(fullPath).isDirectory()) continue
     } catch {
       continue
     }
 
-    // Skip hidden dirs and node_modules
-    if (entry.startsWith('.') || entry === 'node_modules') continue
+    if (entry.startsWith('.') || SKIP_DIRS.has(entry)) continue
 
-    let pkgJson: PackageJson | null = null
-    const pkgPath = join(fullPath, 'package.json')
-    if (existsSync(pkgPath)) {
-      try {
-        pkgJson = JSON.parse(readFileSync(pkgPath, 'utf-8'))
-      } catch { /* ignore */ }
+    const { isProject, pkgJson } = isProjectDir(fullPath)
+
+    if (isProject) {
+      const hasDockerCompose = existsSync(join(fullPath, 'docker-compose.yml')) ||
+                               existsSync(join(fullPath, 'docker-compose.yaml'))
+      const hasMakefile = existsSync(join(fullPath, 'Makefile'))
+
+      let runCommand = detectRunCommand(pkgJson, fullPath)
+      if (!runCommand && hasDockerCompose) runCommand = 'docker-compose up'
+      if (!runCommand && hasMakefile) runCommand = 'make'
+
+      projects.push({
+        id: randomUUID(),
+        name: pkgJson?.name || entry,
+        path: fullPath,
+        tags: [],
+        description: pkgJson?.description || '',
+        techStack: detectTechStack(pkgJson, fullPath),
+        runCommand,
+        port: detectPort(pkgJson, fullPath),
+        lastOpened: null,
+        hidden: false
+      })
+    } else {
+      scanRecursive(fullPath, depth + 1, maxDepth, projects)
     }
-
-    const hasDockerCompose = existsSync(join(fullPath, 'docker-compose.yml')) ||
-                             existsSync(join(fullPath, 'docker-compose.yaml'))
-    const hasMakefile = existsSync(join(fullPath, 'Makefile'))
-    const hasPython = existsSync(join(fullPath, 'requirements.txt')) ||
-                      existsSync(join(fullPath, 'pyproject.toml')) ||
-                      existsSync(join(fullPath, 'Pipfile'))
-    const hasSbt = existsSync(join(fullPath, 'build.sbt'))
-    const hasGradle = existsSync(join(fullPath, 'build.gradle')) ||
-                      existsSync(join(fullPath, 'build.gradle.kts'))
-    const hasMaven = existsSync(join(fullPath, 'pom.xml'))
-    const hasGo = existsSync(join(fullPath, 'go.mod'))
-    const hasRust = existsSync(join(fullPath, 'Cargo.toml'))
-    const hasRuby = existsSync(join(fullPath, 'Gemfile'))
-
-    // Only include projects that have something runnable
-    if (!pkgJson && !hasDockerCompose && !hasMakefile && !hasPython &&
-        !hasSbt && !hasGradle && !hasMaven && !hasGo && !hasRust && !hasRuby) continue
-
-    let runCommand = detectRunCommand(pkgJson, fullPath)
-    if (!runCommand && hasDockerCompose) runCommand = 'docker-compose up'
-    if (!runCommand && hasMakefile) runCommand = 'make'
-
-    projects.push({
-      id: randomUUID(),
-      name: pkgJson?.name || entry,
-      path: fullPath,
-      tags: [],
-      description: pkgJson?.description || '',
-      techStack: detectTechStack(pkgJson, fullPath),
-      runCommand,
-      port: detectPort(pkgJson, fullPath),
-      lastOpened: null,
-      hidden: false
-    })
   }
+}
 
+export function scanWorkspace(scanPath: string, maxDepth: number = DEFAULT_MAX_DEPTH): Project[] {
+  const projects: Project[] = []
+  scanRecursive(scanPath, 0, maxDepth, projects)
   return projects.sort((a, b) => a.name.localeCompare(b.name))
 }

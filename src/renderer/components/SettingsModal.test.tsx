@@ -4,6 +4,7 @@ import { SettingsModal } from './SettingsModal'
 
 const defaultProps = {
   currentPath: '/path',
+  currentScanDepth: 50,
   rtkEnabled: false,
   dangerousMode: false,
   onSave: vi.fn(),
@@ -23,6 +24,7 @@ describe('SettingsModal', () => {
     render(
       <SettingsModal
         currentPath="/Users/test/workspace"
+        currentScanDepth={50}
         rtkEnabled={false}
         dangerousMode={false}
         onSave={vi.fn()}
@@ -50,7 +52,7 @@ describe('SettingsModal', () => {
     const onSave = vi.fn()
     render(<SettingsModal {...defaultProps} onSave={onSave} />)
     fireEvent.click(screen.getByText('Save'))
-    expect(onSave).toHaveBeenCalledWith('/path', false, false)
+    expect(onSave).toHaveBeenCalledWith('/path', 50, false, false)
   })
 
   it('cancel button calls onClose', () => {
@@ -132,7 +134,7 @@ describe('SettingsModal', () => {
     fireEvent.change(input, { target: { value: 'I understand the risks' } })
     fireEvent.click(screen.getByText('Confirm'))
     fireEvent.click(screen.getByText('Save'))
-    expect(onSave).toHaveBeenCalledWith('/path', false, true)
+    expect(onSave).toHaveBeenCalledWith('/path', 50, false, true)
   })
 
   it('confirmation text is case-sensitive', () => {

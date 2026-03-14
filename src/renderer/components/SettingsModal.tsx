@@ -17,14 +17,18 @@ interface RtkGain {
 
 interface Props {
   currentPath: string
+  currentScanDepth: number
   rtkEnabled: boolean
   dangerousMode: boolean
-  onSave: (newPath: string, rtkEnabled: boolean, dangerousMode: boolean) => void
+  onSave: (newPath: string, scanDepth: number, rtkEnabled: boolean, dangerousMode: boolean) => void
   onClose: () => void
 }
 
-export function SettingsModal({ currentPath, rtkEnabled, dangerousMode, onSave, onClose }: Props) {
+const DEFAULT_SCAN_DEPTH = 50
+
+export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dangerousMode, onSave, onClose }: Props) {
   const [path, setPath] = useState(currentPath)
+  const [scanDepth, setScanDepth] = useState(currentScanDepth)
   const [rtk, setRtk] = useState(rtkEnabled)
   const [dangerous, setDangerous] = useState(dangerousMode)
   const [dangerousConfirm, setDangerousConfirm] = useState('')
@@ -76,7 +80,7 @@ export function SettingsModal({ currentPath, rtkEnabled, dangerousMode, onSave, 
 
   const handleSave = () => {
     if (path.trim()) {
-      onSave(path.trim(), rtk, dangerous)
+      onSave(path.trim(), scanDepth, rtk, dangerous)
     }
   }
 
@@ -154,6 +158,38 @@ export function SettingsModal({ currentPath, rtkEnabled, dangerousMode, onSave, 
             <button className="btn btn-sm" onClick={handleBrowse}>
               Browse
             </button>
+          </div>
+        </div>
+
+        {/* Scan depth */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
+            Scan Depth
+          </label>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+            How many directory levels deep to search for projects. Set to 1 for immediate children only.
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <input
+              type="range"
+              min={1}
+              max={50}
+              value={scanDepth}
+              onChange={(e) => setScanDepth(parseInt(e.target.value))}
+              style={{ flex: 1 }}
+            />
+            <input
+              className="search-input"
+              type="number"
+              min={1}
+              max={50}
+              value={scanDepth}
+              onChange={(e) => {
+                const v = parseInt(e.target.value)
+                if (v >= 1 && v <= 50) setScanDepth(v)
+              }}
+              style={{ width: 60, textAlign: 'center' }}
+            />
           </div>
         </div>
 

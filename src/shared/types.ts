@@ -22,6 +22,7 @@ export interface AppState {
   projects: Project[]
   tags: string[]
   scanPath: string
+  scanDepth?: number
   removedPaths?: string[]
   rtkEnabled?: boolean
   dangerousMode?: boolean
@@ -51,7 +52,7 @@ export interface WorkspaceFolder {
 }
 
 export type IpcChannels = {
-  'scan-workspace': { scanPath: string }
+  'scan-workspace': { scanPath: string; maxDepth?: number }
   'get-state': void
   'save-state': AppState
   'start-project': { projectId: string }

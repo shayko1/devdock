@@ -185,8 +185,8 @@ function setupIPC() {
     return true
   })
 
-  ipcMain.handle('scan-workspace', (_event, scanPath: string) => {
-    return scanWorkspace(scanPath)
+  ipcMain.handle('scan-workspace', (_event, scanPath: string, maxDepth?: number) => {
+    return scanWorkspace(scanPath, maxDepth)
   })
 
   ipcMain.handle('start-project', async (_event, project: Project) => {
