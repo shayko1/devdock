@@ -46,7 +46,12 @@ interface SlashCommand {
   cmd: string
   label: string
   desc: string
-  category: 'session' | 'info' | 'project' | 'review'
+  category: 'session' | 'info' | 'project' | 'review' | 'mcp' | 'custom'
+}
+
+interface McpServerInfo {
+  name: string
+  scope: string
 }
 
 const SLASH_COMMANDS: SlashCommand[] = [
@@ -145,7 +150,16 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
 
   // Custom skills/commands loaded from .claude/
   const [customSkills, setCustomSkills] = useState<SkillEntry[]>([])
+  const [mcpServers, setMcpServers] = useState<McpServerInfo[]>([])
   const skillsLoadedRef = useRef(false)
+
+  // New command creation
+  const [showNewCmd, setShowNewCmd] = useState(false)
+  const [newCmdName, setNewCmdName] = useState('')
+  const [newCmdContent, setNewCmdContent] = useState('')
+  const [newCmdScope, setNewCmdScope] = useState<'project' | 'user'>('project')
+  const [newCmdSaving, setNewCmdSaving] = useState(false)
+  const [newCmdError, setNewCmdError] = useState('')
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -171,10 +185,20 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     skillsLoadedRef.current = false
   }, [sessionId])
 
-  // Load custom skills & commands from .claude/
+  // Load custom skills, commands, and MCP server names
   useEffect(() => {
     if (skillsLoadedRef.current) return
     skillsLoadedRef.current = true
+    window.api.skillsList(rootPath).then(setCustomSkills).catch(() => {})
+    window.api.mcpGetConfig(rootPath).then(configs => {
+      const servers: McpServerInfo[] = configs.flatMap(cfg =>
+        Object.keys(cfg.servers).map(name => ({ name, scope: cfg.scope }))
+      )
+      setMcpServers(servers)
+    }).catch(() => {})
+  }, [rootPath])
+
+  const reloadSkills = useCallback(() => {
     window.api.skillsList(rootPath).then(setCustomSkills).catch(() => {})
   }, [rootPath])
 
@@ -384,21 +408,32 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     setAcType('none')
   }, [text, searchFilesByName])
 
-  // Build full commands list: built-in + custom skills/commands
+  // Build full commands list: built-in + custom skills + MCP servers
   const allCommands = useMemo(() => {
     const cmds: SlashCommand[] = [...SLASH_COMMANDS]
+
     for (const skill of customSkills) {
       const cmd = skill.name.startsWith('/') ? skill.name : `/${skill.name}`
       if (cmds.some(c => c.cmd === cmd)) continue
       cmds.push({
         cmd,
         label: cmd,
-        desc: skill.description || `Custom ${skill.scope} skill`,
-        category: 'project' as const,
+        desc: skill.description || `Custom ${skill.scope} command`,
+        category: 'custom' as const,
       })
     }
+
+    for (const srv of mcpServers) {
+      cmds.push({
+        cmd: `/mcp ${srv.name}`,
+        label: `/mcp ${srv.name}`,
+        desc: `MCP server (${srv.scope})`,
+        category: 'mcp' as const,
+      })
+    }
+
     return cmds
-  }, [customSkills])
+  }, [customSkills, mcpServers])
 
   // Filtered slash commands
   const filteredCommands = useMemo(() => {
@@ -513,6 +548,27 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     setShowCompactHint(false)
     compactDismissedRef.current = true
   }, [])
+
+  const handleCreateCommand = useCallback(async () => {
+    if (!newCmdName.trim() || !newCmdContent.trim()) return
+    setNewCmdSaving(true)
+    setNewCmdError('')
+    const result = await window.api.createCommand({
+      name: newCmdName.trim(),
+      content: newCmdContent.trim(),
+      scope: newCmdScope,
+      projectPath: rootPath,
+    })
+    setNewCmdSaving(false)
+    if (result.success) {
+      setShowNewCmd(false)
+      setNewCmdName('')
+      setNewCmdContent('')
+      reloadSkills()
+    } else {
+      setNewCmdError(result.error || 'Failed to create command')
+    }
+  }, [newCmdName, newCmdContent, newCmdScope, rootPath, reloadSkills])
 
   // Image handling
   const addImageFiles = useCallback((files: File[]) => {
@@ -641,7 +697,10 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
         {acType !== 'none' && (acItems.length > 0 || acType === 'file') && (
           <div className="chat-ac-popup" ref={acRef}>
             {acType === 'slash' && (
-              <div className="chat-ac-header">Commands</div>
+              <div className="chat-ac-header">
+                <span>Commands & Skills</span>
+                {mcpServers.length > 0 && <span className="chat-ac-breadcrumb">{mcpServers.length} MCP</span>}
+              </div>
             )}
             {acType === 'file' && (
               <div className="chat-ac-header">
@@ -659,8 +718,19 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
                 >
                   <span className="chat-ac-cmd">{cmd.cmd}</span>
                   <span className="chat-ac-desc">{cmd.desc}</span>
+                  {cmd.category === 'mcp' && <span className="chat-ac-badge mcp">MCP</span>}
+                  {cmd.category === 'custom' && <span className="chat-ac-badge custom">Custom</span>}
                 </button>
               ))}
+              {acType === 'slash' && (
+                <button
+                  className="chat-ac-item chat-ac-new-cmd"
+                  onClick={(e) => { e.stopPropagation(); setShowNewCmd(true); setAcType('none') }}
+                >
+                  <span className="chat-ac-cmd">+ New Command</span>
+                  <span className="chat-ac-desc">Create a custom slash command</span>
+                </button>
+              )}
               {acType === 'file' && fileResults.map((f, i) => (
                 <button
                   key={f.path}
@@ -682,6 +752,61 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
             </div>
             <div className="chat-ac-footer">
               <kbd>↑↓</kbd> navigate <kbd>Tab</kbd> select <kbd>Esc</kbd> close
+            </div>
+          </div>
+        )}
+
+        {/* New Command creation form */}
+        {showNewCmd && (
+          <div className="chat-ac-popup chat-new-cmd-form" ref={acRef}>
+            <div className="chat-ac-header">
+              <span>Create Custom Command</span>
+              <button className="chat-compact-hint-dismiss" onClick={() => setShowNewCmd(false)}>×</button>
+            </div>
+            <div className="chat-new-cmd-body">
+              <label className="mcp-label">Command name</label>
+              <input
+                className="mcp-input"
+                value={newCmdName}
+                onChange={e => setNewCmdName(e.target.value)}
+                placeholder="my-command (becomes /my-command)"
+                autoFocus
+              />
+              <label className="mcp-label">Prompt content <span className="mcp-label-hint">what Claude should do</span></label>
+              <textarea
+                className="mcp-input mcp-textarea"
+                value={newCmdContent}
+                onChange={e => setNewCmdContent(e.target.value)}
+                placeholder="Review the current code for security issues and suggest fixes.&#10;&#10;Use $ARGUMENTS for user input."
+                rows={5}
+              />
+              <label className="mcp-label">Scope</label>
+              <div className="mcp-type-switch">
+                <button
+                  className={`mcp-type-btn ${newCmdScope === 'project' ? 'active' : ''}`}
+                  onClick={() => setNewCmdScope('project')}
+                >
+                  Project
+                </button>
+                <button
+                  className={`mcp-type-btn ${newCmdScope === 'user' ? 'active' : ''}`}
+                  onClick={() => setNewCmdScope('user')}
+                >
+                  User (all projects)
+                </button>
+              </div>
+              {newCmdError && <div className="mcp-save-msg error">{newCmdError}</div>}
+              <div className="mcp-editor-actions">
+                <div style={{ flex: 1 }} />
+                <button className="btn btn-sm" onClick={() => setShowNewCmd(false)}>Cancel</button>
+                <button
+                  className="btn btn-sm btn-primary"
+                  onClick={handleCreateCommand}
+                  disabled={newCmdSaving || !newCmdName.trim() || !newCmdContent.trim()}
+                >
+                  {newCmdSaving ? 'Saving...' : 'Create'}
+                </button>
+              </div>
             </div>
           </div>
         )}

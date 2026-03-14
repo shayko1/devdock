@@ -983,6 +983,35 @@ function setupIPC() {
 
     return skills
   })
+
+  ipcMain.handle('create-command', (_event, opts: { name: string; content: string; scope: 'user' | 'project'; projectPath?: string }) => {
+    try {
+      const home = homedir()
+      const dir = opts.scope === 'user'
+        ? join(home, '.claude', 'commands')
+        : join(opts.projectPath || '', '.claude', 'commands')
+      mkdirSync(dir, { recursive: true })
+      const filename = opts.name.replace(/^\//, '').replace(/[^a-zA-Z0-9_-]/g, '-') + '.md'
+      const filePath = join(dir, filename)
+      if (existsSync(filePath)) {
+        return { success: false, error: 'Command already exists' }
+      }
+      writeFileSync(filePath, opts.content, 'utf-8')
+      return { success: true, path: filePath }
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  ipcMain.handle('delete-command', (_event, filePath: string) => {
+    try {
+      const { unlinkSync } = require('fs')
+      unlinkSync(filePath)
+      return { success: true }
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
 }
 
 app.whenReady().then(() => {

@@ -3083,6 +3083,71 @@ body {
   opacity: 0.7;
 }
 
+/* ─── Autocomplete category badges ─── */
+.chat-ac-badge {
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.chat-ac-badge.mcp {
+  background: var(--purple, #a371f7);
+  color: #fff;
+}
+
+.chat-ac-badge.custom {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ─── New command button in autocomplete ─── */
+.chat-ac-new-cmd {
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+  opacity: 0.75;
+}
+
+.chat-ac-new-cmd:hover {
+  opacity: 1;
+}
+
+.chat-ac-new-cmd .chat-ac-cmd {
+  color: var(--accent);
+}
+
+/* ─── New command creation form ─── */
+.chat-new-cmd-form {
+  max-height: 450px;
+}
+
+.chat-new-cmd-body {
+  padding: 8px 10px 10px;
+  overflow-y: auto;
+}
+
+.chat-new-cmd-body .mcp-label {
+  margin-top: 8px;
+}
+
+.chat-new-cmd-body .mcp-label:first-child {
+  margin-top: 0;
+}
+
+.chat-new-cmd-body .mcp-textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.chat-new-cmd-body .mcp-editor-actions {
+  margin-top: 10px;
+  padding-top: 8px;
+}
+
 /* Image thumbnails (upgraded from chips) */
 .chat-input-images {
   display: flex;

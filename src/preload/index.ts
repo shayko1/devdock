@@ -165,6 +165,10 @@ const api = {
     ipcRenderer.invoke('mcp-save-config', filePath, servers),
   skillsList: (projectPath?: string): Promise<{ name: string; scope: string; path: string; description: string }[]> =>
     ipcRenderer.invoke('skills-list', projectPath),
+  createCommand: (opts: { name: string; content: string; scope: 'user' | 'project'; projectPath?: string }): Promise<{ success: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke('create-command', opts),
+  deleteCommand: (filePath: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('delete-command', filePath),
 }
 
 contextBridge.exposeInMainWorld('api', api)
