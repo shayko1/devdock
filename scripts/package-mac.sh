@@ -73,6 +73,11 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
 </plist>
 PLIST
 
+# Remove macOS quarantine flags that block native modules
+xattr -dr com.apple.quarantine "$APP_DIR" 2>/dev/null || true
+# Ensure spawn-helper is executable
+chmod +x "$APP_DIR/Contents/Resources/app/node_modules/node-pty/build/Release/spawn-helper" 2>/dev/null || true
+
 echo ""
 echo "Done! $APP_NAME.app created at: $DIST_DIR/$APP_NAME.app"
 echo ""
