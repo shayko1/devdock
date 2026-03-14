@@ -13,6 +13,26 @@ const SCRIPTS_DIR = join(homedir(), '.claude', 'scripts')
 const LOGS_DIR = join(homedir(), '.claude', 'logs')
 const LAUNCH_AGENTS_DIR = join(homedir(), 'Library', 'LaunchAgents')
 
+let cachedShellEnv: Record<string, string> | null = null
+
+function getShellEnv(): Record<string, string> {
+  if (cachedShellEnv) return cachedShellEnv
+  try {
+    const raw = execSync('/bin/zsh -ilc "env"', {
+      encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore']
+    })
+    const env: Record<string, string> = {}
+    for (const line of raw.split('\n')) {
+      const eq = line.indexOf('=')
+      if (eq > 0) env[line.slice(0, eq)] = line.slice(eq + 1)
+    }
+    cachedShellEnv = env
+    return env
+  } catch {
+    return process.env as Record<string, string>
+  }
+}
+
 interface PlistData {
   Label?: string
   ProgramArguments?: string[]
@@ -86,13 +106,14 @@ function parseSchedule(plist: PlistData): AgentSchedule {
  */
 function extractScriptDir(args: string[]): string | null {
   if (!args || args.length < 2) return null
-  // The last arg is typically the script file — get its directory
-  const scriptFile = args[args.length - 1]
-  if (!scriptFile.includes('.claude/scripts')) return null
-  const dir = dirname(scriptFile)
-  // If the script is at the top level (e.g. polling_hub.py), skip it
-  if (dir === SCRIPTS_DIR) return null
-  return dir
+  // Find the arg that points to a script file in .claude/scripts
+  for (const arg of args) {
+    if (arg.includes('.claude/scripts') && !arg.startsWith('-')) {
+      const dir = dirname(arg)
+      if (dir !== SCRIPTS_DIR) return dir
+    }
+  }
+  return null
 }
 
 /**
@@ -363,10 +384,11 @@ export function getAgentLogs(agentId: string, logType: 'history' | 'stdout' = 'h
 }
 
 export function triggerAgent(agentId: string): { success: boolean; error?: string } {
-  // Find the agent's script dir from plists first
   let scriptDir: string | null = null
   let plistEnv: Record<string, string> = {}
+  let plistArgs: string[] | null = null
 
+  // Phase 1: Find agent via plist (preferred — has full command and env vars)
   try {
     const files = readdirSync(LAUNCH_AGENTS_DIR)
     for (const file of files) {
@@ -382,12 +404,13 @@ export function triggerAgent(agentId: string): { success: boolean; error?: strin
       if (deriveAgentId(dirName) === agentId || dirName === agentId) {
         scriptDir = dir
         plistEnv = plist.EnvironmentVariables || {}
+        plistArgs = plist.ProgramArguments
         break
       }
     }
   } catch { /* ignore */ }
 
-  // Fallback: try common directory patterns
+  // Phase 2: Fallback to common directory patterns
   if (!scriptDir) {
     const possibleDirs = [
       join(SCRIPTS_DIR, `billing-${agentId}`),
@@ -405,32 +428,42 @@ export function triggerAgent(agentId: string): { success: boolean; error?: strin
     return { success: false, error: 'Agent script directory not found' }
   }
 
-  // Find the python executable and main script
-  const venvPython = existsSync(join(scriptDir, '.venv', 'bin', 'python3'))
-    ? join(scriptDir, '.venv', 'bin', 'python3')
-    : join(SCRIPTS_DIR, '.venv', 'bin', 'python3') // shared venv
-
-  const mainScript = existsSync(join(scriptDir, 'main.py'))
-    ? join(scriptDir, 'main.py')
-    : existsSync(join(scriptDir, '__main__.py'))
-      ? join(scriptDir, '__main__.py')
-      : null
-
-  if (!mainScript) {
-    return { success: false, error: 'No main.py or __main__.py found' }
+  // Build environment: shell env + plist env (plist wins on conflicts)
+  const shellEnv = getShellEnv()
+  const env: Record<string, string> = {
+    ...shellEnv,
+    HOME: homedir(),
+    ...plistEnv
   }
 
-  if (!existsSync(venvPython)) {
-    return { success: false, error: 'Python virtual environment not found' }
+  // Determine command + args to run
+  let cmd: string
+  let args: string[]
+
+  if (plistArgs && plistArgs.length >= 2) {
+    // Use the plist's own ProgramArguments (most reliable)
+    cmd = plistArgs[0]
+    args = plistArgs.slice(1)
+  } else {
+    // Fallback: find python + main script
+    const venvPython = existsSync(join(scriptDir, '.venv', 'bin', 'python3'))
+      ? join(scriptDir, '.venv', 'bin', 'python3')
+      : join(SCRIPTS_DIR, '.venv', 'bin', 'python3')
+
+    const mainScript = existsSync(join(scriptDir, 'main.py'))
+      ? join(scriptDir, 'main.py')
+      : existsSync(join(scriptDir, '__main__.py'))
+        ? join(scriptDir, '__main__.py')
+        : null
+
+    if (!mainScript) return { success: false, error: 'No main.py or __main__.py found' }
+    if (!existsSync(venvPython)) return { success: false, error: 'Python virtual environment not found' }
+
+    cmd = venvPython
+    args = [mainScript]
   }
 
   try {
-    const env: Record<string, string> = {
-      PATH: '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin',
-      HOME: homedir(),
-      ...plistEnv
-    }
-
     const { spawn: spawnChild } = require('child_process')
     const fs = require('fs')
     const logDir = join(LOGS_DIR, agentId)
@@ -438,7 +471,7 @@ export function triggerAgent(agentId: string): { success: boolean; error?: strin
 
     const logFile = join(logDir, 'stdout.log')
     const fd = fs.openSync(logFile, 'a')
-    const child = spawnChild(venvPython, [mainScript], {
+    const child = spawnChild(cmd, args, {
       cwd: scriptDir,
       env,
       detached: true,
