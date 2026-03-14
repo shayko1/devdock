@@ -52,6 +52,29 @@ interface SessionBuffer {
 
 const MAX_BUFFER_CHARS = 8000
 const SILENCE_THRESHOLD_MS = 5000
+const SIMILARITY_THRESHOLD = 0.65
+
+function normalize(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim()
+}
+
+function wordSet(text: string): Set<string> {
+  return new Set(normalize(text).split(' ').filter(Boolean))
+}
+
+function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 && b.size === 0) return 1
+  let intersection = 0
+  for (const w of a) if (b.has(w)) intersection++
+  return intersection / (a.size + b.size - intersection)
+}
+
+function isSimilarSuggestion(a: CoachSuggestion, b: CoachSuggestion): boolean {
+  if (normalize(a.title) === normalize(b.title)) return true
+  const bodyA = wordSet(a.body + ' ' + (a.suggestion || ''))
+  const bodyB = wordSet(b.body + ' ' + (b.suggestion || ''))
+  return jaccardSimilarity(bodyA, bodyB) >= SIMILARITY_THRESHOLD
+}
 
 class CoachManager {
   private mainWindow: BrowserWindow | null = null
@@ -118,7 +141,12 @@ class CoachManager {
       const analysis = await this.callOpenAI(sessionId, text)
       if (analysis && analysis.suggestions.length > 0) {
         const existing = this.suggestions.get(sessionId) || []
-        this.suggestions.set(sessionId, [...existing, ...analysis.suggestions].slice(-20))
+        const deduped = analysis.suggestions.filter(
+          newSug => !existing.some(old => isSimilarSuggestion(old, newSug))
+        )
+        analysis.suggestions = deduped
+        if (deduped.length === 0) return
+        this.suggestions.set(sessionId, [...existing, ...deduped].slice(-20))
 
         // Track cost
         const cost = this.costs.get(sessionId) || { totalUsd: 0, calls: 0, promptTokens: 0, completionTokens: 0 }
@@ -143,11 +171,17 @@ class CoachManager {
   private async callOpenAI(sessionId: string, terminalContent: string): Promise<CoachAnalysis | null> {
     const truncated = terminalContent.slice(-4000)
 
+    const existing = this.suggestions.get(sessionId) || []
+    const recentTitles = existing.slice(-10).map(s => `- ${s.title}`).join('\n')
+    const avoidClause = recentTitles
+      ? `\n\nYou have ALREADY given these suggestions in this session — do NOT repeat or rephrase them:\n${recentTitles}\n\nOnly provide NEW, different insights.`
+      : ''
+
     const body = {
       model: this.config.model || DEFAULT_COACH_MODEL,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `Here is the recent terminal output from a Claude Code session. Analyze the latest exchange and provide suggestions.\n\n---\n${truncated}\n---` }
+        { role: 'user', content: `Here is the recent terminal output from a Claude Code session. Analyze the latest exchange and provide suggestions.${avoidClause}\n\n---\n${truncated}\n---` }
       ],
       temperature: 0.3,
       max_tokens: 600
