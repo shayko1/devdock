@@ -58,7 +58,6 @@ export function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [showNewSession, setShowNewSession] = useState(false)
   const [claudeSessions, setClaudeSessions] = useState<ClaudeSession[]>([])
-  const [orphanedSessions, setOrphanedSessions] = useState<ClaudeSession[]>([])
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light' | 'system'>(() => {
     return (localStorage.getItem('devdock-theme') as 'dark' | 'light' | 'system') || 'dark'
@@ -69,33 +68,63 @@ export function App() {
     localStorage.setItem('devdock-theme', theme)
   }, [theme])
 
-  // Persist sessions to localStorage
+  // Auto-resume sessions from persistent history on startup
+  const autoResumeRef = useRef(false)
   useEffect(() => {
-    if (claudeSessions.length > 0) {
-      localStorage.setItem('devdock-claude-sessions', JSON.stringify(claudeSessions))
-    } else {
-      localStorage.removeItem('devdock-claude-sessions')
-    }
-  }, [claudeSessions])
+    if (autoResumeRef.current) return
+    autoResumeRef.current = true
+    localStorage.removeItem('devdock-claude-sessions')
 
-  // On startup, check for sessions from previous run and offer to resume them
-  useEffect(() => {
-    const saved = localStorage.getItem('devdock-claude-sessions')
-    if (saved) {
-      try {
-        const sessions: ClaudeSession[] = JSON.parse(saved)
-        if (sessions.length > 0) {
-          setOrphanedSessions(sessions)
-        }
-      } catch { /* ignore bad data */ }
-      localStorage.removeItem('devdock-claude-sessions')
+    const restoreSessions = async () => {
+      const restorable = await window.api.sessionHistoryGetRestorable()
+      if (restorable.length === 0) return
+      setActiveTab('claude')
+      for (const rec of restorable) {
+        const newId = `claude-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`
+        try {
+          const result = await window.api.ptyCreate({
+            sessionId: newId,
+            folderName: rec.folderName,
+            folderPath: rec.folderPath,
+            useWorktree: false,
+            resumeClaudeId: rec.claudeSessionId || undefined,
+            existingWorktreePath: rec.worktreePath || undefined,
+            dangerousMode: rec.dangerousMode,
+          })
+          if (result.success) {
+            const restored: ClaudeSession = {
+              id: newId,
+              folderName: result.folderName || rec.folderName,
+              folderPath: rec.folderPath,
+              worktreePath: result.worktreePath ?? rec.worktreePath,
+              branchName: result.branchName ?? rec.branchName,
+              claudeSessionId: rec.claudeSessionId ?? null,
+              dangerousMode: rec.dangerousMode,
+            }
+            setClaudeSessions(prev => [...prev, restored])
+            window.api.sessionHistoryAdd({
+              id: newId,
+              claudeSessionId: rec.claudeSessionId,
+              folderName: rec.folderName,
+              folderPath: rec.folderPath,
+              worktreePath: rec.worktreePath,
+              branchName: rec.branchName,
+              dangerousMode: rec.dangerousMode,
+            })
+            // Remove old record, new one was created
+            window.api.sessionHistoryMarkClosed(rec.id)
+          }
+        } catch { /* skip failed sessions */ }
+      }
     }
+    restoreSessions()
   }, [])
 
-  // Listen for PTY exits to mark sessions
+  // Listen for PTY exits to mark sessions (keep in history for resume)
   useEffect(() => {
     const unsub = window.api.onPtyExit(({ sessionId }) => {
       setClaudeSessions(prev => prev.map(s => s.id === sessionId ? { ...s, exited: true } : s))
+      window.api.sessionHistoryMarkExited(sessionId)
     })
     return unsub
   }, [])
@@ -125,7 +154,18 @@ export function App() {
         setShowNewSession(false)
         setActiveTab('claude')
 
-        // Detect Claude's internal session ID after it starts (poll a few times)
+        // Save to persistent history
+        window.api.sessionHistoryAdd({
+          id: sessionId,
+          claudeSessionId: null,
+          folderName: newSession.folderName,
+          folderPath: newSession.folderPath,
+          worktreePath: newSession.worktreePath,
+          branchName: newSession.branchName,
+          dangerousMode: isDangerous,
+        })
+
+        // Detect Claude's internal session ID after it starts
         const cwd = result.worktreePath || folder.path
         const detectId = async () => {
           for (let attempt = 0; attempt < 6; attempt++) {
@@ -135,6 +175,7 @@ export function App() {
               setClaudeSessions(prev => prev.map(s =>
                 s.id === sessionId ? { ...s, claudeSessionId: claudeId } : s
               ))
+              window.api.sessionHistoryUpdateClaudeId(sessionId, claudeId)
               return
             }
           }
@@ -152,7 +193,6 @@ export function App() {
     const session = claudeSessions.find(s => s.id === sessionId)
     if (!session || !session.claudeSessionId) return
 
-    // Create a new PTY session that resumes the old Claude conversation
     const newPtyId = `claude-${Date.now().toString(36)}`
     try {
       const result = await window.api.ptyCreate({
@@ -165,20 +205,24 @@ export function App() {
         dangerousMode: session.dangerousMode
       })
       if (result.success) {
-        // Replace the exited session with the new resumed one
         setClaudeSessions(prev => prev.map(s =>
           s.id === sessionId
-            ? {
-                ...s,
-                id: newPtyId,
-                exited: false,
-                worktreePath: result.worktreePath ?? s.worktreePath,
-                branchName: result.branchName ?? s.branchName
-              }
+            ? { ...s, id: newPtyId, exited: false, worktreePath: result.worktreePath ?? s.worktreePath, branchName: result.branchName ?? s.branchName }
             : s
         ))
 
-        // Re-detect session ID after resume (it may create a new one)
+        // Mark old session closed, add new one
+        window.api.sessionHistoryMarkClosed(sessionId)
+        window.api.sessionHistoryAdd({
+          id: newPtyId,
+          claudeSessionId: session.claudeSessionId,
+          folderName: session.folderName,
+          folderPath: session.folderPath,
+          worktreePath: result.worktreePath ?? session.worktreePath,
+          branchName: result.branchName ?? session.branchName,
+          dangerousMode: session.dangerousMode,
+        })
+
         const cwd = session.worktreePath || session.folderPath
         const detectId = async () => {
           for (let attempt = 0; attempt < 6; attempt++) {
@@ -188,6 +232,7 @@ export function App() {
               setClaudeSessions(prev => prev.map(s =>
                 s.id === newPtyId ? { ...s, claudeSessionId: claudeId } : s
               ))
+              window.api.sessionHistoryUpdateClaudeId(newPtyId, claudeId)
               return
             }
           }
@@ -226,7 +271,16 @@ export function App() {
         setClaudeSessions(prev => [...prev, newSession])
         setActiveTab('claude')
 
-        // Detect Claude's internal session ID
+        window.api.sessionHistoryAdd({
+          id: sessionId,
+          claudeSessionId: null,
+          folderName: newSession.folderName,
+          folderPath: newSession.folderPath,
+          worktreePath: newSession.worktreePath,
+          branchName: newSession.branchName,
+          dangerousMode: isDangerous,
+        })
+
         const cwd = worktreePath
         const detectId = async () => {
           for (let attempt = 0; attempt < 6; attempt++) {
@@ -236,6 +290,7 @@ export function App() {
               setClaudeSessions(prev => prev.map(s =>
                 s.id === sessionId ? { ...s, claudeSessionId: claudeId } : s
               ))
+              window.api.sessionHistoryUpdateClaudeId(sessionId, claudeId)
               return
             }
           }
@@ -247,36 +302,52 @@ export function App() {
     }
   }, [state.dangerousMode])
 
-  const handleResumeAllSessions = useCallback(async (sessions: ClaudeSession[]) => {
-    setOrphanedSessions([])
-    setActiveTab('claude')
-    for (const session of sessions) {
-      const newSessionId = `claude-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`
-      try {
-        const result = await window.api.ptyCreate({
-          sessionId: newSessionId,
-          folderName: session.folderName,
-          folderPath: session.folderPath,
-          useWorktree: false,
-          resumeClaudeId: session.claudeSessionId || undefined,
-          existingWorktreePath: session.worktreePath || undefined,
-          dangerousMode: session.dangerousMode,
-        })
-        if (result.success) {
-          const restored: ClaudeSession = {
-            id: newSessionId,
-            folderName: result.folderName || session.folderName,
-            folderPath: session.folderPath,
-            worktreePath: result.worktreePath ?? session.worktreePath,
-            branchName: result.branchName ?? session.branchName,
-            claudeSessionId: session.claudeSessionId ?? null,
-            dangerousMode: session.dangerousMode,
-          }
-          setClaudeSessions(prev => [...prev, restored])
+  // Resume any session from history (called by SessionHistory panel)
+  const handleResumeFromHistory = useCallback(async (claudeSessionId: string, folderName: string, folderPath: string, worktreePath?: string | null) => {
+    // Check if already open
+    if (claudeSessions.some(s => s.claudeSessionId === claudeSessionId && !s.exited)) return
+
+    const newId = `claude-${Date.now().toString(36)}`
+    const isDangerous = state.dangerousMode ?? false
+    try {
+      const result = await window.api.ptyCreate({
+        sessionId: newId,
+        folderName,
+        folderPath,
+        useWorktree: false,
+        resumeClaudeId: claudeSessionId,
+        existingWorktreePath: worktreePath || undefined,
+        dangerousMode: isDangerous,
+      })
+      if (result.success) {
+        const newSession: ClaudeSession = {
+          id: newId,
+          folderName: result.folderName || folderName,
+          folderPath,
+          worktreePath: result.worktreePath ?? worktreePath ?? null,
+          branchName: result.branchName ?? null,
+          claudeSessionId,
+          dangerousMode: isDangerous,
         }
-      } catch { /* skip failed sessions */ }
+        setClaudeSessions(prev => [...prev, newSession])
+        setActiveTab('claude')
+
+        window.api.sessionHistoryAdd({
+          id: newId,
+          claudeSessionId,
+          folderName,
+          folderPath,
+          worktreePath: newSession.worktreePath,
+          branchName: newSession.branchName,
+          dangerousMode: isDangerous,
+        })
+      } else {
+        alert(`Failed to resume: ${result.error}`)
+      }
+    } catch (err) {
+      alert(`Error resuming from history: ${err}`)
     }
-  }, [])
+  }, [claudeSessions, state.dangerousMode])
 
   const handleCloseClaudeSession = useCallback(async (sessionId: string) => {
     const session = claudeSessions.find(s => s.id === sessionId)
@@ -294,6 +365,8 @@ export function App() {
       }
     }
 
+    // Mark as explicitly closed — will NOT auto-resume
+    window.api.sessionHistoryMarkClosed(sessionId)
     setClaudeSessions(prev => prev.filter(s => s.id !== sessionId))
   }, [claudeSessions])
 
@@ -508,6 +581,7 @@ export function App() {
           onNewSession={() => setShowNewSession(true)}
           onCloseSession={handleCloseClaudeSession}
           onResumeSession={handleResumeClaudeSession}
+          onResumeFromHistory={handleResumeFromHistory}
           onOpenPipelineSession={handleOpenPipelineSession}
         />
       ) : activeTab === 'folders' ? (
@@ -625,50 +699,6 @@ export function App() {
             setEditingProject(null)
           }}
         />
-      )}
-
-      {orphanedSessions.length > 0 && (
-        <div className="modal-overlay">
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
-            <h2>Resume Previous Sessions?</h2>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
-              DevDock found {orphanedSessions.length} Claude session{orphanedSessions.length > 1 ? 's' : ''} from your last run.
-            </p>
-            <div style={{ marginBottom: 16 }}>
-              {orphanedSessions.map(s => (
-                <div key={s.id} style={{ padding: '8px 10px', marginBottom: 6, borderRadius: 6, background: 'var(--bg-secondary)', fontSize: 12 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 2 }}>{s.folderName}</div>
-                  <div style={{ color: 'var(--text-muted)', display: 'flex', gap: 10 }}>
-                    {s.branchName && <span>⎇ {s.branchName.replace('devdock/claude-', '').slice(0, 20)}</span>}
-                    {s.claudeSessionId
-                      ? <span style={{ color: 'var(--green)' }}>✓ conversation saved</span>
-                      : <span>new session</span>
-                    }
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button className="btn btn-sm btn-danger" onClick={async () => {
-                for (const s of orphanedSessions) {
-                  if (s.worktreePath && s.folderPath) {
-                    await window.api.cleanupWorktree(s.worktreePath, s.folderPath)
-                  }
-                }
-                setOrphanedSessions([])
-                showToast('Sessions discarded', 'info')
-              }}>
-                Discard
-              </button>
-              <button className="btn btn-sm" onClick={() => setOrphanedSessions([])}>
-                Later
-              </button>
-              <button className="btn btn-sm btn-primary" onClick={() => handleResumeAllSessions(orphanedSessions)}>
-                Resume {orphanedSessions.length > 1 ? `All ${orphanedSessions.length}` : 'Session'}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {showNewSession && (

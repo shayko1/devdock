@@ -15,6 +15,7 @@ import { loadState, saveState } from './store'
 import { scanWorkspace } from './scanner'
 import { detectRtk, installRtkHook, uninstallRtkHook, getRtkGainStats, writeRtkWrapper, setSessionRtkDisabled, isSessionRtkDisabled, cleanupSessionRtkFlag } from './rtk-manager'
 import { coachManager } from './coach-manager'
+import { sessionHistory } from './session-history'
 import { AppState, Project, WorkspaceFolder } from '../shared/types'
 import { CoachConfig } from '../shared/coach-types'
 
@@ -1011,6 +1012,43 @@ function setupIPC() {
     } catch (err: unknown) {
       return { success: false, error: err instanceof Error ? err.message : String(err) }
     }
+  })
+
+  // Session History
+  ipcMain.handle('session-history-add', (_event, record: any) => {
+    sessionHistory.add(record)
+  })
+
+  ipcMain.handle('session-history-update-claude-id', (_event, id: string, claudeSessionId: string) => {
+    sessionHistory.updateClaudeSessionId(id, claudeSessionId)
+  })
+
+  ipcMain.handle('session-history-touch', (_event, id: string) => {
+    sessionHistory.touch(id)
+  })
+
+  ipcMain.handle('session-history-mark-closed', (_event, id: string) => {
+    sessionHistory.markClosed(id)
+  })
+
+  ipcMain.handle('session-history-mark-exited', (_event, id: string) => {
+    sessionHistory.markExited(id)
+  })
+
+  ipcMain.handle('session-history-get-restorable', () => {
+    return sessionHistory.getRestorableSessions()
+  })
+
+  ipcMain.handle('session-history-get-all', () => {
+    return sessionHistory.getHistory()
+  })
+
+  ipcMain.handle('session-history-scan-claude', (_event, folderPath: string) => {
+    return sessionHistory.scanClaudeSessions(folderPath)
+  })
+
+  ipcMain.handle('session-history-remove', (_event, id: string) => {
+    sessionHistory.remove(id)
   })
 }
 

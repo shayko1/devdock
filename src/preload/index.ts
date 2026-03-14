@@ -169,6 +169,26 @@ const api = {
     ipcRenderer.invoke('create-command', opts),
   deleteCommand: (filePath: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('delete-command', filePath),
+
+  // Session History
+  sessionHistoryAdd: (record: { id: string; claudeSessionId: string | null; folderName: string; folderPath: string; worktreePath: string | null; branchName: string | null; dangerousMode?: boolean }): Promise<void> =>
+    ipcRenderer.invoke('session-history-add', record),
+  sessionHistoryUpdateClaudeId: (id: string, claudeSessionId: string): Promise<void> =>
+    ipcRenderer.invoke('session-history-update-claude-id', id, claudeSessionId),
+  sessionHistoryTouch: (id: string): Promise<void> =>
+    ipcRenderer.invoke('session-history-touch', id),
+  sessionHistoryMarkClosed: (id: string): Promise<void> =>
+    ipcRenderer.invoke('session-history-mark-closed', id),
+  sessionHistoryMarkExited: (id: string): Promise<void> =>
+    ipcRenderer.invoke('session-history-mark-exited', id),
+  sessionHistoryGetRestorable: (): Promise<any[]> =>
+    ipcRenderer.invoke('session-history-get-restorable'),
+  sessionHistoryGetAll: (): Promise<any[]> =>
+    ipcRenderer.invoke('session-history-get-all'),
+  sessionHistoryScanClaude: (folderPath: string): Promise<{ claudeSessionId: string; mtime: number; size: number }[]> =>
+    ipcRenderer.invoke('session-history-scan-claude', folderPath),
+  sessionHistoryRemove: (id: string): Promise<void> =>
+    ipcRenderer.invoke('session-history-remove', id),
 }
 
 contextBridge.exposeInMainWorld('api', api)

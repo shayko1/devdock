@@ -3436,6 +3436,11 @@ body {
   border-color: var(--text-muted);
 }
 
+.mcp-card.active-session {
+  border-color: var(--green);
+  opacity: 0.7;
+}
+
 .mcp-card-row {
   display: flex;
   align-items: center;

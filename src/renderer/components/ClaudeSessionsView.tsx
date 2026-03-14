@@ -11,6 +11,19 @@ import { CoachPanel } from './CoachPanel'
 import { ChatInputBar } from './ChatInputBar'
 import { McpSkillsPanel } from './McpSkillsPanel'
 
+function formatTimeAgo(ts: number): string {
+  const diff = Date.now() - ts
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 30) return `${days}d ago`
+  const months = Math.floor(days / 30)
+  return `${months}mo ago`
+}
+
 interface Session {
   id: string
   folderName: string
@@ -22,6 +35,15 @@ interface Session {
   dangerousMode?: boolean
 }
 
+interface HistoryRecord {
+  claudeSessionId: string
+  folderName: string
+  folderPath: string
+  worktreePath: string | null
+  lastActiveAt: number
+  closedAt: number | null
+}
+
 interface Props {
   sessions: Session[]
   rtkEnabled: boolean
@@ -29,12 +51,13 @@ interface Props {
   onNewSession: () => void
   onCloseSession: (sessionId: string) => void
   onResumeSession: (sessionId: string) => void
+  onResumeFromHistory: (claudeSessionId: string, folderName: string, folderPath: string, worktreePath?: string | null) => void
   onOpenPipelineSession?: (folderName: string, folderPath: string, worktreePath: string) => void
 }
 
-type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'coach' | 'mcp'
+type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'coach' | 'mcp' | 'history'
 
-export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onNewSession, onCloseSession, onResumeSession, onOpenPipelineSession }: Props) {
+export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onNewSession, onCloseSession, onResumeSession, onResumeFromHistory, onOpenPipelineSession }: Props) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidePanel, setSidePanel] = useState<SidePanel>('none')
   const [viewingFile, setViewingFile] = useState<string | null>(null)
@@ -159,6 +182,32 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
     setSidePanel(prev => prev === 'mcp' ? 'none' : 'mcp')
     setViewingFile(null)
   }, [])
+
+  // Session history panel
+  const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+
+  const toggleHistory = useCallback(async () => {
+    if (sidePanel === 'history') {
+      setSidePanel('none')
+      return
+    }
+    setSidePanel('history')
+    setViewingFile(null)
+    setHistoryLoading(true)
+    try {
+      const all = await window.api.sessionHistoryGetAll()
+      setHistoryRecords(all.filter((r: any) => r.claudeSessionId).map((r: any) => ({
+        claudeSessionId: r.claudeSessionId,
+        folderName: r.folderName,
+        folderPath: r.folderPath,
+        worktreePath: r.worktreePath,
+        lastActiveAt: r.lastActiveAt,
+        closedAt: r.closedAt,
+      })))
+    } catch { setHistoryRecords([]) }
+    setHistoryLoading(false)
+  }, [sidePanel])
 
   const handleChatSend = useCallback((text: string) => {
     if (!activeSessionId) return
@@ -309,6 +358,14 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
           </button>
         )}
         <button
+          className={`btn btn-sm ${sidePanel === 'history' ? 'btn-accent' : ''}`}
+          onClick={toggleHistory}
+          title="Session history — resume past conversations"
+          style={{ marginRight: 4 }}
+        >
+          History
+        </button>
+        <button
           className={`btn btn-sm ${sidePanel === 'mcp' ? 'btn-accent' : ''}`}
           onClick={toggleMcp}
           title="MCP servers & Skills"
@@ -424,6 +481,58 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
                   onClose={() => setSidePanel('none')}
                   onWriteToTerminal={(text) => window.api.ptyWrite(activeSession.id, text)}
                 />
+              ) : sidePanel === 'history' ? (
+                <div className="mcp-panel">
+                  <div className="mcp-panel-header">
+                    <div className="mcp-panel-tabs">
+                      <span className="mcp-panel-tab active">Session History</span>
+                    </div>
+                    <button className="coach-close-btn" onClick={() => setSidePanel('none')} title="Close">×</button>
+                  </div>
+                  <div className="mcp-content">
+                    {historyLoading ? (
+                      <div className="mcp-empty">Loading...</div>
+                    ) : historyRecords.length === 0 ? (
+                      <div className="mcp-empty">
+                        <div style={{ fontSize: 18, marginBottom: 8 }}>&#128337;</div>
+                        <div>No session history yet.</div>
+                        <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                          Past conversations will appear here for up to 6 months.
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mcp-list">
+                        {historyRecords.map((rec) => {
+                          const isActive = sessions.some(s => s.claudeSessionId === rec.claudeSessionId && !s.exited)
+                          const ago = formatTimeAgo(rec.lastActiveAt)
+                          return (
+                            <div
+                              key={rec.claudeSessionId}
+                              className={`mcp-card ${isActive ? 'active-session' : ''}`}
+                              onClick={() => {
+                                if (!isActive) {
+                                  onResumeFromHistory(rec.claudeSessionId, rec.folderName, rec.folderPath, rec.worktreePath)
+                                }
+                              }}
+                              style={{ cursor: isActive ? 'default' : 'pointer' }}
+                            >
+                              <div className="mcp-card-row">
+                                <span className="mcp-card-name">{rec.folderName}</span>
+                                {isActive
+                                  ? <span className="mcp-badge" style={{ background: 'var(--green)' }}>Active</span>
+                                  : <span className="mcp-badge" style={{ background: 'var(--text-muted)' }}>Resume</span>
+                                }
+                              </div>
+                              <div className="mcp-card-detail">
+                                {ago} · {rec.claudeSessionId.slice(0, 8)}...
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
               ) : sidePanel === 'mcp' ? (
                 <McpSkillsPanel
                   projectPath={activeSession.worktreePath || activeSession.folderPath}
