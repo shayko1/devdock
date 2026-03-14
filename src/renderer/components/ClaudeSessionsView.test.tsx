@@ -220,7 +220,7 @@ describe('ClaudeSessionsView', () => {
     expect(screen.queryByText('UNSAFE')).not.toBeInTheDocument()
   })
 
-  it('dangerous session shows warning banner text', () => {
+  it('dangerous session shows warning indicator with tooltip', () => {
     const session = makeSession({
       id: 'danger',
       folderName: 'danger-folder',
@@ -235,9 +235,8 @@ describe('ClaudeSessionsView', () => {
         onResumeSession={vi.fn()}
       />
     )
-    expect(
-      screen.getByText(/DANGEROUS MODE — Claude executes commands without asking permission/)
-    ).toBeInTheDocument()
+    const indicators = screen.getAllByTitle(/Dangerous mode/)
+    expect(indicators.length).toBeGreaterThanOrEqual(1)
   })
 
   it('exited active session shows "Session ended" overlay', () => {

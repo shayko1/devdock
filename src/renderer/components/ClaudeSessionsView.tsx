@@ -335,20 +335,10 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, onNewSession, onClose
             >
               {session.dangerousMode && activeSessionId === session.id && (
                 <div style={{
-                  padding: '4px 12px',
-                  background: 'rgba(248, 81, 73, 0.15)',
-                  borderBottom: '1px solid rgba(248, 81, 73, 0.3)',
-                  fontSize: 11,
-                  color: '#f85149',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
+                  height: 3,
+                  background: 'linear-gradient(90deg, #f85149, #da3633)',
                   flexShrink: 0
-                }}>
-                  <span style={{ fontSize: 13 }}>&#9888;</span>
-                  DANGEROUS MODE — Claude executes commands without asking permission
-                </div>
+                }} title="Dangerous mode — Claude executes commands without asking permission" />
               )}
               <XTerminal
                 sessionId={session.id}
