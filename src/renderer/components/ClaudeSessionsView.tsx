@@ -376,74 +376,40 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
           +
         </button>
         <div style={{ flex: 1 }} />
-        {coachEnabled && (
-          <button
-            className={`btn btn-sm ${sidePanel === 'coach' ? 'btn-accent' : ''}`}
-            onClick={toggleCoach}
-            title="Prompt coach — suggestions to improve your prompts"
-            style={{ marginRight: 4, position: 'relative' }}
-          >
-            Coach
-            {coachBadge > 0 && sidePanel !== 'coach' && (
-              <span style={{
-                position: 'absolute', top: -4, right: -4,
-                background: 'var(--orange, #d29922)', color: '#000',
-                fontSize: 9, fontWeight: 700, borderRadius: 8,
-                padding: '1px 5px', minWidth: 14, textAlign: 'center'
-              }}>
-                {coachBadge}
-              </span>
-            )}
+        <div className="claude-toolbar-icons">
+          {coachEnabled && (
+            <button
+              className={`claude-tb-icon ${sidePanel === 'coach' ? 'active' : ''}`}
+              onClick={toggleCoach}
+              title="Coach"
+              style={{ position: 'relative' }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5A4.5 4.5 0 0 0 3.5 6c0 1.855 1.244 3.407 2.945 3.88.036.34.143.656.31.935A5.5 5.5 0 0 1 2.5 6a5.5 5.5 0 0 1 11 0 5.5 5.5 0 0 1-4.255 4.815c.167-.28.274-.595.31-.935C11.256 9.407 12.5 7.855 12.5 6A4.5 4.5 0 0 0 8 1.5zM6.5 12.5A1.5 1.5 0 0 1 8 11h0a1.5 1.5 0 0 1 0 3h0a1.5 1.5 0 0 1-1.5-1.5z"/></svg>
+              {coachBadge > 0 && sidePanel !== 'coach' && (
+                <span className="claude-tb-badge">{coachBadge}</span>
+              )}
+            </button>
+          )}
+          <button className={`claude-tb-icon ${sidePanel === 'history' ? 'active' : ''}`} onClick={toggleHistory} title="History">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM2.5 8a5.5 5.5 0 1 1 11 0 5.5 5.5 0 0 1-11 0zM8 5a.5.5 0 0 1 .5.5V8l2 1a.5.5 0 0 1-.5.87l-2.25-1.25A.5.5 0 0 1 7.5 8V5.5A.5.5 0 0 1 8 5z"/></svg>
           </button>
-        )}
-        <button
-          className={`btn btn-sm ${sidePanel === 'history' ? 'btn-accent' : ''}`}
-          onClick={toggleHistory}
-          title="Session history — resume past conversations"
-          style={{ marginRight: 4 }}
-        >
-          History
-        </button>
-        <button
-          className={`btn btn-sm ${sidePanel === 'mcp' ? 'btn-accent' : ''}`}
-          onClick={toggleMcp}
-          title="MCP servers & Skills"
-          style={{ marginRight: 4 }}
-        >
-          MCP
-        </button>
-        <button
-          className={`btn btn-sm ${sidePanel === 'pipeline' ? 'btn-accent' : ''}`}
-          onClick={togglePipeline}
-          title="Autonomous pipeline"
-          style={{ marginRight: 4 }}
-        >
-          Pipeline
-        </button>
-        <button
-          className={`btn btn-sm ${sidePanel === 'browser' ? 'btn-accent' : ''}`}
-          onClick={toggleBrowser}
-          title="Toggle embedded browser"
-          style={{ marginRight: 4 }}
-        >
-          Browser
-        </button>
-        <button
-          className={`btn btn-sm ${sidePanel === 'search' ? 'btn-accent' : ''}`}
-          onClick={toggleSearch}
-          title="Search in files"
-          style={{ marginRight: 4 }}
-        >
-          Search
-        </button>
-        <button
-          className={`btn btn-sm ${sidePanel !== 'none' && sidePanel !== 'search' ? 'btn-accent' : ''}`}
-          onClick={toggleFiles}
-          title="Toggle file explorer"
-          style={{ marginRight: 4 }}
-        >
-          Files
-        </button>
+          <button className={`claude-tb-icon ${sidePanel === 'mcp' ? 'active' : ''}`} onClick={toggleMcp} title="MCP & Skills">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M5 1a2 2 0 0 0-2 2v1H2a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h1v4a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9h1a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-1V3a2 2 0 0 0-2-2H5zm0 1h6a1 1 0 0 1 1 1v1H4V3a1 1 0 0 1 1-1zM2 5h12v3H2V5zm3 5h2v1H5v-1zm4 0h2v1H9v-1z"/></svg>
+          </button>
+          <span className="claude-tb-sep" />
+          <button className={`claude-tb-icon ${sidePanel === 'files' || sidePanel === 'file-view' || sidePanel === 'changes' ? 'active' : ''}`} onClick={toggleFiles} title="Files">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 2A1.5 1.5 0 0 0 0 3.5v2h3.5A1.5 1.5 0 0 1 5 7v.5h6V7a1.5 1.5 0 0 1 1.5-1.5H16v-2A1.5 1.5 0 0 0 14.5 2h-5l-1-1h-7zM0 7v5.5A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5V7h-3.5a.5.5 0 0 0-.5.5V9H5V7.5a.5.5 0 0 0-.5-.5H0z"/></svg>
+          </button>
+          <button className={`claude-tb-icon ${sidePanel === 'search' ? 'active' : ''}`} onClick={toggleSearch} title="Search">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/></svg>
+          </button>
+          <button className={`claude-tb-icon ${sidePanel === 'browser' ? 'active' : ''}`} onClick={toggleBrowser} title="Browser">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-6.5a6.5 6.5 0 0 0-5.58 3.18L5.5 8l-3.08 3.32A6.5 6.5 0 0 0 8 14.5 6.5 6.5 0 0 0 8 1.5zm.5 1.04V5h3.04A5.51 5.51 0 0 0 8.5 2.54zM12.46 6H8.5v2h4a5.48 5.48 0 0 0 0-2zM12.46 9H8.5v2h3.04a5.48 5.48 0 0 0 .92-2zM8.5 12v2.46A5.51 5.51 0 0 0 11.54 12H8.5z"/></svg>
+          </button>
+          <button className={`claude-tb-icon ${sidePanel === 'pipeline' ? 'active' : ''}`} onClick={togglePipeline} title="Pipeline">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M6 2a.5.5 0 0 1 .47.33L10 11.44l1.53-3.82A.5.5 0 0 1 12 7.33h3.5a.5.5 0 0 1 0 1H12.3l-1.83 4.58a.5.5 0 0 1-.94 0L6 3.56l-1.53 3.82A.5.5 0 0 1 4 7.67H.5a.5.5 0 0 1 0-1h3.2L5.53 2.1A.5.5 0 0 1 6 2z"/></svg>
+          </button>
+        </div>
       </div>
       {activeSession && (
         <SessionInfoBar

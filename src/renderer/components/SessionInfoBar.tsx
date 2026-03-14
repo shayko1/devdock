@@ -27,6 +27,7 @@ interface Props {
 export function SessionInfoBar({ folderName, folderPath, worktreePath, branchName, rtkAvailable, rtkDisabled, onToggleRtk, onShowDiff, onShowFiles }: Props) {
   const [git, setGit] = useState<GitStatus | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  const [showActions, setShowActions] = useState(false)
 
   const cwd = worktreePath || folderPath
 
@@ -52,7 +53,7 @@ export function SessionInfoBar({ folderName, folderPath, worktreePath, branchNam
   if (!git || !git.isGitRepo) return null
 
   const branch = branchName || git.branch
-  const shortBranch = branch && branch.length > 40 ? branch.slice(0, 37) + '...' : branch
+  const shortBranch = branch && branch.length > 35 ? branch.slice(0, 32) + '...' : branch
 
   return (
     <div className="session-info-bar">
@@ -68,30 +69,21 @@ export function SessionInfoBar({ folderName, folderPath, worktreePath, branchNam
             {copied === 'branch' && <span className="sib-copied">Copied</span>}
           </span>
         )}
-        {git.commitsAhead > 0 && (
-          <span className="sib-commits" title={`${git.commitsAhead} commits ahead of origin/${git.baseBranch}`}>
-            {git.commitsAhead} ahead
-          </span>
-        )}
-        {git.baseBranch && git.commitsAhead > 0 && (
-          <span className="sib-base">vs origin/{git.baseBranch}</span>
-        )}
       </div>
 
       <div className="sib-stats">
-        {git.filesChanged > 0 && (
-          <span className="sib-stat" title={`${git.filesChanged} files changed vs ${git.baseBranch}`}>
-            {git.filesChanged} files
+        {git.commitsAhead > 0 && (
+          <span className="sib-stat" title={`${git.commitsAhead} commits ahead of origin/${git.baseBranch}`}>
+            {git.commitsAhead} ahead
           </span>
         )}
-        {git.insertions > 0 && (
-          <span className="sib-stat sib-plus" title={`${git.insertions} lines added`}>+{git.insertions}</span>
-        )}
-        {git.deletions > 0 && (
-          <span className="sib-stat sib-minus" title={`${git.deletions} lines removed`}>-{git.deletions}</span>
+        {git.filesChanged > 0 && (
+          <span className="sib-stat sib-plus" title={`${git.filesChanged} files, +${git.insertions} -${git.deletions}`}>
+            {git.filesChanged} files <span className="sib-plus">+{git.insertions}</span> <span className="sib-minus">-{git.deletions}</span>
+          </span>
         )}
         {git.uncommitted > 0 && (
-          <span className="sib-stat sib-uncommitted" title={`${git.uncommitted} uncommitted files`}>
+          <span className="sib-stat sib-uncommitted" title={`${git.uncommitted} uncommitted`}>
             {git.uncommitted} uncommitted
           </span>
         )}
@@ -102,59 +94,44 @@ export function SessionInfoBar({ folderName, folderPath, worktreePath, branchNam
           <button
             className={`btn btn-sm ${!rtkDisabled ? 'sib-btn-rtk-on' : ''}`}
             onClick={onToggleRtk}
-            title={rtkDisabled ? 'RTK compression is OFF for this session — click to enable' : 'RTK compression is ON for this session — click to disable'}
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: '0.5px',
-              background: !rtkDisabled ? 'var(--green)' : undefined,
-              color: !rtkDisabled ? '#000' : undefined,
-            }}
+            title={rtkDisabled ? 'RTK OFF — click to enable' : 'RTK ON — click to disable'}
+            style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.5px', background: !rtkDisabled ? 'var(--green)' : undefined, color: !rtkDisabled ? '#000' : undefined }}
           >
-            RTK {rtkDisabled ? 'OFF' : 'ON'}
+            RTK
           </button>
         )}
-        <button className="btn btn-sm" onClick={onShowDiff} title="Show diff">
-          Show Diff
-        </button>
-        {git.uncommitted > 0 && (
-          <button className="btn btn-sm" onClick={onShowDiff} title="View uncommitted changes">
-            Uncommitted
+        {(git.filesChanged > 0 || git.uncommitted > 0) && (
+          <button className="btn btn-sm" onClick={onShowDiff} title="Show diff & changes">
+            Diff
           </button>
         )}
         {git.commitsAhead > 0 && git.remote && (
-          <button
-            className="btn btn-sm sib-btn-push"
-            onClick={() => copyToClipboard(`cd "${cwd}" && git push -u origin ${branch}`, 'push')}
-            title="Copy push command"
-          >
-            {copied === 'push' ? 'Copied!' : 'Push'}
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button
+              className="btn btn-sm sib-btn-push"
+              onClick={() => setShowActions(!showActions)}
+              title="Git actions"
+            >
+              Git ▾
+            </button>
+            {showActions && (
+              <div className="sib-dropdown" onMouseLeave={() => setShowActions(false)}>
+                <button onClick={() => { copyToClipboard(`cd "${cwd}" && git push -u origin ${branch}`, 'push'); setShowActions(false) }}>
+                  {copied === 'push' ? '✓ Copied!' : 'Copy: Push'}
+                </button>
+                <button onClick={() => { copyToClipboard(`cd "${cwd}" && git push -u origin ${branch} && gh pr create --fill`, 'pr'); setShowActions(false) }}>
+                  {copied === 'pr' ? '✓ Copied!' : 'Copy: Push & Create PR'}
+                </button>
+                {git.baseBranch && (
+                  <button onClick={() => { copyToClipboard(`cd "${folderPath}" && git merge ${branch}`, 'merge'); setShowActions(false) }}>
+                    {copied === 'merge' ? '✓ Copied!' : 'Copy: Merge to base'}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         )}
-        {git.commitsAhead > 0 && git.remote && (
-          <button
-            className="btn btn-sm sib-btn-pr"
-            onClick={() => copyToClipboard(`cd "${cwd}" && git push -u origin ${branch} && gh pr create --fill`, 'pr')}
-            title="Copy push & create PR command"
-          >
-            {copied === 'pr' ? 'Copied!' : 'Push & Create PR'}
-          </button>
-        )}
-        {git.baseBranch && git.commitsAhead > 0 && (
-          <button
-            className="btn btn-sm"
-            onClick={() => copyToClipboard(`cd "${folderPath}" && git merge ${branch}`, 'merge')}
-            title="Copy merge command to apply to base branch"
-          >
-            {copied === 'merge' ? 'Copied!' : 'Merge'}
-          </button>
-        )}
-        <button className="btn btn-sm" onClick={onShowFiles} title="Show files">
-          Files
-        </button>
-        <button className="btn btn-sm sib-btn-refresh" onClick={refresh} title="Refresh git status">
-          &#8635;
-        </button>
+        <button className="btn btn-sm sib-btn-refresh" onClick={refresh} title="Refresh">&#8635;</button>
       </div>
     </div>
   )

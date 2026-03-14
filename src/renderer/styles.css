@@ -1075,7 +1075,7 @@ body {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 6px 12px;
+  padding: 4px 8px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
   overflow-x: auto;
@@ -1200,6 +1200,91 @@ body {
   font-size: 16px !important;
   line-height: 1;
   padding: 2px 8px !important;
+}
+
+/* ─── Icon Toolbar ─── */
+.claude-toolbar-icons {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.claude-tb-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 26px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.1s, color 0.1s;
+}
+
+.claude-tb-icon:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.claude-tb-icon.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.claude-tb-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  background: var(--orange, #d29922);
+  color: #000;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 0 4px;
+  min-width: 14px;
+  text-align: center;
+  line-height: 14px;
+}
+
+.claude-tb-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+/* ─── Session Info Bar Git Dropdown ─── */
+.sib-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 100;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  min-width: 180px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.sib-dropdown button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  padding: 6px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sib-dropdown button:hover {
+  background: var(--bg-card-hover);
 }
 
 /* Session info bar */
