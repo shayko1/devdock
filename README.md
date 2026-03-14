@@ -1,310 +1,324 @@
+<div align="center">
+
+<img src="resources/icon.svg" width="128" height="128" alt="DevDock icon" />
+
 # DevDock
 
-A local project command center for macOS.
+**Your local project command center for macOS.**
 
-DevDock is an Electron desktop application that centralizes your development workflow. It lets you discover projects, run Claude CLI sessions with embedded terminals, manage automated agents, and control a real browser from the command line.
+Manage every project, terminal session, and AI agent from a single native desktop app.
+
+[![macOS](https://img.shields.io/badge/macOS-10.15%2B-000?logo=apple&logoColor=white)](https://github.com)
+[![Electron](https://img.shields.io/badge/Electron-33-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+</div>
+
+---
+
+<div align="center">
+<img src="docs/screenshots/launchpad-dark.png" width="860" alt="DevDock — Launchpad view showing project cards with tech stack, tags, and controls" />
+</div>
+
+## Why DevDock?
+
+Most developers juggle a dozen tools just to keep their projects running: one terminal here, a browser tab there, an IDE somewhere else, and a half-forgotten `localhost:3000` that is still bound to a dead process. DevDock replaces that chaos with a single window.
+
+- **See everything at a glance** — every project, its status, port, and tech stack on one screen
+- **Run Claude sessions with real terminals** — not a chat widget, a full `zsh` shell with `node-pty` and `xterm.js`
+- **Control a browser from the command line** — navigate, screenshot, click, and type through a `browser` CLI injected into every session
+- **Automate with agents** — discover and manage your scheduled Claude-powered scripts and LaunchAgents
+- **Stay in flow** — keyboard-first navigation, session persistence, git worktrees, and one-click IDE launching
 
 ---
 
 ## Features
 
-### Launchpad Tab
+### Launchpad
 
-Scans a configurable workspace directory for projects. Each project appears as a card showing:
+Scan any directory and instantly see every project as a card. Each card shows the detected tech stack, custom tags, configured port, and live status. Start, stop, view logs, and open in your favorite editor — all without leaving DevDock.
 
-- Name and detected tech stack
-- Tags for organization
-- Run command and port
-- Status (running, stopped, port in use)
+<details>
+<summary><strong>Screenshot — Launchpad with project grid</strong></summary>
+<br />
+<div align="center">
+<img src="docs/screenshots/launchpad-dark.png" width="800" alt="Launchpad tab with six projects showing tech stack badges, tags, and status" />
+</div>
+</details>
 
-You can start and stop projects, view logs, detect when ports are already in use, and open projects in Cursor, Zed, Terminal, or Finder.
+**Highlights:**
+- Auto-detects tech stack from `package.json`, `Cargo.toml`, `pyproject.toml`, and more
+- Filter by tags, running status, or free-text search (`Cmd+K`)
+- Detects externally running ports so you never wonder "is this already up?"
+- Bulk select, hide, or remove projects
+- One-click open in **Cursor**, **Zed**, **Terminal**, or **Finder**
 
-### All Folders Tab
+---
 
-Browse all folders in your workspace. Each folder shows its git branch and remote information. Open Claude sessions directly from any folder.
+### All Folders
 
-### Claude Tab
+Browse every folder in your workspace with git branch info, remote status, and modification time. Hover any row to reveal quick-launch buttons for Claude, Cursor, Zed, Terminal, and Finder.
 
-Embedded terminal sessions that run the Claude CLI (`claude --dangerously-skip-permissions`). Includes:
+<details>
+<summary><strong>Screenshot — All Folders with quick actions</strong></summary>
+<br />
+<div align="center">
+<img src="docs/screenshots/folders-hover.png" width="800" alt="All Folders tab showing folder list with git branches and one-click launch buttons" />
+</div>
+</details>
 
-- **Git worktrees** for isolated development per session
-- **Session resume** so you can pick up where you left off
-- **File explorer panel** for browsing and opening files
-- **Search panel** for finding content
-- **Embedded browser panel** for viewing web pages
-- **Diff viewer** for reviewing changes
-- **Pipeline automation** for autonomous task execution
+---
 
-### Agents Tab
+### Claude Sessions
 
-Scans `~/.claude/scripts` and macOS LaunchAgents for Claude-powered automated agents. Shows schedule, status, and logs. Lets you manually trigger agents.
+Embedded terminal sessions running the Claude CLI inside a real shell. Each session gets its own git worktree for isolated development and can be resumed at any time.
+
+**What makes this different from a plain terminal:**
+
+| Capability | Description |
+|---|---|
+| **Git worktrees** | Every session gets an isolated branch — no conflicts with your main work |
+| **Session resume** | Pick up exactly where you left off, even after quitting |
+| **File explorer** | Browse and open project files in a side panel |
+| **Search** | Find content across the session's working directory |
+| **Diff viewer** | Review all changes Claude made before committing |
+| **Browser panel** | View web pages inline without switching windows |
+| **Pipeline** | Autonomous task execution: plan → implement → validate → review |
+| **Prompt Coach** | Context-aware suggestions to get better results from Claude |
+
+---
+
+### Agents
+
+Automatically discovers Claude-powered agents from `~/.claude/scripts` and macOS LaunchAgents. View schedules, live status, cost tracking, and output logs. Trigger any agent manually with one click.
+
+<details>
+<summary><strong>Screenshot — Agents dashboard</strong></summary>
+<br />
+<div align="center">
+<img src="docs/screenshots/agents-tab.png" width="800" alt="Agents tab showing a grid of automated agents with status badges and logs" />
+</div>
+</details>
+
+---
 
 ### Browser Bridge
 
-DevDock injects a `browser` CLI command into Claude sessions. Claude can control a real browser window: navigate, take screenshots, click elements, type into inputs, and run JavaScript. This enables interactive web testing and inspection directly from terminal prompts.
-
-### Pipeline
-
-Autonomous task pipeline that creates git worktrees, runs Claude to implement tasks, then runs build and test steps for validation.
-
----
-
-## Prerequisites
-
-- **Node.js** 18 or later
-- **npm** (comes with Node.js)
-- **git**
-- **Claude CLI** — install via: `npm install -g @anthropic-ai/claude-code`
-- **macOS** 10.15 (Catalina) or later
-- **Xcode Command Line Tools** (may be required for `node-pty` native compilation)
-
----
-
-## Installation
-
-### Clone and Install
+DevDock injects a `browser` CLI command into every Claude session. This gives Claude (or you) direct control over a real browser window — no Puppeteer setup, no boilerplate.
 
 ```bash
-git clone <repository-url> project-launchpad
-cd project-launchpad
-npm install
+browser navigate https://localhost:3000    # open a page
+browser screenshot                         # capture what's on screen
+browser click '#submit-btn'                # click an element
+browser type '#email' hello@test.com       # type into an input
+browser text                               # get visible page text
+browser evaluate 'document.title'          # run arbitrary JS
 ```
 
-### Development Mode
+The browser window persists across commands and works with any local or remote URL. Screenshots are saved to disk so Claude can reference them.
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+| Requirement | Minimum |
+|---|---|
+| **macOS** | 10.15 Catalina |
+| **Node.js** | 18+ |
+| **git** | any recent version |
+| **Claude CLI** | `npm i -g @anthropic-ai/claude-code` |
+| **Xcode CLI Tools** | `xcode-select --install` (for native `node-pty` build) |
+
+### Install & Run
 
 ```bash
+# Clone
+git clone https://github.com/anthropics/devdock.git
+cd devdock
+
+# Install dependencies
+npm install
+
+# Run in development mode (hot reload)
 npm run dev
 ```
 
-Runs the app with hot reload. Changes to the renderer process reload automatically.
-
-### Production Build
+### Build & Package
 
 ```bash
+# Production build
 npm run build
-```
 
-Compiles the application to the `out/` directory.
-
-### Package as macOS Application
-
-```bash
+# Package as macOS .app
 npm run package
-```
 
-Creates `dist/DevDock.app`. To install system-wide:
-
-```bash
+# Install to Applications
 cp -R dist/DevDock.app /Applications/
 ```
-
-Then open DevDock from Spotlight or add it to your Dock.
-
-### Preview Built App
-
-```bash
-npm run start
-# or
-npm run preview
-```
-
-Runs the already-built application without packaging.
 
 ---
 
 ## First-Time Setup
 
-1. **Install Claude CLI** (if not already installed):
+1. **Install Claude CLI** if you haven't already:
    ```bash
    npm install -g @anthropic-ai/claude-code
    ```
 
-2. **Set your workspace path** in DevDock (Launchpad tab). The default is `~/Workspace`. DevDock will scan this directory for projects.
+2. **Set your workspace path** in the Launchpad tab (defaults to `~/Workspace`). DevDock scans this directory to discover projects.
 
-3. **Optional: Add agents** by placing scripts in `~/.claude/scripts` or configuring macOS LaunchAgents. DevDock will discover and list them in the Agents tab.
+3. **Click Scan** to populate the project grid. Projects are detected by the presence of `package.json`, `Cargo.toml`, `pyproject.toml`, and similar manifest files.
 
-4. **Ensure `claude` is on your PATH** so the embedded terminals can spawn Claude sessions.
-
----
-
-## Usage Guide
-
-### Launchpad Tab
-
-1. Set or change the scan path (default: `~/Workspace`).
-2. Click **Scan** to discover projects. Projects are detected by presence of `package.json`, `Cargo.toml`, and similar files.
-3. Edit a project to set its run command, port, and tags.
-4. Use **Start** to run the project; **Stop** to kill it.
-5. Use the action buttons to open in Cursor, Zed, Terminal, or Finder.
-6. Check logs in the log panel for running projects.
-
-### All Folders Tab
-
-1. Browse folders in your workspace.
-2. View git branch and remote for each folder.
-3. Click to open a Claude session in that folder.
-
-### Claude Tab
-
-1. Click **New Session** to create a session. Choose a name and working directory (or worktree).
-2. In the terminal, type normally — commands run in a real shell (`/bin/zsh -i`).
-3. To invoke Claude: run `claude` or use the prompt. DevDock auto-writes `CLAUDE.md` to the session directory with browser tool instructions.
-4. Use the side panels: File Explorer, Search, Changes (diff), and Browser.
-5. Sessions persist; resume from the tab list.
-
-### Agents Tab
-
-1. View discovered agents from `~/.claude/scripts` and LaunchAgents.
-2. See schedule and last run status.
-3. Trigger an agent manually with the run button.
-4. View logs for debugging.
-
-### Browser Bridge (inside Claude sessions)
-
-When running Claude inside a DevDock session, the `browser` command is injected into your PATH. Example usage:
-
-```bash
-browser open
-browser navigate https://localhost:3000
-browser screenshot
-browser click '#submit-btn'
-browser type '#email' hello@example.com
-browser text
-browser close
-```
+4. **Optional — add agents** by placing scripts in `~/.claude/scripts` or configuring macOS LaunchAgents. DevDock discovers and lists them automatically.
 
 ---
 
 ## Keyboard Shortcuts
 
-### General
-
 | Shortcut | Action |
-|----------|--------|
-| Cmd+K | Focus search (or clear terminal when in terminal) |
-| Cmd+1 | Switch to Launchpad tab |
-| Cmd+2 | Switch to All Folders tab |
-| Cmd+3 | Switch to Claude tab |
-| Cmd+4 | Switch to Agents tab |
-| Esc | Close modal / exit mode |
-| ? | Show shortcuts help |
-
-### Terminal (Claude sessions)
-
-| Shortcut | Action |
-|----------|--------|
-| Shift+Enter | New line in Claude prompt |
-| Cmd+K | Clear terminal |
-| Cmd+C (with selection) | Copy |
-| Cmd+V | Paste |
-| Cmd+A | Select all |
-| Cmd++ / Cmd+- / Cmd+0 | Zoom font size |
-
-You can also drag and drop images into the terminal to paste image paths for Claude.
+|---|---|
+| `Cmd+K` | Focus search / clear terminal |
+| `Cmd+1` | Launchpad tab |
+| `Cmd+2` | All Folders tab |
+| `Cmd+3` | Claude tab |
+| `Cmd+4` | Agents tab |
+| `Esc` | Close modal / exit mode |
+| `?` | Show shortcuts help |
+| `Cmd++ / Cmd+-` | Zoom terminal font |
+| Drag & drop images | Paste image paths into terminal |
 
 ---
 
-## Configuration
+## Architecture
 
-### Data Locations
+```
+src/
+├── main/                  # Electron main process
+│   ├── index.ts           # Window creation, IPC handlers
+│   ├── store.ts           # State persistence (JSON)
+│   ├── scanner.ts         # Project discovery & tech detection
+│   ├── process-manager.ts # Start/stop project processes
+│   ├── pty-manager.ts     # Terminal sessions via node-pty
+│   ├── pipeline-manager.ts# Autonomous task pipeline
+│   ├── browser-bridge.ts  # Browser control server
+│   └── agent-scanner.ts   # Agent discovery
+├── preload/
+│   └── index.ts           # IPC bridge (contextBridge)
+├── renderer/              # React UI
+│   ├── App.tsx
+│   ├── components/        # Launchpad, Claude, Agents, etc.
+│   └── hooks/             # Keyboard shortcuts, state
+└── shared/
+    └── types.ts           # Shared TypeScript interfaces
+```
+
+### Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Desktop runtime | Electron 33 |
+| UI framework | React 19 |
+| Language | TypeScript 5.7 |
+| Bundler | Vite 6 (via electron-vite) |
+| Terminal | xterm.js + node-pty |
+| Testing | Vitest + Playwright |
+
+---
+
+## Data & Configuration
 
 | Path | Purpose |
-|------|---------|
-| `~/Library/Application Support/devdock/state.json` | Persisted app state (projects, tags, scan path) |
-| `~/.devdock/worktrees/` | Git worktrees for Claude sessions and pipeline |
-| `~/.devdock/tmp-images/` | Temporary screenshots from the browser bridge |
-| `~/.devdock/browser` | Browser bridge CLI helper script (injected into Claude session PATH) |
-
-### Default Scan Path
-
-The default workspace scan path is `~/Workspace`. Change it in the Launchpad tab.
+|---|---|
+| `~/Library/Application Support/devdock/state.json` | Persisted app state |
+| `~/.devdock/worktrees/` | Git worktrees for sessions & pipeline |
+| `~/.devdock/tmp-images/` | Browser bridge screenshots |
+| `~/.devdock/browser` | CLI helper script (auto-injected into PATH) |
 
 ---
 
 ## Development
 
-### Project Structure
+```bash
+# Development with hot reload
+npm run dev
 
-```
-src/
-  main/           # Electron main process
-    index.ts       # Main entry, window creation, IPC
-    store.ts       # State persistence
-    scanner.ts     # Project discovery
-    process-manager.ts
-    pty-manager.ts # Terminal sessions (node-pty)
-    pipeline-manager.ts
-    browser-bridge.ts
-    agent-scanner.ts
-  preload/
-    index.ts       # IPC bridge (contextBridge)
-  renderer/        # React UI
-    App.tsx
-    components/
-    hooks/
-  shared/
-    types.ts       # Shared TypeScript types
+# Run unit tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
+
+# Run end-to-end tests
+npm run test:e2e
 ```
 
-### Tech Stack
-
-- **Electron** 33
-- **React** 19
-- **TypeScript** 5.7
-- **Vite** 6
-- **xterm.js** — terminal emulation
-- **node-pty** — pseudo-terminal spawning
-
-### Development Workflow
-
-1. Run `npm run dev` for hot-reload development.
-2. Main process changes require an app restart.
-3. Renderer changes reload automatically.
+Main process changes require an app restart. Renderer changes reload automatically.
 
 ---
 
 ## Troubleshooting
 
-### node-pty Fails to Build
+<details>
+<summary><strong>node-pty fails to build</strong></summary>
 
-`node-pty` requires native compilation. Install Xcode Command Line Tools:
+`node-pty` requires native compilation. Install Xcode Command Line Tools and reinstall:
 
 ```bash
 xcode-select --install
-```
-
-Then reinstall:
-
-```bash
 npm install
 ```
+</details>
 
-### Claude CLI Not Found
+<details>
+<summary><strong>Claude CLI not found</strong></summary>
 
-Ensure Claude is installed and on your PATH:
+Ensure Claude is installed globally and on your PATH:
 
 ```bash
 npm install -g @anthropic-ai/claude-code
 which claude
 ```
+</details>
 
-### Port Already in Use
+<details>
+<summary><strong>Port already in use</strong></summary>
 
-DevDock detects when a project's port is in use. Check the project card status. Stop the conflicting process or change the project's port in the edit modal.
+DevDock detects port conflicts automatically. Check the project card status indicator and stop the conflicting process or change the port in the edit modal.
+</details>
 
-### Browser Bridge Not Working
+<details>
+<summary><strong>Browser bridge not working</strong></summary>
 
-The `browser` command is only available inside DevDock Claude sessions. Ensure:
+The `browser` command is only available inside Claude sessions started from the Claude tab. Ensure you're in a DevDock-managed session where the PATH has been configured.
+</details>
 
-1. You are in a session started from the Claude tab.
-2. The session is using a working directory where DevDock has set up the PATH.
+<details>
+<summary><strong>Sessions not resuming</strong></summary>
 
-### Sessions Not Resuming
+State is stored in `~/Library/Application Support/devdock/`. Ensure this directory is writable and not being cleared by cleanup tools.
+</details>
 
-State is stored in `~/Library/Application Support/devdock/`. If sessions disappear, check that this directory is writable and not being cleared.
+---
+
+## Contributing
+
+Contributions are welcome. Please open an issue first to discuss what you'd like to change.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ---
 
 ## License
 
-MIT
+[MIT](LICENSE)
