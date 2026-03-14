@@ -79,14 +79,16 @@ Embedded terminal sessions running the Claude CLI inside a real shell. Each sess
 
 | Capability | Description |
 |---|---|
-| **Git worktrees** | Every session gets an isolated branch — no conflicts with your main work |
-| **Session resume** | Pick up exactly where you left off, even after quitting |
-| **File explorer** | Browse and open project files in a side panel |
-| **Search** | Find content across the session's working directory |
+| **Chat input bar** | Cursor-style input with `@` file mentions, `/` slash commands, model & effort selectors, image upload, and context usage tracking |
+| **Session history** | Browse, search, and resume past conversations with auto-generated titles and keyword tags — keeps 6 months of history |
+| **Auto-recap on resume** | Resuming a session automatically asks Claude to summarize what happened so you can pick up where you left off |
+| **Git worktrees** | Every session gets an isolated branch — no conflicts with your main work. Worktree sessions resume into the correct directory |
+| **File explorer & search** | Browse project files and search content in a unified side panel |
 | **Diff viewer** | Review all changes Claude made before committing |
+| **MCP & Skills panel** | View and manage MCP servers, skills, and custom commands |
 | **Browser panel** | View web pages inline without switching windows |
 | **Pipeline** | Autonomous task execution: plan → implement → validate → review |
-| **Prompt Coach** | Context-aware suggestions to get better results from Claude |
+| **Prompt Coach** | Context-aware suggestions to get better results from Claude (uses OpenAI, configurable) |
 
 ---
 
@@ -203,6 +205,8 @@ src/
 │   ├── scanner.ts         # Project discovery & tech detection
 │   ├── process-manager.ts # Start/stop project processes
 │   ├── pty-manager.ts     # Terminal sessions via node-pty
+│   ├── session-history.ts # Session persistence, history scanning, title extraction
+│   ├── coach-manager.ts   # Prompt Coach (AI-powered suggestions)
 │   ├── pipeline-manager.ts# Autonomous task pipeline
 │   ├── browser-bridge.ts  # Browser control server
 │   └── agent-scanner.ts   # Agent discovery
@@ -234,9 +238,12 @@ src/
 | Path | Purpose |
 |---|---|
 | `~/Library/Application Support/devdock/state.json` | Persisted app state |
+| `~/Library/Application Support/devdock/coach-config.json` | Prompt Coach configuration |
 | `~/.devdock/worktrees/` | Git worktrees for sessions & pipeline |
+| `~/.devdock/active-sessions.json` | Active session tracking for auto-resume |
 | `~/.devdock/tmp-images/` | Browser bridge screenshots |
 | `~/.devdock/browser` | CLI helper script (auto-injected into PATH) |
+| `~/.claude/projects/` | Claude Code session history (read-only, scanned for session history) |
 
 ---
 
@@ -302,7 +309,7 @@ The `browser` command is only available inside Claude sessions started from the 
 <details>
 <summary><strong>Sessions not resuming</strong></summary>
 
-State is stored in `~/Library/Application Support/devdock/`. Ensure this directory is writable and not being cleared by cleanup tools.
+Active sessions are tracked in `~/.devdock/active-sessions.json` and auto-resume on restart. Session history is read from Claude Code's own files in `~/.claude/projects/`. Ensure both paths are writable and not being cleared by cleanup tools.
 </details>
 
 ---

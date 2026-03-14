@@ -183,7 +183,7 @@ const api = {
   // Session history (Claude's own files)
   sessionHistoryScan: (folderPath: string, folderName: string): Promise<any[]> =>
     ipcRenderer.invoke('session-history-scan', folderPath, folderName),
-  sessionHistoryTitle: (claudeSessionId: string, dirName: string): Promise<string | null> =>
+  sessionHistoryTitle: (claudeSessionId: string, dirName: string): Promise<{ title: string; keywords: string[]; messageCount: number } | null> =>
     ipcRenderer.invoke('session-history-title', claudeSessionId, dirName),
 }
 

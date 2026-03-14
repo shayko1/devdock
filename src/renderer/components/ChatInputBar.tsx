@@ -402,8 +402,8 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     const cursor = textareaRef.current?.selectionStart ?? text.length
     const before = text.slice(0, cursor)
 
-    // Check for / at start of input
-    const slashMatch = before.match(/^\/(\S*)$/)
+    // Check for / command trigger — at start of input or after whitespace
+    const slashMatch = before.match(/(?:^|\s)\/(\S*)$/)
     if (slashMatch) {
       setAcType('slash')
       setAcQuery(slashMatch[1].toLowerCase())
@@ -491,7 +491,10 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     const after = text.slice(cursor)
 
     if (acType === 'slash') {
-      const newText = value + (value === '/model' || value === '/effort' || value === '/compact' || value === '/resume' || value === '/fork' || value === '/export' || value === '/simplify' ? ' ' : '') + after
+      const slashIdx = before.lastIndexOf('/')
+      const prefix = before.slice(0, slashIdx)
+      const suffix = value === '/model' || value === '/effort' || value === '/compact' || value === '/resume' || value === '/fork' || value === '/export' || value === '/simplify' ? ' ' : ''
+      const newText = prefix + value + suffix + after
       setText(newText)
       setAcType('none')
     } else if (acType === 'file') {

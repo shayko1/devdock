@@ -89,6 +89,12 @@ class CoachManager {
 
   setConfig(config: CoachConfig) {
     this.config = config
+    if (!this.isEnabled()) {
+      for (const [, buf] of this.buffers) {
+        if (buf.debounceTimer) clearTimeout(buf.debounceTimer)
+      }
+      this.buffers.clear()
+    }
   }
 
   getConfig(): CoachConfig {

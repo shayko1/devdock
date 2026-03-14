@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react'
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { XTerminal } from './XTerminal'
 import { FileExplorer } from './FileExplorer'
 import { FileViewer } from './FileViewer'
@@ -33,6 +33,7 @@ interface Session {
   exited?: boolean
   claudeSessionId?: string | null
   dangerousMode?: boolean
+  pendingRecap?: boolean
 }
 
 interface HistoryRecord {
@@ -42,9 +43,12 @@ interface HistoryRecord {
   dirName: string
   isWorktree: boolean
   branchHint: string | null
+  worktreePath: string | null
   mtime: number
   size: number
   title?: string | null
+  keywords?: string[]
+  messageCount?: number
 }
 
 interface Props {
@@ -120,6 +124,8 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
     })
   }, [rtkDisabledSessions])
 
+  const recapSentRef = useRef<Set<string>>(new Set())
+
   const handleWaitingChange = useCallback((sessionId: string, waiting: boolean) => {
     setWaitingSessions(prev => {
       const next = new Set(prev)
@@ -130,7 +136,19 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
       }
       return next
     })
-  }, [])
+
+    // Auto-send recap prompt when a resumed session becomes idle (ready for input)
+    if (waiting && !recapSentRef.current.has(sessionId)) {
+      const session = sessions.find(s => s.id === sessionId)
+      if (session?.pendingRecap) {
+        recapSentRef.current.add(sessionId)
+        setTimeout(() => {
+          const recapPrompt = 'Give me a brief recap of this conversation: what was the goal, what was done, what\'s the current state, and what are the next steps (if any). Be concise — bullet points are fine.'
+          window.api.ptyWrite(sessionId, recapPrompt + '\r')
+        }, 500)
+      }
+    }
+  }, [sessions])
 
   useEffect(() => {
     if (sessions.length === 0) {
@@ -161,17 +179,16 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
   }, [])
 
   const toggleFiles = useCallback(() => {
-    setSidePanel(prev => prev === 'none' ? 'files' : 'none')
+    setSidePanel(prev => {
+      if (prev === 'files' || prev === 'file-view' || prev === 'changes') return 'search'
+      if (prev === 'search') return 'none'
+      return 'files'
+    })
     setViewingFile(null)
   }, [])
 
   const handleShowChanges = useCallback(() => {
     setSidePanel('changes')
-    setViewingFile(null)
-  }, [])
-
-  const toggleSearch = useCallback(() => {
-    setSidePanel(prev => prev === 'search' ? 'none' : 'search')
     setViewingFile(null)
   }, [])
 
@@ -202,6 +219,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
   // Session history panel
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [historySearch, setHistorySearch] = useState('')
 
   const toggleHistory = useCallback(async () => {
     if (sidePanel === 'history') {
@@ -212,7 +230,6 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
     setViewingFile(null)
     setHistoryLoading(true)
     try {
-      // Scan Claude's actual session files for the active project
       const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0]
       if (activeSession) {
         const records: HistoryRecord[] = (await window.api.sessionHistoryScan(activeSession.folderPath, activeSession.folderName))
@@ -223,19 +240,24 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
             dirName: r.dirName,
             isWorktree: r.isWorktree,
             branchHint: r.branchHint,
+            worktreePath: r.worktreePath || null,
             mtime: r.mtime,
             size: r.size,
             title: null,
+            keywords: [],
+            messageCount: 0,
           }))
         setHistoryRecords(records)
-        // Load titles in background for recent sessions
-        for (let i = 0; i < Math.min(records.length, 40); i++) {
+        // Load titles + keywords in background
+        for (let i = 0; i < Math.min(records.length, 50); i++) {
           const rec = records[i]
           window.api.sessionHistoryTitle(rec.claudeSessionId, rec.dirName)
-            .then(title => {
-              if (title) {
+            .then(info => {
+              if (info) {
                 setHistoryRecords(prev => prev.map(r =>
-                  r.claudeSessionId === rec.claudeSessionId ? { ...r, title } : r
+                  r.claudeSessionId === rec.claudeSessionId
+                    ? { ...r, title: info.title, keywords: info.keywords, messageCount: info.messageCount }
+                    : r
                 ))
               }
             })
@@ -247,6 +269,19 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
     } catch { setHistoryRecords([]) }
     setHistoryLoading(false)
   }, [sidePanel, sessions, activeSessionId])
+
+  const filteredHistory = useMemo(() => {
+    if (!historySearch.trim()) return historyRecords
+    const q = historySearch.toLowerCase().trim()
+    return historyRecords.filter(r => {
+      if (r.title?.toLowerCase().includes(q)) return true
+      if (r.keywords?.some(k => k.toLowerCase().includes(q))) return true
+      if (r.branchHint?.toLowerCase().includes(q)) return true
+      if (r.folderName?.toLowerCase().includes(q)) return true
+      if (r.claudeSessionId?.includes(q)) return true
+      return false
+    })
+  }, [historyRecords, historySearch])
 
   const handleChatSend = useCallback((text: string) => {
     if (!activeSessionId) return
@@ -381,7 +416,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
             <button
               className={`claude-tb-icon ${sidePanel === 'coach' ? 'active' : ''}`}
               onClick={toggleCoach}
-              title="Coach"
+              title="Prompt Coach — AI suggestions to improve your prompts"
               style={{ position: 'relative' }}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5A4.5 4.5 0 0 0 3.5 6c0 1.855 1.244 3.407 2.945 3.88.036.34.143.656.31.935A5.5 5.5 0 0 1 2.5 6a5.5 5.5 0 0 1 11 0 5.5 5.5 0 0 1-4.255 4.815c.167-.28.274-.595.31-.935C11.256 9.407 12.5 7.855 12.5 6A4.5 4.5 0 0 0 8 1.5zM6.5 12.5A1.5 1.5 0 0 1 8 11h0a1.5 1.5 0 0 1 0 3h0a1.5 1.5 0 0 1-1.5-1.5z"/></svg>
@@ -390,23 +425,20 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
               )}
             </button>
           )}
-          <button className={`claude-tb-icon ${sidePanel === 'history' ? 'active' : ''}`} onClick={toggleHistory} title="History">
+          <button className={`claude-tb-icon ${sidePanel === 'history' ? 'active' : ''}`} onClick={toggleHistory} title="Session History — browse & resume past conversations">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM2.5 8a5.5 5.5 0 1 1 11 0 5.5 5.5 0 0 1-11 0zM8 5a.5.5 0 0 1 .5.5V8l2 1a.5.5 0 0 1-.5.87l-2.25-1.25A.5.5 0 0 1 7.5 8V5.5A.5.5 0 0 1 8 5z"/></svg>
           </button>
-          <button className={`claude-tb-icon ${sidePanel === 'mcp' ? 'active' : ''}`} onClick={toggleMcp} title="MCP & Skills">
+          <button className={`claude-tb-icon ${sidePanel === 'mcp' ? 'active' : ''}`} onClick={toggleMcp} title="MCP Servers & Skills — manage tools and commands">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M5 1a2 2 0 0 0-2 2v1H2a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h1v4a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9h1a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-1V3a2 2 0 0 0-2-2H5zm0 1h6a1 1 0 0 1 1 1v1H4V3a1 1 0 0 1 1-1zM2 5h12v3H2V5zm3 5h2v1H5v-1zm4 0h2v1H9v-1z"/></svg>
           </button>
           <span className="claude-tb-sep" />
-          <button className={`claude-tb-icon ${sidePanel === 'files' || sidePanel === 'file-view' || sidePanel === 'changes' ? 'active' : ''}`} onClick={toggleFiles} title="Files">
+          <button className={`claude-tb-icon ${sidePanel === 'files' || sidePanel === 'file-view' || sidePanel === 'changes' || sidePanel === 'search' ? 'active' : ''}`} onClick={toggleFiles} title="Files & Search — browse project files and search content (click to toggle)">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 2A1.5 1.5 0 0 0 0 3.5v2h3.5A1.5 1.5 0 0 1 5 7v.5h6V7a1.5 1.5 0 0 1 1.5-1.5H16v-2A1.5 1.5 0 0 0 14.5 2h-5l-1-1h-7zM0 7v5.5A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5V7h-3.5a.5.5 0 0 0-.5.5V9H5V7.5a.5.5 0 0 0-.5-.5H0z"/></svg>
           </button>
-          <button className={`claude-tb-icon ${sidePanel === 'search' ? 'active' : ''}`} onClick={toggleSearch} title="Search">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/></svg>
-          </button>
-          <button className={`claude-tb-icon ${sidePanel === 'browser' ? 'active' : ''}`} onClick={toggleBrowser} title="Browser">
+          <button className={`claude-tb-icon ${sidePanel === 'browser' ? 'active' : ''}`} onClick={toggleBrowser} title="Browser Preview — inspect web pages alongside your session">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-6.5a6.5 6.5 0 0 0-5.58 3.18L5.5 8l-3.08 3.32A6.5 6.5 0 0 0 8 14.5 6.5 6.5 0 0 0 8 1.5zm.5 1.04V5h3.04A5.51 5.51 0 0 0 8.5 2.54zM12.46 6H8.5v2h4a5.48 5.48 0 0 0 0-2zM12.46 9H8.5v2h3.04a5.48 5.48 0 0 0 .92-2zM8.5 12v2.46A5.51 5.51 0 0 0 11.54 12H8.5z"/></svg>
           </button>
-          <button className={`claude-tb-icon ${sidePanel === 'pipeline' ? 'active' : ''}`} onClick={togglePipeline} title="Pipeline">
+          <button className={`claude-tb-icon ${sidePanel === 'pipeline' ? 'active' : ''}`} onClick={togglePipeline} title="CI Pipeline — monitor build and deploy status">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M6 2a.5.5 0 0 1 .47.33L10 11.44l1.53-3.82A.5.5 0 0 1 12 7.33h3.5a.5.5 0 0 1 0 1H12.3l-1.83 4.58a.5.5 0 0 1-.94 0L6 3.56l-1.53 3.82A.5.5 0 0 1 4 7.67H.5a.5.5 0 0 1 0-1h3.2L5.53 2.1A.5.5 0 0 1 6 2z"/></svg>
           </button>
         </div>
@@ -491,54 +523,75 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
                   <div className="mcp-panel-header">
                     <div className="mcp-panel-tabs">
                       <span className="mcp-panel-tab active">
-                        Session History ({historyRecords.length})
+                        History ({filteredHistory.length}{historySearch ? ` / ${historyRecords.length}` : ''})
                       </span>
                     </div>
                     <button className="coach-close-btn" onClick={() => setSidePanel('none')} title="Close">×</button>
                   </div>
+                  <div className="history-search-wrap">
+                    <input
+                      className="history-search-input"
+                      type="text"
+                      placeholder="Search sessions by title, keyword, branch..."
+                      value={historySearch}
+                      onChange={e => setHistorySearch(e.target.value)}
+                      autoFocus
+                    />
+                    {historySearch && (
+                      <button className="history-search-clear" onClick={() => setHistorySearch('')}>×</button>
+                    )}
+                  </div>
                   <div className="mcp-content">
                     {historyLoading ? (
                       <div className="mcp-empty">Scanning sessions...</div>
-                    ) : historyRecords.length === 0 ? (
+                    ) : filteredHistory.length === 0 ? (
                       <div className="mcp-empty">
                         <div style={{ fontSize: 18, marginBottom: 8 }}>&#128337;</div>
-                        <div>No sessions found for this project.</div>
+                        <div>{historySearch ? 'No sessions match your search.' : 'No sessions found for this project.'}</div>
                         <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
-                          Conversations from the main branch and worktrees appear here.
+                          {historySearch
+                            ? 'Try different keywords or clear the search.'
+                            : 'Conversations from the main branch and worktrees appear here.'}
                         </div>
                       </div>
                     ) : (
                       <div className="mcp-list">
-                        {historyRecords.map((rec) => {
+                        {filteredHistory.map((rec) => {
                           const isActive = sessions.some(s => s.claudeSessionId === rec.claudeSessionId && !s.exited)
                           const ago = formatTimeAgo(rec.mtime)
-                          const sizeKb = Math.round(rec.size / 1024)
+                          const msgCount = rec.messageCount || 0
                           return (
                             <div
                               key={rec.claudeSessionId}
-                              className={`mcp-card ${isActive ? 'active-session' : ''}`}
+                              className={`mcp-card history-card ${isActive ? 'active-session' : ''}`}
                               onClick={() => {
                                 if (!isActive) {
-                                  onResumeFromHistory(rec.claudeSessionId, rec.folderName, rec.folderPath)
+                                  onResumeFromHistory(rec.claudeSessionId, rec.folderName, rec.folderPath, rec.worktreePath)
                                 }
                               }}
                               style={{ cursor: isActive ? 'default' : 'pointer' }}
                             >
-                              <div className="mcp-card-row">
-                                <span className="mcp-card-name" style={{ fontSize: 11 }}>
-                                  {rec.title || rec.claudeSessionId.slice(0, 8) + '...'}
-                                </span>
-                                {isActive
-                                  ? <span className="mcp-badge" style={{ background: 'var(--green)' }}>Active</span>
-                                  : rec.isWorktree
-                                    ? <span className="mcp-badge" style={{ background: 'var(--purple, #a371f7)' }}>Worktree</span>
-                                    : <span className="mcp-badge" style={{ background: 'var(--accent)' }}>Resume</span>
-                                }
+                              <div className="history-card-title">
+                                {rec.title || `Session ${rec.claudeSessionId.slice(0, 8)}`}
                               </div>
-                              <div className="mcp-card-detail">
-                                {ago} · {sizeKb}KB
-                                {rec.branchHint && <span> · {rec.branchHint.slice(0, 30)}</span>}
+                              <div className="history-card-meta">
+                                <span>{ago}</span>
+                                {msgCount > 0 && <span> · {msgCount} msgs</span>}
+                                {rec.branchHint && <span> · {rec.branchHint.slice(0, 25)}</span>}
+                                {isActive && <span className="history-badge-active">Active</span>}
+                                {!isActive && rec.isWorktree && <span className="history-badge-wt">WT</span>}
                               </div>
+                              {rec.keywords && rec.keywords.length > 0 && (
+                                <div className="history-card-keywords">
+                                  {rec.keywords.slice(0, 5).map(k => (
+                                    <span
+                                      key={k}
+                                      className="history-keyword"
+                                      onClick={(e) => { e.stopPropagation(); setHistorySearch(k) }}
+                                    >{k}</span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           )
                         })}

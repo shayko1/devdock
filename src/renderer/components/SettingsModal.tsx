@@ -369,7 +369,11 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
             </div>
             <button
               className={`btn btn-sm ${coachConfig.enabled ? 'btn-accent' : 'btn-primary'}`}
-              onClick={() => setCoachConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+              onClick={() => {
+                const next = { ...coachConfig, enabled: !coachConfig.enabled }
+                setCoachConfig(next)
+                window.api.coachSetConfig?.(next)
+              }}
               style={{ minWidth: 80 }}
             >
               {coachConfig.enabled ? 'Disable' : 'Enable'}

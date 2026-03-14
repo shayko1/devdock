@@ -25,6 +25,7 @@ interface ClaudeSession {
   exited?: boolean
   claudeSessionId?: string | null
   dangerousMode?: boolean
+  pendingRecap?: boolean
 }
 
 export function App() {
@@ -329,6 +330,7 @@ export function App() {
           branchName: result.branchName ?? null,
           claudeSessionId,
           dangerousMode: isDangerous,
+          pendingRecap: true,
         }
         setClaudeSessions(prev => [...prev, newSession])
         setActiveTab('claude')
@@ -526,7 +528,7 @@ export function App() {
         <div className="theme-switcher">
           <button className={`theme-btn ${theme === 'light' ? 'active' : ''}`} onClick={() => setTheme('light')} title="Light mode">☀</button>
           <button className={`theme-btn ${theme === 'dark' ? 'active' : ''}`} onClick={() => setTheme('dark')} title="Dark mode">☾</button>
-          <button className={`theme-btn ${theme === 'system' ? 'active' : ''}`} onClick={() => setTheme('system')} title="System mode">⚙</button>
+          <button className={`theme-btn ${theme === 'system' ? 'active' : ''}`} onClick={() => setTheme('system')} title="Auto (system)">◐</button>
           <button
             className="theme-btn"
             onClick={() => setShowSettings(true)}
