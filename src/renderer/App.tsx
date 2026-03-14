@@ -504,6 +504,7 @@ export function App() {
         <ClaudeSessionsView
           sessions={claudeSessions}
           rtkEnabled={state.rtkEnabled ?? false}
+          chatInputEnabled={state.chatInputEnabled ?? true}
           onNewSession={() => setShowNewSession(true)}
           onCloseSession={handleCloseClaudeSession}
           onResumeSession={handleResumeClaudeSession}
@@ -686,8 +687,9 @@ export function App() {
           currentScanDepth={state.scanDepth ?? 50}
           rtkEnabled={state.rtkEnabled ?? false}
           dangerousMode={state.dangerousMode ?? false}
-          onSave={(newPath, scanDepth, rtkEnabled, dangerousMode) => {
-            persist({ ...state, scanPath: newPath, scanDepth, rtkEnabled, dangerousMode })
+          chatInputEnabled={state.chatInputEnabled ?? true}
+          onSave={(newPath, scanDepth, rtkEnabled, dangerousMode, chatInputEnabled) => {
+            persist({ ...state, scanPath: newPath, scanDepth, rtkEnabled, dangerousMode, chatInputEnabled })
             setShowSettings(false)
           }}
           onClose={() => setShowSettings(false)}

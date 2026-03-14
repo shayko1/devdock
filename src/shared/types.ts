@@ -26,6 +26,7 @@ export interface AppState {
   removedPaths?: string[]
   rtkEnabled?: boolean
   dangerousMode?: boolean
+  chatInputEnabled?: boolean
 }
 
 export interface ProcessStatus {

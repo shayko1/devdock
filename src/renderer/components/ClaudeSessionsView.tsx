@@ -8,6 +8,7 @@ import { BrowserView } from './BrowserView'
 import { PipelineView } from './PipelineView'
 import { SessionInfoBar } from './SessionInfoBar'
 import { CoachPanel } from './CoachPanel'
+import { ChatInputBar } from './ChatInputBar'
 
 interface Session {
   id: string
@@ -23,6 +24,7 @@ interface Session {
 interface Props {
   sessions: Session[]
   rtkEnabled: boolean
+  chatInputEnabled: boolean
   onNewSession: () => void
   onCloseSession: (sessionId: string) => void
   onResumeSession: (sessionId: string) => void
@@ -31,7 +33,7 @@ interface Props {
 
 type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'coach'
 
-export function ClaudeSessionsView({ sessions, rtkEnabled, onNewSession, onCloseSession, onResumeSession, onOpenPipelineSession }: Props) {
+export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onNewSession, onCloseSession, onResumeSession, onOpenPipelineSession }: Props) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidePanel, setSidePanel] = useState<SidePanel>('none')
   const [viewingFile, setViewingFile] = useState<string | null>(null)
@@ -151,6 +153,27 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, onNewSession, onClose
     })
     setViewingFile(null)
   }, [])
+
+  const handleChatSend = useCallback((text: string) => {
+    if (!activeSessionId) return
+    const escaped = text.includes('\n')
+      ? `\x1b[200~${text}\x1b[201~`
+      : text
+    window.api.ptyWrite(activeSessionId, escaped + '\r')
+  }, [activeSessionId])
+
+  const handleChatImageUpload = useCallback(async (file: File) => {
+    if (!activeSessionId) return
+    const buffer = await file.arrayBuffer()
+    const result = await window.api.saveTempImage({
+      name: file.name,
+      data: Array.from(new Uint8Array(buffer)),
+      sessionId: activeSessionId,
+    })
+    if (result.path) {
+      window.api.ptyWrite(activeSessionId, result.path)
+    }
+  }, [activeSessionId])
 
   // Drag resize logic
   const onDragStart = useCallback((e: React.MouseEvent) => {
@@ -330,7 +353,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, onNewSession, onClose
           {sessions.map((session) => (
             <div
               key={session.id}
-              className="claude-session-terminal-wrapper"
+              className={`claude-session-terminal-wrapper ${chatInputEnabled ? 'with-chat-input' : ''}`}
               style={{ display: activeSessionId === session.id ? 'flex' : 'none', flex: 1, minHeight: 0 }}
             >
               {session.dangerousMode && activeSessionId === session.id && (
@@ -345,6 +368,14 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, onNewSession, onClose
                 active={activeSessionId === session.id}
                 onWaitingChange={(waiting) => handleWaitingChange(session.id, waiting)}
               />
+              {chatInputEnabled && activeSessionId === session.id && !session.exited && (
+                <ChatInputBar
+                  sessionId={session.id}
+                  onSend={handleChatSend}
+                  onImageUpload={handleChatImageUpload}
+                  disabled={session.exited}
+                />
+              )}
               {session.exited && activeSessionId === session.id && (
                 <div className="claude-session-exited-overlay">
                   <div className="claude-session-exited-msg">Session ended</div>

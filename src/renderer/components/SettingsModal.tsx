@@ -20,17 +20,19 @@ interface Props {
   currentScanDepth: number
   rtkEnabled: boolean
   dangerousMode: boolean
-  onSave: (newPath: string, scanDepth: number, rtkEnabled: boolean, dangerousMode: boolean) => void
+  chatInputEnabled: boolean
+  onSave: (newPath: string, scanDepth: number, rtkEnabled: boolean, dangerousMode: boolean, chatInputEnabled: boolean) => void
   onClose: () => void
 }
 
 const DEFAULT_SCAN_DEPTH = 50
 
-export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dangerousMode, onSave, onClose }: Props) {
+export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dangerousMode, chatInputEnabled, onSave, onClose }: Props) {
   const [path, setPath] = useState(currentPath)
   const [scanDepth, setScanDepth] = useState(currentScanDepth)
   const [rtk, setRtk] = useState(rtkEnabled)
   const [dangerous, setDangerous] = useState(dangerousMode)
+  const [chatInput, setChatInput] = useState(chatInputEnabled)
   const [dangerousConfirm, setDangerousConfirm] = useState('')
   const [showDangerousConfirm, setShowDangerousConfirm] = useState(false)
   const [rtkStatus, setRtkStatus] = useState<RtkStatus | null>(null)
@@ -80,7 +82,7 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
 
   const handleSave = () => {
     if (path.trim()) {
-      onSave(path.trim(), scanDepth, rtk, dangerous)
+      onSave(path.trim(), scanDepth, rtk, dangerous, chatInput)
     }
   }
 
@@ -191,6 +193,41 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
               style={{ width: 60, textAlign: 'center' }}
             />
           </div>
+        </div>
+
+        {/* Chat Input Mode section */}
+        <div style={{
+          marginBottom: 20,
+          padding: 14,
+          borderRadius: 8,
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                Chat Input Bar
+              </label>
+              <span style={{
+                marginLeft: 8, fontSize: 10, padding: '1px 6px', borderRadius: 4,
+                background: chatInput ? 'var(--green)' : 'var(--text-muted)',
+                color: '#000', fontWeight: 600
+              }}>
+                {chatInput ? 'ON' : 'OFF'}
+              </span>
+            </div>
+            <button
+              className={`btn btn-sm ${chatInput ? 'btn-accent' : 'btn-primary'}`}
+              onClick={() => setChatInput(!chatInput)}
+              style={{ minWidth: 80 }}
+            >
+              {chatInput ? 'Disable' : 'Enable'}
+            </button>
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+            Show a Cursor-style input bar below the terminal with mode/model selectors, image upload,
+            and context indicator. You can still type directly in the terminal when this is on.
+          </p>
         </div>
 
         {/* RTK section */}
