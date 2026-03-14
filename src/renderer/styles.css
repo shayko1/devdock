@@ -2912,19 +2912,33 @@ body {
 
 /* (Image thumbnails moved to bottom of chat section) */
 
+/* Session cost */
+.chat-input-cost {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+}
+
 /* Context bar */
 .chat-input-context {
   display: flex;
   align-items: center;
   gap: 5px;
   cursor: default;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
 }
 
 .chat-input-context-bar {
-  width: 48px;
+  width: 40px;
   height: 4px;
   border-radius: 2px;
-  background: var(--bg-tertiary);
+  background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
 }
 
@@ -2936,9 +2950,16 @@ body {
 
 .chat-input-context-label {
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
-  min-width: 24px;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  white-space: nowrap;
+}
+
+.chat-input-context-sep {
+  color: var(--text-muted);
+  margin: 0 1px;
+  opacity: 0.5;
 }
 
 /* Hint */

@@ -59,6 +59,14 @@ interface FileEntry {
   relativePath: string
 }
 
+const CONTEXT_WINDOW_SIZE = 200_000 // 200k tokens for most Claude models
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+  return String(n)
+}
+
 export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disabled }: Props) {
   const [text, setText] = useState('')
   const [mode, setMode] = useState<Mode>('agent')
@@ -66,7 +74,14 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
   const [images, setImages] = useState<{ name: string; file: File; preview: string }[]>([])
   const [showModeMenu, setShowModeMenu] = useState(false)
   const [showModelMenu, setShowModelMenu] = useState(false)
+
+  // Context tracking
+  const [contextUsedTokens, setContextUsedTokens] = useState(0)
+  const [contextMaxTokens, setContextMaxTokens] = useState(CONTEXT_WINDOW_SIZE)
   const [contextPercent, setContextPercent] = useState(0)
+  const [contextSource, setContextSource] = useState<'parsed' | 'estimated'>('estimated')
+  const [sessionCost, setSessionCost] = useState(0)
+  const charCountRef = useRef(0)
 
   // Autocomplete state
   const [acType, setAcType] = useState<'none' | 'slash' | 'file'>('none')
@@ -83,23 +98,84 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
   const acRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    setContextUsedTokens(0)
+    setContextMaxTokens(CONTEXT_WINDOW_SIZE)
     setContextPercent(0)
+    setContextSource('estimated')
+    setSessionCost(0)
+    charCountRef.current = 0
     setText('')
     setImages([])
     setAcType('none')
   }, [sessionId])
 
-  // Track rough context from PTY volume, reset on /clear or /compact
+  // Track context from PTY data — parse real numbers when available, estimate otherwise
   useEffect(() => {
+    // Strip ANSI escapes for reliable text matching
+    const strip = (s: string) => s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '')
+
     const unsub = window.api.onPtyData(({ sessionId: sid, data }) => {
       if (sid !== sessionId) return
-      setContextPercent(prev => Math.min(95, prev + 0.05))
-      if (data.includes('Conversation has been') || data.includes('Context cleared')) {
+      const clean = strip(data)
+
+      // Try to parse actual context percentage from Claude Code output
+      // Patterns: "XX% context", "XX% of context", "used_percentage: XX"
+      const pctMatch = clean.match(/(\d+(?:\.\d+)?)\s*%\s*(?:of\s+)?context/i)
+        || clean.match(/used_percentage[:\s]+(\d+(?:\.\d+)?)/i)
+        || clean.match(/Context:\s*(\d+(?:\.\d+)?)\s*%/i)
+      if (pctMatch) {
+        const pct = parseFloat(pctMatch[1])
+        if (pct >= 0 && pct <= 100) {
+          setContextPercent(pct)
+          setContextUsedTokens(Math.round((pct / 100) * contextMaxTokens))
+          setContextSource('parsed')
+        }
+      }
+
+      // Parse token counts: "XXk/200k tokens" or "XX,XXX / 200,000"
+      const tokenMatch = clean.match(/([\d,.]+)\s*[kK]?\s*\/\s*([\d,.]+)\s*[kK]?\s*(?:tokens?)?/i)
+      if (tokenMatch) {
+        const parse = (s: string): number => {
+          const n = parseFloat(s.replace(/,/g, ''))
+          return s.toLowerCase().includes('k') ? n * 1000 : n
+        }
+        const used = parse(tokenMatch[1])
+        const max = parse(tokenMatch[2])
+        if (used > 0 && max > 0 && max >= 10000) {
+          setContextUsedTokens(Math.round(used))
+          setContextMaxTokens(Math.round(max))
+          setContextPercent(Math.round((used / max) * 100))
+          setContextSource('parsed')
+        }
+      }
+
+      // Parse cost: "$X.XXXX" or "cost: $X.XX"
+      const costMatch = clean.match(/\$(\d+\.\d{2,5})/i)
+      if (costMatch) {
+        const cost = parseFloat(costMatch[1])
+        if (cost > 0 && cost < 100) setSessionCost(cost)
+      }
+
+      // Detect clear/compact resets
+      if (clean.includes('Conversation has been') || clean.includes('Context cleared') || clean.includes('conversation cleared')) {
+        setContextUsedTokens(0)
         setContextPercent(2)
+        setContextSource('estimated')
+        charCountRef.current = 0
+        return
+      }
+
+      // Fallback: estimate from character volume (~4 chars per token)
+      charCountRef.current += data.length
+      if (contextSource === 'estimated') {
+        const estTokens = Math.round(charCountRef.current / 4)
+        const estPct = Math.min(95, (estTokens / contextMaxTokens) * 100)
+        setContextUsedTokens(estTokens)
+        setContextPercent(estPct)
       }
     })
     return unsub
-  }, [sessionId])
+  }, [sessionId, contextMaxTokens, contextSource])
 
   // Close menus on outside click
   useEffect(() => {
@@ -570,12 +646,23 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
         </div>
 
         <div className="chat-input-controls-right">
-          {/* Context usage */}
-          <div className="chat-input-context" title={`~${Math.round(contextPercent)}% context window used`}>
+          {sessionCost > 0 && (
+            <span className="chat-input-cost" title="Session cost">
+              ${sessionCost < 0.01 ? sessionCost.toFixed(4) : sessionCost.toFixed(2)}
+            </span>
+          )}
+
+          {/* Context usage — tokens used / max with bar */}
+          <div
+            className="chat-input-context"
+            title={`${formatTokens(contextUsedTokens)} / ${formatTokens(contextMaxTokens)} tokens (${Math.round(contextPercent)}%)${contextSource === 'estimated' ? ' — estimated' : ''}`}
+          >
             <div className="chat-input-context-bar">
-              <div className="chat-input-context-fill" style={{ width: `${contextPercent}%`, background: contextColor }} />
+              <div className="chat-input-context-fill" style={{ width: `${Math.min(contextPercent, 100)}%`, background: contextColor }} />
             </div>
-            <span className="chat-input-context-label">{Math.round(contextPercent)}%</span>
+            <span className="chat-input-context-label">
+              {formatTokens(contextUsedTokens)}<span className="chat-input-context-sep">/</span>{formatTokens(contextMaxTokens)}
+            </span>
           </div>
 
           <span className="chat-input-hint">
