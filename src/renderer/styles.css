@@ -3148,7 +3148,7 @@ body {
   left: 0;
   right: 0;
   margin-bottom: 4px;
-  max-height: 320px;
+  max-height: 400px;
   display: flex;
   flex-direction: column;
   background: var(--bg-secondary);

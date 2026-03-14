@@ -643,11 +643,11 @@ function setupIPC() {
 
   ipcMain.handle('find-files-by-name', async (_event, rootPath: string, query: string) => {
     try {
-      const q = query.toLowerCase()
+      const q = query.toLowerCase().trim()
       const results: { name: string; path: string; relativePath: string; isDir: boolean }[] = []
-      const ignore = new Set(['node_modules', '.git', '.next', 'dist', 'build', 'out', '.cache', '__pycache__', '.venv', 'venv', 'target', '.DS_Store'])
-      const MAX = 40
-      const MAX_DEPTH = 8
+      const ignoreDirs = new Set(['node_modules', '.git', '.next', '.cache', '__pycache__', '.venv', 'venv', '.tox', '.mypy_cache', '.pytest_cache'])
+      const MAX = 200
+      const MAX_DEPTH = 12
 
       const walk = (dir: string, depth: number) => {
         if (depth > MAX_DEPTH || results.length >= MAX) return
@@ -655,32 +655,43 @@ function setupIPC() {
           const entries = readdirSync(dir)
           for (const entry of entries) {
             if (results.length >= MAX) return
-            if (ignore.has(entry) || entry.startsWith('.')) continue
+            if (entry === '.DS_Store') continue
             const fullPath = join(dir, entry)
             try {
               const s = statSync(fullPath)
+              const isDir = s.isDirectory()
+              if (isDir && ignoreDirs.has(entry)) continue
               const rel = fullPath.replace(rootPath + '/', '')
-              if (entry.toLowerCase().includes(q)) {
-                results.push({ name: entry, path: fullPath, relativePath: rel, isDir: s.isDirectory() })
+              const matchesQuery = !q || entry.toLowerCase().includes(q) || rel.toLowerCase().includes(q)
+              if (matchesQuery) {
+                results.push({ name: entry, path: fullPath, relativePath: rel, isDir })
               }
-              if (s.isDirectory()) walk(fullPath, depth + 1)
+              if (isDir) walk(fullPath, depth + 1)
             } catch { continue }
           }
         } catch { /* skip */ }
       }
 
       walk(rootPath, 0)
-      results.sort((a, b) => {
-        const aExact = a.name.toLowerCase() === q ? 0 : 1
-        const bExact = b.name.toLowerCase() === q ? 0 : 1
-        if (aExact !== bExact) return aExact - bExact
-        const aStarts = a.name.toLowerCase().startsWith(q) ? 0 : 1
-        const bStarts = b.name.toLowerCase().startsWith(q) ? 0 : 1
-        if (aStarts !== bStarts) return aStarts - bStarts
-        if (a.isDir !== b.isDir) return a.isDir ? 1 : -1
-        return a.relativePath.split('/').length - b.relativePath.split('/').length
-      })
-      return results.slice(0, 20)
+
+      if (q) {
+        results.sort((a, b) => {
+          const al = a.name.toLowerCase(), bl = b.name.toLowerCase()
+          const aExact = al === q ? 0 : 1
+          const bExact = bl === q ? 0 : 1
+          if (aExact !== bExact) return aExact - bExact
+          const aStarts = al.startsWith(q) ? 0 : 1
+          const bStarts = bl.startsWith(q) ? 0 : 1
+          if (aStarts !== bStarts) return aStarts - bStarts
+          const aName = al.includes(q) ? 0 : 1
+          const bName = bl.includes(q) ? 0 : 1
+          if (aName !== bName) return aName - bName
+          if (a.isDir !== b.isDir) return a.isDir ? 1 : -1
+          return a.relativePath.split('/').length - b.relativePath.split('/').length
+        })
+      }
+
+      return results.slice(0, 30)
     } catch {
       return []
     }

@@ -83,6 +83,13 @@ interface FileResult {
   isDir: boolean
 }
 
+interface SkillEntry {
+  name: string
+  scope: string
+  path: string
+  description: string
+}
+
 type SessionStatus = 'idle' | 'thinking' | 'writing' | 'tool' | 'waiting' | 'compact'
 
 const STATUS_CONFIG: Record<SessionStatus, { label: string; color: string; icon: string }> = {
@@ -136,6 +143,10 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
   const [fileLoading, setFileLoading] = useState(false)
   const fileSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Custom skills/commands loaded from .claude/
+  const [customSkills, setCustomSkills] = useState<SkillEntry[]>([])
+  const skillsLoadedRef = useRef(false)
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const modeRef = useRef<HTMLDivElement>(null)
@@ -157,7 +168,15 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     setText('')
     setImages([])
     setAcType('none')
+    skillsLoadedRef.current = false
   }, [sessionId])
+
+  // Load custom skills & commands from .claude/
+  useEffect(() => {
+    if (skillsLoadedRef.current) return
+    skillsLoadedRef.current = true
+    window.api.skillsList(rootPath).then(setCustomSkills).catch(() => {})
+  }, [rootPath])
 
   // PTY data listener — parse real-time context, status, model, cost
   useEffect(() => {
@@ -325,11 +344,6 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
 
   // File search by name (debounced)
   const searchFilesByName = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setFileResults([])
-      setFileLoading(false)
-      return
-    }
     setFileLoading(true)
     try {
       const results = await window.api.findFilesByName(rootPath, query)
@@ -354,7 +368,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       return
     }
 
-    // Check for @ trigger — search by filename
+    // Check for @ trigger — search by filename (even empty shows top files)
     const atMatch = before.match(/@([^\s]*)$/)
     if (atMatch) {
       setAcType('file')
@@ -362,22 +376,38 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       setAcQuery(q.toLowerCase())
       setAcIndex(0)
 
-      // Debounced file search
       if (fileSearchTimer.current) clearTimeout(fileSearchTimer.current)
-      fileSearchTimer.current = setTimeout(() => searchFilesByName(q), 150)
+      fileSearchTimer.current = setTimeout(() => searchFilesByName(q), q ? 150 : 0)
       return
     }
 
     setAcType('none')
   }, [text, searchFilesByName])
 
+  // Build full commands list: built-in + custom skills/commands
+  const allCommands = useMemo(() => {
+    const cmds: SlashCommand[] = [...SLASH_COMMANDS]
+    for (const skill of customSkills) {
+      const cmd = skill.name.startsWith('/') ? skill.name : `/${skill.name}`
+      if (cmds.some(c => c.cmd === cmd)) continue
+      cmds.push({
+        cmd,
+        label: cmd,
+        desc: skill.description || `Custom ${skill.scope} skill`,
+        category: 'project' as const,
+      })
+    }
+    return cmds
+  }, [customSkills])
+
   // Filtered slash commands
   const filteredCommands = useMemo(() => {
     if (acType !== 'slash') return []
-    return SLASH_COMMANDS.filter(c =>
+    if (!acQuery) return allCommands.slice(0, 20)
+    return allCommands.filter(c =>
       c.cmd.toLowerCase().includes(acQuery) || c.desc.toLowerCase().includes(acQuery)
-    ).slice(0, 12)
-  }, [acType, acQuery])
+    ).slice(0, 20)
+  }, [acType, acQuery, allCommands])
 
   const acItems = acType === 'slash' ? filteredCommands : fileResults
 
@@ -608,7 +638,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
         </button>
 
         {/* Autocomplete popup */}
-        {acType !== 'none' && acItems.length > 0 && (
+        {acType !== 'none' && (acItems.length > 0 || acType === 'file') && (
           <div className="chat-ac-popup" ref={acRef}>
             {acType === 'slash' && (
               <div className="chat-ac-header">Commands</div>
