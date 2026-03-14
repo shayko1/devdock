@@ -829,6 +829,104 @@ function setupIPC() {
   ipcMain.handle('coach-dismiss', (_event, sessionId: string, suggestionId: string) => {
     coachManager.dismissSuggestion(sessionId, suggestionId)
   })
+
+  // MCP & Skills management
+  ipcMain.handle('mcp-get-config', (_event, projectPath?: string) => {
+    const configs: { scope: string; path: string; servers: Record<string, any> }[] = []
+    const home = homedir()
+
+    // User-level: ~/.claude.json
+    const userFile = join(home, '.claude.json')
+    try {
+      if (existsSync(userFile)) {
+        const data = JSON.parse(readFileSync(userFile, 'utf-8'))
+        if (data.mcpServers && Object.keys(data.mcpServers).length > 0) {
+          configs.push({ scope: 'user', path: userFile, servers: data.mcpServers })
+        }
+      }
+    } catch { /* ignore */ }
+
+    // Project-level: .mcp.json in project root
+    if (projectPath) {
+      const projectFile = join(projectPath, '.mcp.json')
+      try {
+        if (existsSync(projectFile)) {
+          const data = JSON.parse(readFileSync(projectFile, 'utf-8'))
+          if (data.mcpServers && Object.keys(data.mcpServers).length > 0) {
+            configs.push({ scope: 'project', path: projectFile, servers: data.mcpServers })
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    return configs
+  })
+
+  ipcMain.handle('mcp-save-config', (_event, filePath: string, servers: Record<string, any>) => {
+    try {
+      let data: any = {}
+      if (existsSync(filePath)) {
+        data = JSON.parse(readFileSync(filePath, 'utf-8'))
+      }
+      data.mcpServers = servers
+      mkdirSync(join(filePath, '..'), { recursive: true })
+      writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n', 'utf-8')
+      return { success: true }
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  ipcMain.handle('skills-list', (_event, projectPath?: string) => {
+    const skills: { name: string; scope: string; path: string; description: string }[] = []
+    const home = homedir()
+
+    const scanDir = (dir: string, scope: string) => {
+      try {
+        if (!existsSync(dir)) return
+        for (const entry of readdirSync(dir)) {
+          const entryPath = join(dir, entry)
+          const stat = statSync(entryPath)
+          // Skills: directories with SKILL.md
+          if (stat.isDirectory()) {
+            const skillFile = join(entryPath, 'SKILL.md')
+            if (existsSync(skillFile)) {
+              const content = readFileSync(skillFile, 'utf-8').slice(0, 500)
+              const descMatch = content.match(/description:\s*(.+)/i)
+              skills.push({
+                name: entry,
+                scope,
+                path: skillFile,
+                description: descMatch ? descMatch[1].trim() : ''
+              })
+            }
+          }
+          // Commands: .md files
+          if (stat.isFile() && entry.endsWith('.md')) {
+            const content = readFileSync(entryPath, 'utf-8').slice(0, 200)
+            skills.push({
+              name: '/' + entry.replace(/\.md$/, ''),
+              scope,
+              path: entryPath,
+              description: content.split('\n').find(l => l.trim() && !l.startsWith('#') && !l.startsWith('---'))?.trim() || ''
+            })
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    // User-level skills & commands
+    scanDir(join(home, '.claude', 'skills'), 'user')
+    scanDir(join(home, '.claude', 'commands'), 'user')
+
+    // Project-level skills & commands
+    if (projectPath) {
+      scanDir(join(projectPath, '.claude', 'skills'), 'project')
+      scanDir(join(projectPath, '.claude', 'commands'), 'project')
+    }
+
+    return skills
+  })
 }
 
 app.whenReady().then(() => {

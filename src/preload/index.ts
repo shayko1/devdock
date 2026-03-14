@@ -154,7 +154,15 @@ const api = {
     const handler = (_event: Electron.IpcRendererEvent, data: CoachAnalysis) => callback(data)
     ipcRenderer.on('coach-suggestion', handler)
     return () => ipcRenderer.removeListener('coach-suggestion', handler)
-  }
+  },
+
+  // MCP & Skills
+  mcpGetConfig: (projectPath?: string): Promise<{ scope: string; path: string; servers: Record<string, any> }[]> =>
+    ipcRenderer.invoke('mcp-get-config', projectPath),
+  mcpSaveConfig: (filePath: string, servers: Record<string, any>): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('mcp-save-config', filePath, servers),
+  skillsList: (projectPath?: string): Promise<{ name: string; scope: string; path: string; description: string }[]> =>
+    ipcRenderer.invoke('skills-list', projectPath),
 }
 
 contextBridge.exposeInMainWorld('api', api)

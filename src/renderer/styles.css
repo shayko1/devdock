@@ -3190,3 +3190,273 @@ body {
 .claude-session-terminal-wrapper.with-chat-input {
   flex-direction: column;
 }
+
+/* ───────────────────────────────────────────
+   MCP & Skills Panel
+   ─────────────────────────────────────────── */
+
+.mcp-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-primary);
+}
+
+.mcp-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.mcp-panel-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.mcp-panel-tab {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.mcp-panel-tab:hover {
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+}
+
+.mcp-panel-tab.active {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.mcp-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.mcp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.mcp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mcp-card {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.mcp-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--text-muted);
+}
+
+.mcp-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mcp-card-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mcp-card-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+}
+
+.mcp-card-type {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+}
+
+.mcp-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+
+.mcp-badge.user {
+  background: var(--purple);
+  color: #fff;
+}
+
+.mcp-badge.project {
+  background: var(--accent);
+  color: #fff;
+}
+
+.mcp-add-row {
+  display: flex;
+  gap: 6px;
+  padding: 10px 0 4px;
+}
+
+/* MCP Editor */
+.mcp-editor {
+  padding: 4px;
+}
+
+.mcp-editor-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.mcp-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin: 10px 0 4px;
+}
+
+.mcp-label-hint {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.mcp-input {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.mcp-input:focus {
+  border-color: var(--accent);
+}
+
+.mcp-textarea {
+  resize: vertical;
+  min-height: 50px;
+  line-height: 1.5;
+}
+
+.mcp-type-switch {
+  display: flex;
+  gap: 4px;
+}
+
+.mcp-type-btn {
+  flex: 1;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.mcp-type-btn:hover {
+  color: var(--text-secondary);
+}
+
+.mcp-type-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.mcp-scope-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.mcp-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.mcp-save-msg {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--green);
+}
+
+.mcp-save-msg.error {
+  color: var(--red);
+}
+
+/* Skill viewer */
+.mcp-skill-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcp-skill-content {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 500px;
+  line-height: 1.5;
+  margin: 0;
+}

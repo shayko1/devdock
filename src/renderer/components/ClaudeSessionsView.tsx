@@ -9,6 +9,7 @@ import { PipelineView } from './PipelineView'
 import { SessionInfoBar } from './SessionInfoBar'
 import { CoachPanel } from './CoachPanel'
 import { ChatInputBar } from './ChatInputBar'
+import { McpSkillsPanel } from './McpSkillsPanel'
 
 interface Session {
   id: string
@@ -31,7 +32,7 @@ interface Props {
   onOpenPipelineSession?: (folderName: string, folderPath: string, worktreePath: string) => void
 }
 
-type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'coach'
+type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'coach' | 'mcp'
 
 export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onNewSession, onCloseSession, onResumeSession, onOpenPipelineSession }: Props) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -151,6 +152,11 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
       setCoachBadge(0)
       return 'coach'
     })
+    setViewingFile(null)
+  }, [])
+
+  const toggleMcp = useCallback(() => {
+    setSidePanel(prev => prev === 'mcp' ? 'none' : 'mcp')
     setViewingFile(null)
   }, [])
 
@@ -303,6 +309,14 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
           </button>
         )}
         <button
+          className={`btn btn-sm ${sidePanel === 'mcp' ? 'btn-accent' : ''}`}
+          onClick={toggleMcp}
+          title="MCP servers & Skills"
+          style={{ marginRight: 4 }}
+        >
+          MCP
+        </button>
+        <button
           className={`btn btn-sm ${sidePanel === 'pipeline' ? 'btn-accent' : ''}`}
           onClick={togglePipeline}
           title="Autonomous pipeline"
@@ -409,6 +423,11 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
                   sessionId={activeSession.id}
                   onClose={() => setSidePanel('none')}
                   onWriteToTerminal={(text) => window.api.ptyWrite(activeSession.id, text)}
+                />
+              ) : sidePanel === 'mcp' ? (
+                <McpSkillsPanel
+                  projectPath={activeSession.worktreePath || activeSession.folderPath}
+                  onClose={() => setSidePanel('none')}
                 />
               ) : sidePanel === 'pipeline' ? (
                 <PipelineView
