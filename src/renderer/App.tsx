@@ -452,15 +452,15 @@ export function App() {
           <button className={`theme-btn ${theme === 'light' ? 'active' : ''}`} onClick={() => setTheme('light')} title="Light mode">☀</button>
           <button className={`theme-btn ${theme === 'dark' ? 'active' : ''}`} onClick={() => setTheme('dark')} title="Dark mode">☾</button>
           <button className={`theme-btn ${theme === 'system' ? 'active' : ''}`} onClick={() => setTheme('system')} title="System mode">⚙</button>
+          <button
+            className="theme-btn"
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+            style={{ marginLeft: 8 }}
+          >
+            ⚙
+          </button>
         </div>
-        <button
-          className="theme-btn"
-          onClick={() => setShowSettings(true)}
-          title="Settings"
-          style={{ marginLeft: 8 }}
-        >
-          ⚙
-        </button>
         <span className="titlebar-shortcut-hint" onClick={() => setShowHelp(true)}>
           <kbd>?</kbd> shortcuts
         </span>
