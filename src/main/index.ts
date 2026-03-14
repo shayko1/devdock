@@ -1036,8 +1036,8 @@ function setupIPC() {
     return scanProjectSessions(folderPath, folderName)
   })
 
-  ipcMain.handle('session-history-title', (_event, claudeSessionId: string, folderPath: string, cwd?: string) => {
-    return getSessionTitle(claudeSessionId, folderPath, cwd)
+  ipcMain.handle('session-history-title', (_event, claudeSessionId: string, dirName: string) => {
+    return getSessionTitle(claudeSessionId, dirName)
   })
 }
 

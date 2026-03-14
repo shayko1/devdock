@@ -39,7 +39,7 @@ interface HistoryRecord {
   claudeSessionId: string
   folderName: string
   folderPath: string
-  cwd: string
+  dirName: string
   isWorktree: boolean
   branchHint: string | null
   mtime: number
@@ -206,24 +206,23 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
       // Scan Claude's actual session files for the active project
       const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0]
       if (activeSession) {
-        const records = await window.api.sessionHistoryScan(activeSession.folderPath, activeSession.folderName)
-        // Fetch titles for the first batch (async, update as they load)
-        const withTitles: HistoryRecord[] = records.map((r: any) => ({
-          claudeSessionId: r.claudeSessionId,
-          folderName: r.folderName,
-          folderPath: r.folderPath,
-          cwd: r.cwd,
-          isWorktree: r.isWorktree,
-          branchHint: r.branchHint,
-          mtime: r.mtime,
-          size: r.size,
-          title: null,
-        }))
-        setHistoryRecords(withTitles)
-        // Load titles in background for the first 30
-        for (let i = 0; i < Math.min(withTitles.length, 30); i++) {
-          const rec = withTitles[i]
-          window.api.sessionHistoryTitle(rec.claudeSessionId, rec.folderPath, rec.cwd)
+        const records: HistoryRecord[] = (await window.api.sessionHistoryScan(activeSession.folderPath, activeSession.folderName))
+          .map((r: any) => ({
+            claudeSessionId: r.claudeSessionId,
+            folderName: r.folderName,
+            folderPath: r.folderPath,
+            dirName: r.dirName,
+            isWorktree: r.isWorktree,
+            branchHint: r.branchHint,
+            mtime: r.mtime,
+            size: r.size,
+            title: null,
+          }))
+        setHistoryRecords(records)
+        // Load titles in background for recent sessions
+        for (let i = 0; i < Math.min(records.length, 40); i++) {
+          const rec = records[i]
+          window.api.sessionHistoryTitle(rec.claudeSessionId, rec.dirName)
             .then(title => {
               if (title) {
                 setHistoryRecords(prev => prev.map(r =>

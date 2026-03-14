@@ -76,7 +76,7 @@ export interface ClaudeSessionInfo {
   claudeSessionId: string
   folderName: string
   folderPath: string
-  cwd: string
+  dirName: string
   isWorktree: boolean
   branchHint: string | null
   mtime: number
@@ -86,40 +86,39 @@ export interface ClaudeSessionInfo {
 const CLAUDE_PROJECTS_DIR = join(homedir(), '.claude', 'projects')
 
 /**
- * Scan Claude Code's actual session files for a given project.
- * Finds sessions from the main path AND any worktree paths that belong to the project.
+ * Claude encodes CWD paths as directory names by replacing / with -
+ * and stripping leading dots from hidden folders.
+ * We match on the RAW encoded directory names, never try to decode.
  */
 export function scanProjectSessions(folderPath: string, folderName: string): ClaudeSessionInfo[] {
   if (!existsSync(CLAUDE_PROJECTS_DIR)) return []
 
+  // Claude's encoding: replace / with -, dots in folder names get stripped
+  // e.g. /Users/shayk/Workspace/premium-billing → -Users-shayk-Workspace-premium-billing
+  // e.g. /Users/shayk/.devdock/worktrees/... → -Users-shayk--devdock-worktrees-...
+  const encodedMainPath = folderPath.replace(/\//g, '-')
+  const slug = basename(folderPath).toLowerCase()
+
   const results: ClaudeSessionInfo[] = []
   const seen = new Set<string>()
-
-  // The project slug is used in worktree directory names
-  const projectSlug = basename(folderPath).toLowerCase()
 
   try {
     const allDirs = readdirSync(CLAUDE_PROJECTS_DIR)
 
     for (const dirName of allDirs) {
-      // Decode the directory name back to a path
-      const decodedPath = dirName.replace(/^-/, '/').replace(/-/g, '/')
+      const isMainPath = dirName === encodedMainPath
+      // Match worktree dirs: contain "worktrees" AND the project slug in the dir name
+      const isWorktree = !isMainPath &&
+        dirName.toLowerCase().includes('worktrees') &&
+        dirName.toLowerCase().includes(slug)
 
-      // Match if: exact project path, or worktree containing the project name
-      const isMainPath = decodedPath === folderPath
-      const isDevdockWorktree = decodedPath.includes('/devdock/worktrees/') && decodedPath.toLowerCase().includes(projectSlug)
-      const isDev3Worktree = decodedPath.includes('/dev3.0/worktrees/') && decodedPath.toLowerCase().includes(projectSlug)
-      const isGenericWorktree = decodedPath.includes('/worktrees/') && decodedPath.toLowerCase().includes(projectSlug)
-
-      if (!isMainPath && !isDevdockWorktree && !isDev3Worktree && !isGenericWorktree) continue
+      if (!isMainPath && !isWorktree) continue
 
       const projDir = join(CLAUDE_PROJECTS_DIR, dirName)
       try {
-        const stat = statSync(projDir)
-        if (!stat.isDirectory()) continue
+        if (!statSync(projDir).isDirectory()) continue
       } catch { continue }
 
-      // Scan .jsonl session files in this directory
       try {
         const files = readdirSync(projDir).filter(f => f.endsWith('.jsonl'))
         for (const f of files) {
@@ -128,16 +127,14 @@ export function scanProjectSessions(folderPath: string, folderName: string): Cla
           seen.add(sessionId)
 
           try {
-            const filePath = join(projDir, f)
-            const fileStat = statSync(filePath)
+            const fileStat = statSync(join(projDir, f))
 
-            // Extract branch hint from worktree path
             let branchHint: string | null = null
-            if (!isMainPath) {
-              const parts = decodedPath.split('/')
-              const wtIdx = parts.indexOf('worktrees')
-              if (wtIdx >= 0 && wtIdx + 1 < parts.length) {
-                branchHint = parts.slice(wtIdx + 1).join('/').replace('/worktree', '')
+            if (isWorktree) {
+              // Extract meaningful part from dir name after "worktrees-"
+              const wtIdx = dirName.toLowerCase().indexOf('worktrees-')
+              if (wtIdx >= 0) {
+                branchHint = dirName.slice(wtIdx + 'worktrees-'.length).replace(/-worktree$/, '')
               }
             }
 
@@ -145,15 +142,15 @@ export function scanProjectSessions(folderPath: string, folderName: string): Cla
               claudeSessionId: sessionId,
               folderName,
               folderPath,
-              cwd: decodedPath,
-              isWorktree: !isMainPath,
+              dirName,
+              isWorktree,
               branchHint,
               mtime: fileStat.mtime.getTime(),
               size: fileStat.size,
             })
-          } catch { /* skip unreadable files */ }
+          } catch { /* skip */ }
         }
-      } catch { /* skip unreadable dirs */ }
+      } catch { /* skip */ }
     }
   } catch { /* projects dir not readable */ }
 
@@ -163,29 +160,25 @@ export function scanProjectSessions(folderPath: string, folderName: string): Cla
 /**
  * Read the first user message from a Claude session file to use as a title.
  */
-export function getSessionTitle(claudeSessionId: string, folderPath: string, cwd?: string): string | null {
-  const paths = [cwd, folderPath].filter(Boolean) as string[]
+export function getSessionTitle(claudeSessionId: string, dirName: string): string | null {
+  const filePath = join(CLAUDE_PROJECTS_DIR, dirName, `${claudeSessionId}.jsonl`)
+  if (!existsSync(filePath)) return null
 
-  for (const p of paths) {
-    const encoded = p.replace(/\//g, '-')
-    const filePath = join(CLAUDE_PROJECTS_DIR, encoded, `${claudeSessionId}.jsonl`)
-    if (!existsSync(filePath)) continue
-
-    try {
-      const content = readFileSync(filePath, 'utf-8')
-      const lines = content.split('\n').filter(Boolean)
-      for (const line of lines.slice(0, 20)) {
-        try {
-          const entry = JSON.parse(line)
-          if (entry.type === 'human' || entry.role === 'user') {
-            const text = typeof entry.message === 'string'
-              ? entry.message
-              : entry.content?.[0]?.text || entry.message?.content?.[0]?.text || ''
-            if (text) return text.slice(0, 120)
-          }
-        } catch { continue }
-      }
-    } catch { continue }
-  }
+  try {
+    const content = readFileSync(filePath, 'utf-8')
+    const lines = content.split('\n').filter(Boolean)
+    for (const line of lines.slice(0, 30)) {
+      try {
+        const entry = JSON.parse(line)
+        // Claude Code JSONL format: look for user/human messages
+        if (entry.type === 'human' || entry.role === 'user') {
+          const text = typeof entry.message === 'string'
+            ? entry.message
+            : entry.content?.[0]?.text || entry.message?.content?.[0]?.text || ''
+          if (text && text.length > 2) return text.slice(0, 120)
+        }
+      } catch { continue }
+    }
+  } catch { /* unreadable */ }
   return null
 }

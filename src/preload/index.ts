@@ -183,8 +183,8 @@ const api = {
   // Session history (Claude's own files)
   sessionHistoryScan: (folderPath: string, folderName: string): Promise<any[]> =>
     ipcRenderer.invoke('session-history-scan', folderPath, folderName),
-  sessionHistoryTitle: (claudeSessionId: string, folderPath: string, cwd?: string): Promise<string | null> =>
-    ipcRenderer.invoke('session-history-title', claudeSessionId, folderPath, cwd),
+  sessionHistoryTitle: (claudeSessionId: string, dirName: string): Promise<string | null> =>
+    ipcRenderer.invoke('session-history-title', claudeSessionId, dirName),
 }
 
 contextBridge.exposeInMainWorld('api', api)
