@@ -371,6 +371,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
               {chatInputEnabled && activeSessionId === session.id && !session.exited && (
                 <ChatInputBar
                   sessionId={session.id}
+                  rootPath={session.worktreePath || session.folderPath}
                   onSend={handleChatSend}
                   onImageUpload={handleChatImageUpload}
                   disabled={session.exited}
