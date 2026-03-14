@@ -411,12 +411,14 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       return
     }
 
-    // Check for @ trigger — search by filename (even empty shows top files)
+    // Check for @ trigger — search by filename or path (@/ for path search)
     const atMatch = before.match(/@([^\s]*)$/)
     if (atMatch) {
       setAcType('file')
-      const q = atMatch[1]
-      setAcQuery(q.toLowerCase())
+      const raw = atMatch[1]
+      // Strip leading / for the query (paths don't have leading /)
+      const q = raw.startsWith('/') ? raw.slice(1) : raw
+      setAcQuery(raw.toLowerCase())
       setAcIndex(0)
 
       if (fileSearchTimer.current) clearTimeout(fileSearchTimer.current)
@@ -732,7 +734,9 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
             {acType === 'file' && (
               <div className="chat-ac-header">
                 <span>Files</span>
-                {acQuery && <span className="chat-ac-breadcrumb">searching: {acQuery}</span>}
+                {acQuery && <span className="chat-ac-breadcrumb">
+                  {acQuery.startsWith('/') ? `path: ${acQuery}` : `name: ${acQuery}`}
+                </span>}
               </div>
             )}
             <div className="chat-ac-list">

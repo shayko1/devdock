@@ -645,9 +645,10 @@ function setupIPC() {
   ipcMain.handle('find-files-by-name', async (_event, rootPath: string, query: string) => {
     try {
       const q = query.toLowerCase().trim()
+      const isPathQuery = q.includes('/')
       const results: { name: string; path: string; relativePath: string; isDir: boolean }[] = []
       const ignoreDirs = new Set(['node_modules', '.git', '.next', '.cache', '__pycache__', '.venv', 'venv', '.tox', '.mypy_cache', '.pytest_cache'])
-      const MAX = 200
+      const MAX = 300
       const MAX_DEPTH = 12
 
       const walk = (dir: string, depth: number) => {
@@ -663,8 +664,20 @@ function setupIPC() {
               const isDir = s.isDirectory()
               if (isDir && ignoreDirs.has(entry)) continue
               const rel = fullPath.replace(rootPath + '/', '')
-              const matchesQuery = !q || entry.toLowerCase().includes(q) || rel.toLowerCase().includes(q)
-              if (matchesQuery) {
+              const relLower = rel.toLowerCase()
+
+              let matches = false
+              if (!q) {
+                matches = true
+              } else if (isPathQuery) {
+                // Path query: match against relative path (prefix or contains)
+                matches = relLower.startsWith(q) || relLower.includes(q)
+              } else {
+                // Name query: match against filename or path
+                matches = entry.toLowerCase().includes(q) || relLower.includes(q)
+              }
+
+              if (matches) {
                 results.push({ name: entry, path: fullPath, relativePath: rel, isDir })
               }
               if (isDir) walk(fullPath, depth + 1)
@@ -677,16 +690,24 @@ function setupIPC() {
 
       if (q) {
         results.sort((a, b) => {
-          const al = a.name.toLowerCase(), bl = b.name.toLowerCase()
-          const aExact = al === q ? 0 : 1
-          const bExact = bl === q ? 0 : 1
+          const al = a.relativePath.toLowerCase(), bl = b.relativePath.toLowerCase()
+          if (isPathQuery) {
+            // For path queries, prioritize: starts-with > contains, then shorter paths first
+            const aStarts = al.startsWith(q) ? 0 : 1
+            const bStarts = bl.startsWith(q) ? 0 : 1
+            if (aStarts !== bStarts) return aStarts - bStarts
+            // Prefer files over dirs for path search
+            if (a.isDir !== b.isDir) return a.isDir ? 1 : -1
+            return al.length - bl.length
+          }
+          // Name queries: exact > starts-with > contains, prefer shallow paths
+          const anl = a.name.toLowerCase(), bnl = b.name.toLowerCase()
+          const aExact = anl === q ? 0 : 1
+          const bExact = bnl === q ? 0 : 1
           if (aExact !== bExact) return aExact - bExact
-          const aStarts = al.startsWith(q) ? 0 : 1
-          const bStarts = bl.startsWith(q) ? 0 : 1
+          const aStarts = anl.startsWith(q) ? 0 : 1
+          const bStarts = bnl.startsWith(q) ? 0 : 1
           if (aStarts !== bStarts) return aStarts - bStarts
-          const aName = al.includes(q) ? 0 : 1
-          const bName = bl.includes(q) ? 0 : 1
-          if (aName !== bName) return aName - bName
           if (a.isDir !== b.isDir) return a.isDir ? 1 : -1
           return a.relativePath.split('/').length - b.relativePath.split('/').length
         })
