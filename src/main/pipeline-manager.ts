@@ -5,6 +5,7 @@ import { homedir } from 'os'
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'fs'
 import { PipelineRun, PipelineStage, PipelineStageLog, PipelineConfig, DEFAULT_PIPELINE_CONFIG } from '../shared/pipeline-types'
 import { getShellPath } from './process-manager'
+import { loadState } from './store'
 
 // Resolve the full path to claude CLI once
 let claudePath: string | null = null
@@ -321,7 +322,8 @@ class PipelineManager {
 
       // Use resolved full path to claude with stream-json for real-time output
       const claude = getClaudePath()
-      const proc = spawn('/bin/zsh', ['-c', `cat "${promptFile}" | "${claude}" -p --dangerously-skip-permissions --output-format stream-json --verbose`], {
+      const permFlag = loadState().dangerousMode ? ' --dangerously-skip-permissions' : ''
+      const proc = spawn('/bin/zsh', ['-c', `cat "${promptFile}" | "${claude}" -p${permFlag} --output-format stream-json --verbose`], {
         cwd,
         env,
         stdio: ['ignore', 'pipe', 'pipe']

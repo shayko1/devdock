@@ -202,6 +202,104 @@ describe('Command building', () => {
 })
 
 // ---------------------------------------------------------------------------
+// 3b. Pipeline command building tests (must respect dangerousMode)
+// ---------------------------------------------------------------------------
+describe('Pipeline command building', () => {
+  /**
+   * Mirrors the logic in pipeline-manager.ts runClaude():
+   *   const permFlag = dangerousMode ? ' --dangerously-skip-permissions' : ''
+   *   `cat "${promptFile}" | "${claude}" -p${permFlag} --output-format stream-json --verbose`
+   */
+  function buildPipelineCommand(claudePath: string, promptFile: string, dangerousMode: boolean): string {
+    const permFlag = dangerousMode ? ' --dangerously-skip-permissions' : ''
+    return `cat "${promptFile}" | "${claudePath}" -p${permFlag} --output-format stream-json --verbose`
+  }
+
+  it('safe mode: pipeline command does NOT include --dangerously-skip-permissions', () => {
+    const cmd = buildPipelineCommand('/usr/local/bin/claude', '/tmp/prompt.txt', false)
+    expect(cmd).not.toContain('--dangerously-skip-permissions')
+    expect(cmd).toContain('-p --output-format')
+  })
+
+  it('dangerous mode: pipeline command includes --dangerously-skip-permissions', () => {
+    const cmd = buildPipelineCommand('/usr/local/bin/claude', '/tmp/prompt.txt', true)
+    expect(cmd).toContain('--dangerously-skip-permissions')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 3c. Session restoration must preserve dangerousMode
+// ---------------------------------------------------------------------------
+describe('Session restoration preserves dangerousMode', () => {
+  interface ClaudeSession {
+    id: string
+    folderName: string
+    folderPath: string
+    worktreePath: string | null
+    branchName: string | null
+    claudeSessionId: string | null
+    dangerousMode?: boolean
+  }
+
+  function buildRestoredSession(
+    newSessionId: string,
+    session: ClaudeSession,
+    result: { folderName?: string; worktreePath?: string; branchName?: string }
+  ): ClaudeSession {
+    return {
+      id: newSessionId,
+      folderName: result.folderName || session.folderName,
+      folderPath: session.folderPath,
+      worktreePath: result.worktreePath ?? session.worktreePath,
+      branchName: result.branchName ?? session.branchName,
+      claudeSessionId: session.claudeSessionId ?? null,
+      dangerousMode: session.dangerousMode,
+    }
+  }
+
+  it('restored session preserves dangerousMode=true from original', () => {
+    const original: ClaudeSession = {
+      id: 'old-id',
+      folderName: 'proj',
+      folderPath: '/path',
+      worktreePath: null,
+      branchName: null,
+      claudeSessionId: 'c-123',
+      dangerousMode: true,
+    }
+    const restored = buildRestoredSession('new-id', original, {})
+    expect(restored.dangerousMode).toBe(true)
+  })
+
+  it('restored session preserves dangerousMode=false from original', () => {
+    const original: ClaudeSession = {
+      id: 'old-id',
+      folderName: 'proj',
+      folderPath: '/path',
+      worktreePath: null,
+      branchName: null,
+      claudeSessionId: 'c-123',
+      dangerousMode: false,
+    }
+    const restored = buildRestoredSession('new-id', original, {})
+    expect(restored.dangerousMode).toBe(false)
+  })
+
+  it('restored session preserves undefined dangerousMode (defaults to safe)', () => {
+    const original: ClaudeSession = {
+      id: 'old-id',
+      folderName: 'proj',
+      folderPath: '/path',
+      worktreePath: null,
+      branchName: null,
+      claudeSessionId: 'c-123',
+    }
+    const restored = buildRestoredSession('new-id', original, {})
+    expect(restored.dangerousMode).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // 4. Environment variable safety tests
 // ---------------------------------------------------------------------------
 describe('Environment variable safety', () => {

@@ -146,7 +146,7 @@ export function App() {
     } catch (err) {
       alert(`Error creating session: ${err}`)
     }
-  }, [])
+  }, [state.dangerousMode])
 
   const handleResumeClaudeSession = useCallback(async (sessionId: string) => {
     const session = claudeSessions.find(s => s.id === sessionId)
@@ -245,7 +245,7 @@ export function App() {
     } catch (err) {
       alert(`Error opening pipeline session: ${err}`)
     }
-  }, [])
+  }, [state.dangerousMode])
 
   const handleResumeAllSessions = useCallback(async (sessions: ClaudeSession[]) => {
     setOrphanedSessions([])
@@ -270,6 +270,7 @@ export function App() {
             worktreePath: result.worktreePath ?? session.worktreePath,
             branchName: result.branchName ?? session.branchName,
             claudeSessionId: session.claudeSessionId ?? null,
+            dangerousMode: session.dangerousMode,
           }
           setClaudeSessions(prev => [...prev, restored])
         }
