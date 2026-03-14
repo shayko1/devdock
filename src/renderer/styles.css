@@ -2987,6 +2987,102 @@ body {
   background: var(--orange);
 }
 
+/* ─── Compact / Summary Suggestion Banner ─── */
+.chat-compact-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(210, 153, 34, 0.12);
+  border: 1px solid rgba(210, 153, 34, 0.25);
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.chat-compact-hint-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.chat-compact-hint .btn-xs {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.chat-compact-hint-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.chat-compact-hint-dismiss:hover {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+/* ─── Session Status Indicator ─── */
+.chat-input-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.chat-input-status-dot {
+  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.chat-input-status-dot.thinking,
+.chat-input-status-dot.compact {
+  animation: status-pulse 1.2s ease-in-out infinite;
+}
+
+.chat-input-status-dot.tool {
+  animation: status-spin 1s linear infinite;
+}
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes status-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.chat-input-status-text {
+  font-size: 10px;
+  opacity: 0.85;
+}
+
+/* ─── File search path in autocomplete ─── */
+.chat-ac-file-path {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  opacity: 0.7;
+}
+
 /* Image thumbnails (upgraded from chips) */
 .chat-input-images {
   display: flex;

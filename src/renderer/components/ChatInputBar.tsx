@@ -10,12 +10,36 @@ interface Props {
 
 type Mode = 'agent' | 'chat' | 'plan'
 
+// Context window sizes per model family
+const MODEL_CONTEXT_SIZES: Record<string, number> = {
+  'opus': 200_000,
+  'opus-4': 200_000,
+  'opus-4-6': 1_000_000,
+  'claude-opus-4-6': 1_000_000,
+  'sonnet': 200_000,
+  'sonnet-4': 200_000,
+  'sonnet-4-6': 1_000_000,
+  'claude-sonnet-4-6': 1_000_000,
+  'haiku': 200_000,
+  'haiku-3.5': 200_000,
+  'haiku-4.5': 200_000,
+  'claude-haiku-4-5': 200_000,
+}
+
+function contextSizeForModel(modelId: string): number {
+  const lower = modelId.toLowerCase().trim()
+  for (const [key, val] of Object.entries(MODEL_CONTEXT_SIZES)) {
+    if (lower.includes(key)) return val
+  }
+  return 200_000
+}
+
 const MODELS = [
-  { id: 'sonnet', label: 'Claude Sonnet 4', short: 'Sonnet 4', desc: 'Fast & capable' },
-  { id: 'opus', label: 'Claude Opus 4', short: 'Opus 4', desc: 'Most powerful' },
-  { id: 'haiku', label: 'Claude Haiku 3.5', short: 'Haiku 3.5', desc: 'Fastest, cheapest' },
-  { id: 'sonnet thinking', label: 'Sonnet 4 (Thinking)', short: 'Sonnet 4+', desc: 'Extended thinking' },
-  { id: 'opus thinking', label: 'Opus 4 (Thinking)', short: 'Opus 4+', desc: 'Max intelligence' },
+  { id: 'sonnet', label: 'Claude Sonnet 4', short: 'Sonnet 4', desc: 'Fast & capable', ctx: 200_000 },
+  { id: 'opus', label: 'Claude Opus 4', short: 'Opus 4', desc: 'Most powerful', ctx: 200_000 },
+  { id: 'haiku', label: 'Claude Haiku 3.5', short: 'Haiku 3.5', desc: 'Fastest, cheapest', ctx: 200_000 },
+  { id: 'sonnet thinking', label: 'Sonnet 4 (Thinking)', short: 'Sonnet 4+', desc: 'Extended thinking', ctx: 200_000 },
+  { id: 'opus thinking', label: 'Opus 4 (Thinking)', short: 'Opus 4+', desc: 'Max intelligence', ctx: 200_000 },
 ]
 
 interface SlashCommand {
@@ -52,14 +76,26 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: '/help', label: '/help', desc: 'List all available commands', category: 'info' },
 ]
 
-interface FileEntry {
+interface FileResult {
   name: string
   path: string
-  isDir: boolean
   relativePath: string
+  isDir: boolean
 }
 
-const CONTEXT_WINDOW_SIZE = 200_000 // 200k tokens for most Claude models
+type SessionStatus = 'idle' | 'thinking' | 'writing' | 'tool' | 'waiting' | 'compact'
+
+const STATUS_CONFIG: Record<SessionStatus, { label: string; color: string; icon: string }> = {
+  idle: { label: 'Ready', color: 'var(--green)', icon: '●' },
+  thinking: { label: 'Thinking...', color: 'var(--orange)', icon: '◉' },
+  writing: { label: 'Writing...', color: 'var(--accent)', icon: '✎' },
+  tool: { label: 'Running tool...', color: 'var(--purple, #a371f7)', icon: '⚙' },
+  waiting: { label: 'Waiting for input', color: 'var(--text-muted)', icon: '◯' },
+  compact: { label: 'Compacting...', color: 'var(--orange)', icon: '⟳' },
+}
+
+const COMPACT_THRESHOLD = 80
+const CRITICAL_THRESHOLD = 92
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -75,21 +111,30 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
   const [showModeMenu, setShowModeMenu] = useState(false)
   const [showModelMenu, setShowModelMenu] = useState(false)
 
-  // Context tracking
+  // Context tracking (real from Claude Code statusline data or estimated)
   const [contextUsedTokens, setContextUsedTokens] = useState(0)
-  const [contextMaxTokens, setContextMaxTokens] = useState(CONTEXT_WINDOW_SIZE)
+  const [contextMaxTokens, setContextMaxTokens] = useState(200_000)
   const [contextPercent, setContextPercent] = useState(0)
   const [contextSource, setContextSource] = useState<'parsed' | 'estimated'>('estimated')
   const [sessionCost, setSessionCost] = useState(0)
+  const [detectedModel, setDetectedModel] = useState('')
   const charCountRef = useRef(0)
+
+  // Session status
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle')
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Compact suggestion
+  const [showCompactHint, setShowCompactHint] = useState(false)
+  const compactDismissedRef = useRef(false)
 
   // Autocomplete state
   const [acType, setAcType] = useState<'none' | 'slash' | 'file'>('none')
   const [acQuery, setAcQuery] = useState('')
   const [acIndex, setAcIndex] = useState(0)
-  const [fileEntries, setFileEntries] = useState<FileEntry[]>([])
-  const [fileBrowsePath, setFileBrowsePath] = useState('')
+  const [fileResults, setFileResults] = useState<FileResult[]>([])
   const [fileLoading, setFileLoading] = useState(false)
+  const fileSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -97,31 +142,65 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
   const modelRef = useRef<HTMLDivElement>(null)
   const acRef = useRef<HTMLDivElement>(null)
 
+  // Reset on session change
   useEffect(() => {
     setContextUsedTokens(0)
-    setContextMaxTokens(CONTEXT_WINDOW_SIZE)
+    setContextMaxTokens(200_000)
     setContextPercent(0)
     setContextSource('estimated')
     setSessionCost(0)
+    setDetectedModel('')
+    setSessionStatus('idle')
+    setShowCompactHint(false)
+    compactDismissedRef.current = false
     charCountRef.current = 0
     setText('')
     setImages([])
     setAcType('none')
   }, [sessionId])
 
-  // Track context from PTY data — parse real numbers when available, estimate otherwise
+  // PTY data listener — parse real-time context, status, model, cost
   useEffect(() => {
-    // Strip ANSI escapes for reliable text matching
     const strip = (s: string) => s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '')
 
     const unsub = window.api.onPtyData(({ sessionId: sid, data }) => {
       if (sid !== sessionId) return
       const clean = strip(data)
 
-      // Try to parse actual context percentage from Claude Code output
-      // Patterns: "XX% context", "XX% of context", "used_percentage: XX"
+      // ── Model detection ──
+      // Claude Code outputs model info: "model: claude-sonnet-4-6", "Using Claude Sonnet 4"
+      const modelIdMatch = clean.match(/model[:\s]+["']?(claude-[a-z0-9.-]+)/i)
+        || clean.match(/Using\s+(Claude\s+\w+\s*\d*(?:\.\d+)?)/i)
+      if (modelIdMatch) {
+        const m = modelIdMatch[1].trim()
+        setDetectedModel(m)
+        const newMax = contextSizeForModel(m)
+        setContextMaxTokens(newMax)
+      }
+
+      // ── Context window from statusline JSON fragments ──
+      // Claude Code sends statusline data containing context_window object
+      const cwSizeMatch = clean.match(/context_window_size["\s:]+(\d+)/i)
+      if (cwSizeMatch) {
+        const cws = parseInt(cwSizeMatch[1], 10)
+        if (cws >= 100_000) setContextMaxTokens(cws)
+      }
+
+      const usedPctMatch = clean.match(/used_percentage["\s:]+(\d+(?:\.\d+)?)/i)
+      if (usedPctMatch) {
+        const pct = parseFloat(usedPctMatch[1])
+        if (pct >= 0 && pct <= 100) {
+          setContextPercent(pct)
+          setContextUsedTokens(prev => {
+            const fromPct = Math.round((pct / 100) * contextMaxTokens)
+            return fromPct || prev
+          })
+          setContextSource('parsed')
+        }
+      }
+
+      // ── Context percentage from terminal text ──
       const pctMatch = clean.match(/(\d+(?:\.\d+)?)\s*%\s*(?:of\s+)?context/i)
-        || clean.match(/used_percentage[:\s]+(\d+(?:\.\d+)?)/i)
         || clean.match(/Context:\s*(\d+(?:\.\d+)?)\s*%/i)
       if (pctMatch) {
         const pct = parseFloat(pctMatch[1])
@@ -132,7 +211,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
         }
       }
 
-      // Parse token counts: "XXk/200k tokens" or "XX,XXX / 200,000"
+      // ── Token counts "XXk/200k tokens" ──
       const tokenMatch = clean.match(/([\d,.]+)\s*[kK]?\s*\/\s*([\d,.]+)\s*[kK]?\s*(?:tokens?)?/i)
       if (tokenMatch) {
         const parse = (s: string): number => {
@@ -149,19 +228,54 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
         }
       }
 
-      // Parse cost: "$X.XXXX" or "cost: $X.XX"
-      const costMatch = clean.match(/\$(\d+\.\d{2,5})/i)
+      // ── Cost tracking ──
+      const costMatch = clean.match(/total_cost_usd["\s:]+(\d+\.?\d*)/i)
+        || clean.match(/\$(\d+\.\d{2,5})/i)
       if (costMatch) {
         const cost = parseFloat(costMatch[1])
-        if (cost > 0 && cost < 100) setSessionCost(cost)
+        if (cost > 0 && cost < 1000) setSessionCost(cost)
       }
 
-      // Detect clear/compact resets
-      if (clean.includes('Conversation has been') || clean.includes('Context cleared') || clean.includes('conversation cleared')) {
+      // ── Session status detection ──
+      // Thinking indicators
+      if (clean.includes('Thinking') || clean.includes('thinking...') || clean.match(/⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏/)) {
+        setSessionStatus('thinking')
+        if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
+        statusTimerRef.current = setTimeout(() => setSessionStatus('idle'), 30000)
+      }
+      // Tool execution
+      else if (clean.match(/Running|Executing|Reading|Writing|Searching|Editing/i) && clean.match(/\.\.\.|…/)) {
+        setSessionStatus('tool')
+        if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
+        statusTimerRef.current = setTimeout(() => setSessionStatus('idle'), 30000)
+      }
+      // Writing code / generating output
+      else if (clean.match(/^[│┃├┌└─┐┘┤┬┴┼╔╗╚╝╠╣╦╩╬]/) || clean.match(/\s{2,}(import|export|function|const|let|var|class|def|if|for|while)\s/)) {
+        setSessionStatus('writing')
+        if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
+        statusTimerRef.current = setTimeout(() => setSessionStatus('idle'), 10000)
+      }
+      // Compacting
+      else if (clean.includes('Compacting') || clean.includes('compacting') || clean.includes('Summarizing conversation')) {
+        setSessionStatus('compact')
+        if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
+        statusTimerRef.current = setTimeout(() => setSessionStatus('idle'), 60000)
+      }
+
+      // Prompt waiting (Claude Code shows ">" or "❯" when waiting)
+      if (clean.match(/^[>❯]\s*$/) || clean.includes('What would you like')) {
+        setSessionStatus('idle')
+        if (statusTimerRef.current) { clearTimeout(statusTimerRef.current); statusTimerRef.current = null }
+      }
+
+      // Clear/compact resets
+      if (clean.includes('Conversation has been') || clean.includes('Context cleared') || clean.includes('conversation cleared') || clean.includes('compacted to')) {
         setContextUsedTokens(0)
         setContextPercent(2)
         setContextSource('estimated')
         charCountRef.current = 0
+        setShowCompactHint(false)
+        compactDismissedRef.current = false
         return
       }
 
@@ -174,8 +288,18 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
         setContextPercent(estPct)
       }
     })
-    return unsub
+    return () => {
+      unsub()
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
+    }
   }, [sessionId, contextMaxTokens, contextSource])
+
+  // Show compact suggestion when context is high
+  useEffect(() => {
+    if (contextPercent >= COMPACT_THRESHOLD && !compactDismissedRef.current && !showCompactHint) {
+      setShowCompactHint(true)
+    }
+  }, [contextPercent, showCompactHint])
 
   // Close menus on outside click
   useEffect(() => {
@@ -199,25 +323,19 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'
   }, [text])
 
-  // Load files when browsing for @ mentions
-  const loadFiles = useCallback(async (dirPath: string) => {
+  // File search by name (debounced)
+  const searchFilesByName = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setFileResults([])
+      setFileLoading(false)
+      return
+    }
     setFileLoading(true)
     try {
-      const items = await window.api.listDirectory(dirPath || rootPath)
-      const relative = (p: string) => {
-        const base = rootPath.endsWith('/') ? rootPath : rootPath + '/'
-        return p.startsWith(base) ? p.slice(base.length) : p
-      }
-      const entries: FileEntry[] = items
-        .filter(i => !i.name.startsWith('.'))
-        .sort((a, b) => {
-          if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
-          return a.name.localeCompare(b.name)
-        })
-        .map(i => ({ ...i, relativePath: relative(i.path) }))
-      setFileEntries(entries)
+      const results = await window.api.findFilesByName(rootPath, query)
+      setFileResults(results)
     } catch {
-      setFileEntries([])
+      setFileResults([])
     }
     setFileLoading(false)
   }, [rootPath])
@@ -236,34 +354,22 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       return
     }
 
-    // Check for @ trigger
+    // Check for @ trigger — search by filename
     const atMatch = before.match(/@([^\s]*)$/)
     if (atMatch) {
       setAcType('file')
-      setAcQuery(atMatch[1].toLowerCase())
+      const q = atMatch[1]
+      setAcQuery(q.toLowerCase())
       setAcIndex(0)
-      const parts = atMatch[1].split('/')
-      if (parts.length > 1) {
-        const dirPart = parts.slice(0, -1).join('/')
-        const newBrowsePath = rootPath + '/' + dirPart
-        if (newBrowsePath !== fileBrowsePath) {
-          setFileBrowsePath(newBrowsePath)
-          loadFiles(newBrowsePath)
-        }
-      } else if (fileBrowsePath !== rootPath) {
-        setFileBrowsePath(rootPath)
-        loadFiles(rootPath)
-      }
+
+      // Debounced file search
+      if (fileSearchTimer.current) clearTimeout(fileSearchTimer.current)
+      fileSearchTimer.current = setTimeout(() => searchFilesByName(q), 150)
       return
     }
 
     setAcType('none')
-  }, [text, rootPath, fileBrowsePath, loadFiles])
-
-  // Initial file load for @
-  useEffect(() => {
-    if (rootPath) loadFiles(rootPath)
-  }, [rootPath, loadFiles])
+  }, [text, searchFilesByName])
 
   // Filtered slash commands
   const filteredCommands = useMemo(() => {
@@ -273,16 +379,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     ).slice(0, 12)
   }, [acType, acQuery])
 
-  // Filtered files
-  const filteredFiles = useMemo(() => {
-    if (acType !== 'file') return []
-    const q = acQuery.split('/').pop() || ''
-    return fileEntries.filter(f =>
-      f.name.toLowerCase().includes(q)
-    ).slice(0, 12)
-  }, [acType, acQuery, fileEntries])
-
-  const acItems = acType === 'slash' ? filteredCommands : filteredFiles
+  const acItems = acType === 'slash' ? filteredCommands : fileResults
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim()
@@ -314,24 +411,15 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     } else if (acType === 'file') {
       const atIdx = before.lastIndexOf('@')
       const prefix = before.slice(0, atIdx + 1)
-      const relPath = value
-      const suffix = isDir ? '/' : ' '
-      const newText = prefix + relPath + suffix + after
+      const newText = prefix + value + ' ' + after
       setText(newText)
-      if (isDir) {
-        const newBrowsePath = rootPath + '/' + relPath
-        setFileBrowsePath(newBrowsePath)
-        loadFiles(newBrowsePath)
-      } else {
-        setAcType('none')
-      }
+      setAcType('none')
     }
 
     setTimeout(() => textareaRef.current?.focus(), 10)
-  }, [text, acType, rootPath, loadFiles])
+  }, [text, acType])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // Autocomplete navigation
     if (acType !== 'none' && acItems.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
@@ -349,7 +437,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
         if (acType === 'slash') {
           insertAutocomplete((item as SlashCommand).cmd, false)
         } else {
-          const f = item as FileEntry
+          const f = item as FileResult
           insertAutocomplete(f.relativePath, f.isDir)
         }
         return
@@ -380,11 +468,23 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     if (idx !== modelIdx) {
       setModelIdx(idx)
       onSend(`/model ${MODELS[idx].id}`)
+      setContextMaxTokens(MODELS[idx].ctx)
     }
     setShowModelMenu(false)
   }, [modelIdx, onSend])
 
-  // Image handling with thumbnail previews
+  const handleCompactNow = useCallback(() => {
+    onSend('/compact')
+    setShowCompactHint(false)
+    compactDismissedRef.current = true
+  }, [onSend])
+
+  const dismissCompactHint = useCallback(() => {
+    setShowCompactHint(false)
+    compactDismissedRef.current = true
+  }, [])
+
+  // Image handling
   const addImageFiles = useCallback((files: File[]) => {
     for (const file of files) {
       if (!file.type.startsWith('image/')) continue
@@ -393,7 +493,6 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     }
   }, [])
 
-  // Cleanup object URLs
   useEffect(() => {
     return () => {
       images.forEach(img => URL.revokeObjectURL(img.preview))
@@ -434,7 +533,8 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     }
   }, [addImageFiles])
 
-  const contextColor = contextPercent < 50 ? 'var(--green)' : contextPercent < 80 ? 'var(--orange)' : 'var(--red)'
+  const contextColor = contextPercent < 50 ? 'var(--green)' : contextPercent < COMPACT_THRESHOLD ? 'var(--orange)' : 'var(--red)'
+  const statusCfg = STATUS_CONFIG[sessionStatus]
 
   const modeConfig = {
     agent: { dot: 'agent', label: 'Agent', desc: 'Makes changes, runs commands, edits files' },
@@ -448,6 +548,24 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       onDrop={handleDrop}
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }}
     >
+      {/* Compact / summary suggestion banner */}
+      {showCompactHint && (
+        <div className="chat-compact-hint">
+          <span className="chat-compact-hint-icon">⚠</span>
+          <span>
+            Context is {Math.round(contextPercent)}% full.
+            {contextPercent >= CRITICAL_THRESHOLD
+              ? ' Auto-compact may trigger soon — consider running /compact now to stay in control.'
+              : ' Consider running /compact to free up space and keep responses sharp.'}
+          </span>
+          <button className="btn btn-xs btn-accent" onClick={handleCompactNow}>/compact</button>
+          <button className="btn btn-xs" onClick={() => { onSend('/compact with a detailed summary'); setShowCompactHint(false); compactDismissedRef.current = true }}>
+            /compact summary
+          </button>
+          <button className="chat-compact-hint-dismiss" onClick={dismissCompactHint}>×</button>
+        </div>
+      )}
+
       {/* Image thumbnails */}
       {images.length > 0 && (
         <div className="chat-input-images">
@@ -498,11 +616,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
             {acType === 'file' && (
               <div className="chat-ac-header">
                 <span>Files</span>
-                {fileBrowsePath !== rootPath && (
-                  <span className="chat-ac-breadcrumb">
-                    {fileBrowsePath.replace(rootPath, '').replace(/^\//, '')}
-                  </span>
-                )}
+                {acQuery && <span className="chat-ac-breadcrumb">searching: {acQuery}</span>}
               </div>
             )}
             <div className="chat-ac-list">
@@ -517,7 +631,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
                   <span className="chat-ac-desc">{cmd.desc}</span>
                 </button>
               ))}
-              {acType === 'file' && filteredFiles.map((f, i) => (
+              {acType === 'file' && fileResults.map((f, i) => (
                 <button
                   key={f.path}
                   className={`chat-ac-item ${i === acIndex ? 'active' : ''}`}
@@ -528,10 +642,13 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
                     {f.isDir ? '▸' : '○'}
                   </span>
                   <span className="chat-ac-filename">{f.name}</span>
-                  {f.isDir && <span className="chat-ac-desc">folder</span>}
+                  <span className="chat-ac-file-path">{f.relativePath}</span>
                 </button>
               ))}
-              {fileLoading && <div className="chat-ac-loading">Loading...</div>}
+              {acType === 'file' && fileLoading && <div className="chat-ac-loading">Searching...</div>}
+              {acType === 'file' && !fileLoading && acQuery && fileResults.length === 0 && (
+                <div className="chat-ac-loading">No files found</div>
+              )}
             </div>
             <div className="chat-ac-footer">
               <kbd>↑↓</kbd> navigate <kbd>Tab</kbd> select <kbd>Esc</kbd> close
@@ -543,6 +660,16 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       {/* Controls row */}
       <div className="chat-input-controls">
         <div className="chat-input-controls-left">
+          {/* Session status indicator */}
+          <span
+            className="chat-input-status"
+            style={{ color: statusCfg.color }}
+            title={statusCfg.label + (detectedModel ? ` · ${detectedModel}` : '')}
+          >
+            <span className={`chat-input-status-dot ${sessionStatus}`}>{statusCfg.icon}</span>
+            {sessionStatus !== 'idle' && <span className="chat-input-status-text">{statusCfg.label}</span>}
+          </span>
+
           {/* Mode selector */}
           <div className="chat-input-dropdown" ref={modeRef}>
             <button className="chat-input-pill" onClick={() => setShowModeMenu(!showModeMenu)}>
@@ -574,7 +701,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
           {/* Model selector */}
           <div className="chat-input-dropdown" ref={modelRef}>
             <button className="chat-input-pill" onClick={() => setShowModelMenu(!showModelMenu)}>
-              {MODELS[modelIdx].short}
+              {detectedModel || MODELS[modelIdx].short}
               <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ opacity: 0.5 }}>
                 <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="2" fill="none"/>
               </svg>
@@ -589,7 +716,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
                   >
                     <div>
                       <div className="chat-input-menu-label">{m.label}</div>
-                      <div className="chat-input-menu-desc">{m.desc}</div>
+                      <div className="chat-input-menu-desc">{m.desc} · {formatTokens(m.ctx)} ctx</div>
                     </div>
                   </button>
                 ))}
@@ -623,7 +750,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
               setText(prev => prev + '@')
               textareaRef.current?.focus()
             }}
-            title="Mention file (@)"
+            title="Search files (@)"
           >
             <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
               <path d="M8 1a7 7 0 1 0 3.5 13.06.5.5 0 0 0-.5-.87A6 6 0 1 1 14 8c0 1.12-.5 2-1.5 2-.83 0-1.25-.5-1.25-1.25V5.5a.5.5 0 0 0-1 0v.27A3 3 0 1 0 11 10.75c.44.72 1.2 1.25 2.25 1.25C14.75 12 16 10.56 16 8A8 8 0 0 0 8 1zm0 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/>
@@ -647,7 +774,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
 
         <div className="chat-input-controls-right">
           {sessionCost > 0 && (
-            <span className="chat-input-cost" title="Session cost">
+            <span className="chat-input-cost" title={`Session cost: $${sessionCost.toFixed(4)}`}>
               ${sessionCost < 0.01 ? sessionCost.toFixed(4) : sessionCost.toFixed(2)}
             </span>
           )}
@@ -655,7 +782,12 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
           {/* Context usage — tokens used / max with bar */}
           <div
             className="chat-input-context"
-            title={`${formatTokens(contextUsedTokens)} / ${formatTokens(contextMaxTokens)} tokens (${Math.round(contextPercent)}%)${contextSource === 'estimated' ? ' — estimated' : ''}`}
+            title={[
+              `${formatTokens(contextUsedTokens)} / ${formatTokens(contextMaxTokens)} tokens (${Math.round(contextPercent)}%)`,
+              contextSource === 'estimated' ? 'Estimated from character volume' : 'From Claude Code',
+              detectedModel ? `Model: ${detectedModel}` : '',
+              contextPercent >= COMPACT_THRESHOLD ? 'Tip: Run /compact to free space' : '',
+            ].filter(Boolean).join('\n')}
           >
             <div className="chat-input-context-bar">
               <div className="chat-input-context-fill" style={{ width: `${Math.min(contextPercent, 100)}%`, background: contextColor }} />

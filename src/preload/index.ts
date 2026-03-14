@@ -56,6 +56,8 @@ const api = {
     ipcRenderer.invoke('read-file', filePath),
   searchFiles: (rootPath: string, query: string): Promise<{ results: { file: string; relativePath: string; matches: { line: number; text: string }[] }[]; error?: string }> =>
     ipcRenderer.invoke('search-files', rootPath, query),
+  findFilesByName: (rootPath: string, query: string): Promise<{ name: string; path: string; relativePath: string; isDir: boolean }[]> =>
+    ipcRenderer.invoke('find-files-by-name', rootPath, query),
   getWorktreeDiff: (worktreePath: string): Promise<{ diff?: string; error?: string }> =>
     ipcRenderer.invoke('get-worktree-diff', worktreePath),
   detectClaudeSessionId: (cwd: string): Promise<{ sessionId: string | null }> =>
