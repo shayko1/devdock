@@ -106,12 +106,12 @@ function parseSchedule(plist: PlistData): AgentSchedule {
  */
 function extractScriptDir(args: string[]): string | null {
   if (!args || args.length < 2) return null
-  // Find the arg that points to a script file in .claude/scripts
+  // Find the arg that points to a script file (not a binary/venv)
   for (const arg of args) {
-    if (arg.includes('.claude/scripts') && !arg.startsWith('-')) {
-      const dir = dirname(arg)
-      if (dir !== SCRIPTS_DIR) return dir
-    }
+    if (!arg.includes('.claude/scripts') || arg.startsWith('-')) continue
+    if (arg.includes('.venv') || arg.includes('/bin/')) continue
+    const dir = dirname(arg)
+    if (dir !== SCRIPTS_DIR) return dir
   }
   return null
 }
