@@ -39,9 +39,12 @@ interface HistoryRecord {
   claudeSessionId: string
   folderName: string
   folderPath: string
-  worktreePath: string | null
-  lastActiveAt: number
-  closedAt: number | null
+  cwd: string
+  isWorktree: boolean
+  branchHint: string | null
+  mtime: number
+  size: number
+  title?: string | null
 }
 
 interface Props {
@@ -78,7 +81,11 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
 
   useEffect(() => {
     window.api.coachGetConfig?.()
-      .then(cfg => setCoachEnabled(cfg.enabled && cfg.apiKey.length > 0))
+      .then(cfg => {
+        const enabled = cfg.enabled && cfg.apiKey.length > 0
+        setCoachEnabled(enabled)
+        if (!enabled) setSidePanel(prev => prev === 'coach' ? 'none' : prev)
+      })
       .catch(() => { /* coach not available */ })
   }, [])
 
@@ -196,18 +203,42 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
     setViewingFile(null)
     setHistoryLoading(true)
     try {
-      const all = await window.api.sessionHistoryGetAll()
-      setHistoryRecords(all.filter((r: any) => r.claudeSessionId).map((r: any) => ({
-        claudeSessionId: r.claudeSessionId,
-        folderName: r.folderName,
-        folderPath: r.folderPath,
-        worktreePath: r.worktreePath,
-        lastActiveAt: r.lastActiveAt,
-        closedAt: r.closedAt,
-      })))
+      // Scan Claude's actual session files for the active project
+      const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0]
+      if (activeSession) {
+        const records = await window.api.sessionHistoryScan(activeSession.folderPath, activeSession.folderName)
+        // Fetch titles for the first batch (async, update as they load)
+        const withTitles: HistoryRecord[] = records.map((r: any) => ({
+          claudeSessionId: r.claudeSessionId,
+          folderName: r.folderName,
+          folderPath: r.folderPath,
+          cwd: r.cwd,
+          isWorktree: r.isWorktree,
+          branchHint: r.branchHint,
+          mtime: r.mtime,
+          size: r.size,
+          title: null,
+        }))
+        setHistoryRecords(withTitles)
+        // Load titles in background for the first 30
+        for (let i = 0; i < Math.min(withTitles.length, 30); i++) {
+          const rec = withTitles[i]
+          window.api.sessionHistoryTitle(rec.claudeSessionId, rec.folderPath, rec.cwd)
+            .then(title => {
+              if (title) {
+                setHistoryRecords(prev => prev.map(r =>
+                  r.claudeSessionId === rec.claudeSessionId ? { ...r, title } : r
+                ))
+              }
+            })
+            .catch(() => {})
+        }
+      } else {
+        setHistoryRecords([])
+      }
     } catch { setHistoryRecords([]) }
     setHistoryLoading(false)
-  }, [sidePanel])
+  }, [sidePanel, sessions, activeSessionId])
 
   const handleChatSend = useCallback((text: string) => {
     if (!activeSessionId) return
@@ -485,46 +516,54 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
                 <div className="mcp-panel">
                   <div className="mcp-panel-header">
                     <div className="mcp-panel-tabs">
-                      <span className="mcp-panel-tab active">Session History</span>
+                      <span className="mcp-panel-tab active">
+                        Session History ({historyRecords.length})
+                      </span>
                     </div>
                     <button className="coach-close-btn" onClick={() => setSidePanel('none')} title="Close">×</button>
                   </div>
                   <div className="mcp-content">
                     {historyLoading ? (
-                      <div className="mcp-empty">Loading...</div>
+                      <div className="mcp-empty">Scanning sessions...</div>
                     ) : historyRecords.length === 0 ? (
                       <div className="mcp-empty">
                         <div style={{ fontSize: 18, marginBottom: 8 }}>&#128337;</div>
-                        <div>No session history yet.</div>
+                        <div>No sessions found for this project.</div>
                         <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
-                          Past conversations will appear here for up to 6 months.
+                          Conversations from the main branch and worktrees appear here.
                         </div>
                       </div>
                     ) : (
                       <div className="mcp-list">
                         {historyRecords.map((rec) => {
                           const isActive = sessions.some(s => s.claudeSessionId === rec.claudeSessionId && !s.exited)
-                          const ago = formatTimeAgo(rec.lastActiveAt)
+                          const ago = formatTimeAgo(rec.mtime)
+                          const sizeKb = Math.round(rec.size / 1024)
                           return (
                             <div
                               key={rec.claudeSessionId}
                               className={`mcp-card ${isActive ? 'active-session' : ''}`}
                               onClick={() => {
                                 if (!isActive) {
-                                  onResumeFromHistory(rec.claudeSessionId, rec.folderName, rec.folderPath, rec.worktreePath)
+                                  onResumeFromHistory(rec.claudeSessionId, rec.folderName, rec.folderPath)
                                 }
                               }}
                               style={{ cursor: isActive ? 'default' : 'pointer' }}
                             >
                               <div className="mcp-card-row">
-                                <span className="mcp-card-name">{rec.folderName}</span>
+                                <span className="mcp-card-name" style={{ fontSize: 11 }}>
+                                  {rec.title || rec.claudeSessionId.slice(0, 8) + '...'}
+                                </span>
                                 {isActive
                                   ? <span className="mcp-badge" style={{ background: 'var(--green)' }}>Active</span>
-                                  : <span className="mcp-badge" style={{ background: 'var(--text-muted)' }}>Resume</span>
+                                  : rec.isWorktree
+                                    ? <span className="mcp-badge" style={{ background: 'var(--purple, #a371f7)' }}>Worktree</span>
+                                    : <span className="mcp-badge" style={{ background: 'var(--accent)' }}>Resume</span>
                                 }
                               </div>
                               <div className="mcp-card-detail">
-                                {ago} · {rec.claudeSessionId.slice(0, 8)}...
+                                {ago} · {sizeKb}KB
+                                {rec.branchHint && <span> · {rec.branchHint.slice(0, 30)}</span>}
                               </div>
                             </div>
                           )

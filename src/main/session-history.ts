@@ -1,8 +1,10 @@
-import { join } from 'path'
+import { join, basename } from 'path'
 import { homedir } from 'os'
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'fs'
 
-export interface SessionRecord {
+// ── Active session tracking (for auto-resume on restart) ──
+
+export interface ActiveSession {
   id: string
   claudeSessionId: string | null
   folderName: string
@@ -10,158 +12,180 @@ export interface SessionRecord {
   worktreePath: string | null
   branchName: string | null
   dangerousMode?: boolean
-  createdAt: number
-  lastActiveAt: number
-  closedAt: number | null
-  autoRestore: boolean
 }
 
-const HISTORY_DIR = join(homedir(), '.devdock')
-const HISTORY_FILE = join(HISTORY_DIR, 'session-history.json')
-const MAX_AGE_MS = 180 * 24 * 60 * 60 * 1000 // 6 months
+const DEVDOCK_DIR = join(homedir(), '.devdock')
+const ACTIVE_FILE = join(DEVDOCK_DIR, 'active-sessions.json')
 
-class SessionHistory {
-  private records: SessionRecord[] = []
-  private loaded = false
+class ActiveSessionStore {
+  private sessions: ActiveSession[] = []
 
   private load() {
-    if (this.loaded) return
-    this.loaded = true
     try {
-      mkdirSync(HISTORY_DIR, { recursive: true })
-      if (existsSync(HISTORY_FILE)) {
-        this.records = JSON.parse(readFileSync(HISTORY_FILE, 'utf-8'))
+      if (existsSync(ACTIVE_FILE)) {
+        this.sessions = JSON.parse(readFileSync(ACTIVE_FILE, 'utf-8'))
       }
-    } catch {
-      this.records = []
-    }
-    this.prune()
+    } catch { this.sessions = [] }
   }
 
   private save() {
     try {
-      mkdirSync(HISTORY_DIR, { recursive: true })
-      writeFileSync(HISTORY_FILE, JSON.stringify(this.records, null, 2), 'utf-8')
+      mkdirSync(DEVDOCK_DIR, { recursive: true })
+      writeFileSync(ACTIVE_FILE, JSON.stringify(this.sessions, null, 2), 'utf-8')
     } catch (err) {
-      console.error('[SessionHistory] Failed to save:', err)
+      console.error('[ActiveSessions] save failed:', err)
     }
   }
 
-  private prune() {
-    const cutoff = Date.now() - MAX_AGE_MS
-    this.records = this.records.filter(r => r.lastActiveAt > cutoff)
-  }
-
-  add(record: Omit<SessionRecord, 'createdAt' | 'lastActiveAt' | 'closedAt' | 'autoRestore'>) {
+  set(session: ActiveSession) {
     this.load()
-    const existing = this.records.find(r => r.id === record.id)
-    if (existing) {
-      Object.assign(existing, record, { lastActiveAt: Date.now() })
-    } else {
-      this.records.push({
-        ...record,
-        createdAt: Date.now(),
-        lastActiveAt: Date.now(),
-        closedAt: null,
-        autoRestore: true,
-      })
-    }
+    const idx = this.sessions.findIndex(s => s.id === session.id)
+    if (idx >= 0) this.sessions[idx] = session
+    else this.sessions.push(session)
     this.save()
   }
 
-  updateClaudeSessionId(id: string, claudeSessionId: string) {
+  updateClaudeId(id: string, claudeSessionId: string) {
     this.load()
-    const rec = this.records.find(r => r.id === id)
-    if (rec) {
-      rec.claudeSessionId = claudeSessionId
-      rec.lastActiveAt = Date.now()
-      this.save()
-    }
-  }
-
-  touch(id: string) {
-    this.load()
-    const rec = this.records.find(r => r.id === id)
-    if (rec) {
-      rec.lastActiveAt = Date.now()
-      this.save()
-    }
-  }
-
-  markClosed(id: string) {
-    this.load()
-    const rec = this.records.find(r => r.id === id)
-    if (rec) {
-      rec.closedAt = Date.now()
-      rec.autoRestore = false
-      this.save()
-    }
-  }
-
-  markExited(id: string) {
-    this.load()
-    const rec = this.records.find(r => r.id === id)
-    if (rec) {
-      rec.lastActiveAt = Date.now()
-      // Keep autoRestore true so it resumes on next app start
-      this.save()
-    }
-  }
-
-  setAutoRestore(id: string, value: boolean) {
-    this.load()
-    const rec = this.records.find(r => r.id === id)
-    if (rec) {
-      rec.autoRestore = value
-      this.save()
-    }
-  }
-
-  getRestorableSessions(): SessionRecord[] {
-    this.load()
-    return this.records.filter(r => r.autoRestore && !r.closedAt)
-  }
-
-  getHistory(): SessionRecord[] {
-    this.load()
-    this.prune()
-    return [...this.records].sort((a, b) => b.lastActiveAt - a.lastActiveAt)
-  }
-
-  getByClaudeSessionId(claudeSessionId: string): SessionRecord | undefined {
-    this.load()
-    return this.records.find(r => r.claudeSessionId === claudeSessionId)
+    const s = this.sessions.find(r => r.id === id)
+    if (s) { s.claudeSessionId = claudeSessionId; this.save() }
   }
 
   remove(id: string) {
     this.load()
-    this.records = this.records.filter(r => r.id !== id)
+    this.sessions = this.sessions.filter(s => s.id !== id)
     this.save()
   }
 
-  /** Scan Claude Code's own session files to find resumable conversations for a project */
-  scanClaudeSessions(folderPath: string): { claudeSessionId: string; mtime: number; size: number }[] {
-    try {
-      const encoded = folderPath.replace(/\//g, '-')
-      const claudeProjectDir = join(homedir(), '.claude', 'projects', encoded)
-      if (!existsSync(claudeProjectDir)) return []
+  getAll(): ActiveSession[] {
+    this.load()
+    return [...this.sessions]
+  }
 
-      return readdirSync(claudeProjectDir)
-        .filter(f => f.endsWith('.jsonl'))
-        .map(f => {
-          const fullPath = join(claudeProjectDir, f)
-          const stat = statSync(fullPath)
-          return {
-            claudeSessionId: f.replace('.jsonl', ''),
-            mtime: stat.mtime.getTime(),
-            size: stat.size,
-          }
-        })
-        .sort((a, b) => b.mtime - a.mtime)
-    } catch {
-      return []
-    }
+  clear() {
+    this.sessions = []
+    this.save()
   }
 }
 
-export const sessionHistory = new SessionHistory()
+export const activeSessions = new ActiveSessionStore()
+
+// ── Claude session history (scan Claude's own files) ──
+
+export interface ClaudeSessionInfo {
+  claudeSessionId: string
+  folderName: string
+  folderPath: string
+  cwd: string
+  isWorktree: boolean
+  branchHint: string | null
+  mtime: number
+  size: number
+}
+
+const CLAUDE_PROJECTS_DIR = join(homedir(), '.claude', 'projects')
+
+/**
+ * Scan Claude Code's actual session files for a given project.
+ * Finds sessions from the main path AND any worktree paths that belong to the project.
+ */
+export function scanProjectSessions(folderPath: string, folderName: string): ClaudeSessionInfo[] {
+  if (!existsSync(CLAUDE_PROJECTS_DIR)) return []
+
+  const results: ClaudeSessionInfo[] = []
+  const seen = new Set<string>()
+
+  // The project slug is used in worktree directory names
+  const projectSlug = basename(folderPath).toLowerCase()
+
+  try {
+    const allDirs = readdirSync(CLAUDE_PROJECTS_DIR)
+
+    for (const dirName of allDirs) {
+      // Decode the directory name back to a path
+      const decodedPath = dirName.replace(/^-/, '/').replace(/-/g, '/')
+
+      // Match if: exact project path, or worktree containing the project name
+      const isMainPath = decodedPath === folderPath
+      const isDevdockWorktree = decodedPath.includes('/devdock/worktrees/') && decodedPath.toLowerCase().includes(projectSlug)
+      const isDev3Worktree = decodedPath.includes('/dev3.0/worktrees/') && decodedPath.toLowerCase().includes(projectSlug)
+      const isGenericWorktree = decodedPath.includes('/worktrees/') && decodedPath.toLowerCase().includes(projectSlug)
+
+      if (!isMainPath && !isDevdockWorktree && !isDev3Worktree && !isGenericWorktree) continue
+
+      const projDir = join(CLAUDE_PROJECTS_DIR, dirName)
+      try {
+        const stat = statSync(projDir)
+        if (!stat.isDirectory()) continue
+      } catch { continue }
+
+      // Scan .jsonl session files in this directory
+      try {
+        const files = readdirSync(projDir).filter(f => f.endsWith('.jsonl'))
+        for (const f of files) {
+          const sessionId = f.replace('.jsonl', '')
+          if (seen.has(sessionId)) continue
+          seen.add(sessionId)
+
+          try {
+            const filePath = join(projDir, f)
+            const fileStat = statSync(filePath)
+
+            // Extract branch hint from worktree path
+            let branchHint: string | null = null
+            if (!isMainPath) {
+              const parts = decodedPath.split('/')
+              const wtIdx = parts.indexOf('worktrees')
+              if (wtIdx >= 0 && wtIdx + 1 < parts.length) {
+                branchHint = parts.slice(wtIdx + 1).join('/').replace('/worktree', '')
+              }
+            }
+
+            results.push({
+              claudeSessionId: sessionId,
+              folderName,
+              folderPath,
+              cwd: decodedPath,
+              isWorktree: !isMainPath,
+              branchHint,
+              mtime: fileStat.mtime.getTime(),
+              size: fileStat.size,
+            })
+          } catch { /* skip unreadable files */ }
+        }
+      } catch { /* skip unreadable dirs */ }
+    }
+  } catch { /* projects dir not readable */ }
+
+  return results.sort((a, b) => b.mtime - a.mtime)
+}
+
+/**
+ * Read the first user message from a Claude session file to use as a title.
+ */
+export function getSessionTitle(claudeSessionId: string, folderPath: string, cwd?: string): string | null {
+  const paths = [cwd, folderPath].filter(Boolean) as string[]
+
+  for (const p of paths) {
+    const encoded = p.replace(/\//g, '-')
+    const filePath = join(CLAUDE_PROJECTS_DIR, encoded, `${claudeSessionId}.jsonl`)
+    if (!existsSync(filePath)) continue
+
+    try {
+      const content = readFileSync(filePath, 'utf-8')
+      const lines = content.split('\n').filter(Boolean)
+      for (const line of lines.slice(0, 20)) {
+        try {
+          const entry = JSON.parse(line)
+          if (entry.type === 'human' || entry.role === 'user') {
+            const text = typeof entry.message === 'string'
+              ? entry.message
+              : entry.content?.[0]?.text || entry.message?.content?.[0]?.text || ''
+            if (text) return text.slice(0, 120)
+          }
+        } catch { continue }
+      }
+    } catch { continue }
+  }
+  return null
+}

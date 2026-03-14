@@ -15,7 +15,7 @@ import { loadState, saveState } from './store'
 import { scanWorkspace } from './scanner'
 import { detectRtk, installRtkHook, uninstallRtkHook, getRtkGainStats, writeRtkWrapper, setSessionRtkDisabled, isSessionRtkDisabled, cleanupSessionRtkFlag } from './rtk-manager'
 import { coachManager } from './coach-manager'
-import { sessionHistory } from './session-history'
+import { activeSessions, scanProjectSessions, getSessionTitle } from './session-history'
 import { AppState, Project, WorkspaceFolder } from '../shared/types'
 import { CoachConfig } from '../shared/coach-types'
 
@@ -1014,41 +1014,30 @@ function setupIPC() {
     }
   })
 
-  // Session History
-  ipcMain.handle('session-history-add', (_event, record: any) => {
-    sessionHistory.add(record)
+  // Active sessions (for auto-resume on restart)
+  ipcMain.handle('active-sessions-set', (_event, session: any) => {
+    activeSessions.set(session)
   })
 
-  ipcMain.handle('session-history-update-claude-id', (_event, id: string, claudeSessionId: string) => {
-    sessionHistory.updateClaudeSessionId(id, claudeSessionId)
+  ipcMain.handle('active-sessions-update-claude-id', (_event, id: string, claudeSessionId: string) => {
+    activeSessions.updateClaudeId(id, claudeSessionId)
   })
 
-  ipcMain.handle('session-history-touch', (_event, id: string) => {
-    sessionHistory.touch(id)
+  ipcMain.handle('active-sessions-remove', (_event, id: string) => {
+    activeSessions.remove(id)
   })
 
-  ipcMain.handle('session-history-mark-closed', (_event, id: string) => {
-    sessionHistory.markClosed(id)
+  ipcMain.handle('active-sessions-get-all', () => {
+    return activeSessions.getAll()
   })
 
-  ipcMain.handle('session-history-mark-exited', (_event, id: string) => {
-    sessionHistory.markExited(id)
+  // Session history (scans Claude Code's own files)
+  ipcMain.handle('session-history-scan', (_event, folderPath: string, folderName: string) => {
+    return scanProjectSessions(folderPath, folderName)
   })
 
-  ipcMain.handle('session-history-get-restorable', () => {
-    return sessionHistory.getRestorableSessions()
-  })
-
-  ipcMain.handle('session-history-get-all', () => {
-    return sessionHistory.getHistory()
-  })
-
-  ipcMain.handle('session-history-scan-claude', (_event, folderPath: string) => {
-    return sessionHistory.scanClaudeSessions(folderPath)
-  })
-
-  ipcMain.handle('session-history-remove', (_event, id: string) => {
-    sessionHistory.remove(id)
+  ipcMain.handle('session-history-title', (_event, claudeSessionId: string, folderPath: string, cwd?: string) => {
+    return getSessionTitle(claudeSessionId, folderPath, cwd)
   })
 }
 

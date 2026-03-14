@@ -68,7 +68,7 @@ export function App() {
     localStorage.setItem('devdock-theme', theme)
   }, [theme])
 
-  // Auto-resume sessions from persistent history on startup
+  // Auto-resume sessions on startup
   const autoResumeRef = useRef(false)
   useEffect(() => {
     if (autoResumeRef.current) return
@@ -76,10 +76,10 @@ export function App() {
     localStorage.removeItem('devdock-claude-sessions')
 
     const restoreSessions = async () => {
-      const restorable = await window.api.sessionHistoryGetRestorable()
-      if (restorable.length === 0) return
+      const saved = await window.api.activeSessionsGetAll()
+      if (saved.length === 0) return
       setActiveTab('claude')
-      for (const rec of restorable) {
+      for (const rec of saved) {
         const newId = `claude-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`
         try {
           const result = await window.api.ptyCreate({
@@ -92,7 +92,7 @@ export function App() {
             dangerousMode: rec.dangerousMode,
           })
           if (result.success) {
-            const restored: ClaudeSession = {
+            setClaudeSessions(prev => [...prev, {
               id: newId,
               folderName: result.folderName || rec.folderName,
               folderPath: rec.folderPath,
@@ -100,9 +100,10 @@ export function App() {
               branchName: result.branchName ?? rec.branchName,
               claudeSessionId: rec.claudeSessionId ?? null,
               dangerousMode: rec.dangerousMode,
-            }
-            setClaudeSessions(prev => [...prev, restored])
-            window.api.sessionHistoryAdd({
+            }])
+            // Replace old entry with new PTY id
+            window.api.activeSessionsRemove(rec.id)
+            window.api.activeSessionsSet({
               id: newId,
               claudeSessionId: rec.claudeSessionId,
               folderName: rec.folderName,
@@ -111,20 +112,21 @@ export function App() {
               branchName: rec.branchName,
               dangerousMode: rec.dangerousMode,
             })
-            // Remove old record, new one was created
-            window.api.sessionHistoryMarkClosed(rec.id)
+          } else {
+            window.api.activeSessionsRemove(rec.id)
           }
-        } catch { /* skip failed sessions */ }
+        } catch {
+          window.api.activeSessionsRemove(rec.id)
+        }
       }
     }
     restoreSessions()
   }, [])
 
-  // Listen for PTY exits to mark sessions (keep in history for resume)
+  // Listen for PTY exits
   useEffect(() => {
     const unsub = window.api.onPtyExit(({ sessionId }) => {
       setClaudeSessions(prev => prev.map(s => s.id === sessionId ? { ...s, exited: true } : s))
-      window.api.sessionHistoryMarkExited(sessionId)
     })
     return unsub
   }, [])
@@ -154,8 +156,8 @@ export function App() {
         setShowNewSession(false)
         setActiveTab('claude')
 
-        // Save to persistent history
-        window.api.sessionHistoryAdd({
+        // Track for auto-resume
+        window.api.activeSessionsSet({
           id: sessionId,
           claudeSessionId: null,
           folderName: newSession.folderName,
@@ -175,7 +177,7 @@ export function App() {
               setClaudeSessions(prev => prev.map(s =>
                 s.id === sessionId ? { ...s, claudeSessionId: claudeId } : s
               ))
-              window.api.sessionHistoryUpdateClaudeId(sessionId, claudeId)
+              window.api.activeSessionsUpdateClaudeId(sessionId, claudeId)
               return
             }
           }
@@ -211,9 +213,8 @@ export function App() {
             : s
         ))
 
-        // Mark old session closed, add new one
-        window.api.sessionHistoryMarkClosed(sessionId)
-        window.api.sessionHistoryAdd({
+        window.api.activeSessionsRemove(sessionId)
+        window.api.activeSessionsSet({
           id: newPtyId,
           claudeSessionId: session.claudeSessionId,
           folderName: session.folderName,
@@ -232,7 +233,7 @@ export function App() {
               setClaudeSessions(prev => prev.map(s =>
                 s.id === newPtyId ? { ...s, claudeSessionId: claudeId } : s
               ))
-              window.api.sessionHistoryUpdateClaudeId(newPtyId, claudeId)
+              window.api.activeSessionsUpdateClaudeId(newPtyId, claudeId)
               return
             }
           }
@@ -271,7 +272,7 @@ export function App() {
         setClaudeSessions(prev => [...prev, newSession])
         setActiveTab('claude')
 
-        window.api.sessionHistoryAdd({
+        window.api.activeSessionsSet({
           id: sessionId,
           claudeSessionId: null,
           folderName: newSession.folderName,
@@ -290,7 +291,7 @@ export function App() {
               setClaudeSessions(prev => prev.map(s =>
                 s.id === sessionId ? { ...s, claudeSessionId: claudeId } : s
               ))
-              window.api.sessionHistoryUpdateClaudeId(sessionId, claudeId)
+              window.api.activeSessionsUpdateClaudeId(sessionId, claudeId)
               return
             }
           }
@@ -332,7 +333,7 @@ export function App() {
         setClaudeSessions(prev => [...prev, newSession])
         setActiveTab('claude')
 
-        window.api.sessionHistoryAdd({
+        window.api.activeSessionsSet({
           id: newId,
           claudeSessionId,
           folderName,
@@ -365,8 +366,8 @@ export function App() {
       }
     }
 
-    // Mark as explicitly closed — will NOT auto-resume
-    window.api.sessionHistoryMarkClosed(sessionId)
+    // Remove from active sessions — will NOT auto-resume
+    window.api.activeSessionsRemove(sessionId)
     setClaudeSessions(prev => prev.filter(s => s.id !== sessionId))
   }, [claudeSessions])
 

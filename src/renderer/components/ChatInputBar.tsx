@@ -38,8 +38,16 @@ const MODELS = [
   { id: 'sonnet', label: 'Claude Sonnet 4', short: 'Sonnet 4', desc: 'Fast & capable', ctx: 200_000 },
   { id: 'opus', label: 'Claude Opus 4', short: 'Opus 4', desc: 'Most powerful', ctx: 200_000 },
   { id: 'haiku', label: 'Claude Haiku 3.5', short: 'Haiku 3.5', desc: 'Fastest, cheapest', ctx: 200_000 },
-  { id: 'sonnet thinking', label: 'Sonnet 4 (Thinking)', short: 'Sonnet 4+', desc: 'Extended thinking', ctx: 200_000 },
-  { id: 'opus thinking', label: 'Opus 4 (Thinking)', short: 'Opus 4+', desc: 'Max intelligence', ctx: 200_000 },
+  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', short: 'Sonnet 4.6', desc: 'Latest Sonnet', ctx: 200_000 },
+  { id: 'claude-opus-4-6', label: 'Opus 4.6', short: 'Opus 4.6', desc: 'Latest Opus', ctx: 200_000 },
+]
+
+type EffortLevel = 'auto' | 'low' | 'medium' | 'high'
+const EFFORT_LEVELS: { id: EffortLevel; label: string; short: string; desc: string }[] = [
+  { id: 'auto', label: 'Auto', short: 'Auto', desc: 'Claude decides effort based on task' },
+  { id: 'low', label: 'Low', short: 'Low', desc: 'Quick, concise answers' },
+  { id: 'medium', label: 'Medium', short: 'Med', desc: 'Balanced effort' },
+  { id: 'high', label: 'High', short: 'High', desc: 'Deep thinking, thorough responses' },
 ]
 
 interface SlashCommand {
@@ -68,6 +76,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: '/export', label: '/export', desc: 'Export conversation as text', category: 'info' },
   { cmd: '/copy', label: '/copy', desc: 'Copy last response to clipboard', category: 'info' },
   { cmd: '/model', label: '/model', desc: 'Switch AI model', category: 'project' },
+  { cmd: '/effort', label: '/effort', desc: 'Set effort level (auto, low, medium, high)', category: 'project' },
   { cmd: '/config', label: '/config', desc: 'Manage settings', category: 'project' },
   { cmd: '/init', label: '/init', desc: 'Initialize project with CLAUDE files', category: 'project' },
   { cmd: '/memory', label: '/memory', desc: 'Edit CLAUDE.md files', category: 'project' },
@@ -122,6 +131,8 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
   const [images, setImages] = useState<{ name: string; file: File; preview: string }[]>([])
   const [showModeMenu, setShowModeMenu] = useState(false)
   const [showModelMenu, setShowModelMenu] = useState(false)
+  const [effortLevel, setEffortLevel] = useState<EffortLevel>('auto')
+  const [showEffortMenu, setShowEffortMenu] = useState(false)
 
   // Context tracking (real from Claude Code statusline data or estimated)
   const [contextUsedTokens, setContextUsedTokens] = useState(0)
@@ -165,6 +176,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
   const fileInputRef = useRef<HTMLInputElement>(null)
   const modeRef = useRef<HTMLDivElement>(null)
   const modelRef = useRef<HTMLDivElement>(null)
+  const effortRef = useRef<HTMLDivElement>(null)
   const acRef = useRef<HTMLDivElement>(null)
 
   // Reset on session change
@@ -211,7 +223,6 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       const clean = strip(data)
 
       // ── Model detection ──
-      // Claude Code outputs model info: "model: claude-sonnet-4-6", "Using Claude Sonnet 4"
       const modelIdMatch = clean.match(/model[:\s]+["']?(claude-[a-z0-9.-]+)/i)
         || clean.match(/Using\s+(Claude\s+\w+\s*\d*(?:\.\d+)?)/i)
       if (modelIdMatch) {
@@ -219,6 +230,13 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
         setDetectedModel(m)
         const newMax = contextSizeForModel(m)
         setContextMaxTokens(newMax)
+      }
+
+      // ── Effort level detection ──
+      const effortMatch = clean.match(/Effort level:\s*(auto|low|medium|high)/i)
+        || clean.match(/effort[:\s]+(auto|low|medium|high)/i)
+      if (effortMatch) {
+        setEffortLevel(effortMatch[1].toLowerCase() as EffortLevel)
       }
 
       // ── Context window from statusline JSON fragments ──
@@ -349,6 +367,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     const handler = (e: MouseEvent) => {
       if (modeRef.current && !modeRef.current.contains(e.target as Node)) setShowModeMenu(false)
       if (modelRef.current && !modelRef.current.contains(e.target as Node)) setShowModelMenu(false)
+      if (effortRef.current && !effortRef.current.contains(e.target as Node)) setShowEffortMenu(false)
       if (acRef.current && !acRef.current.contains(e.target as Node) &&
           textareaRef.current && !textareaRef.current.contains(e.target as Node)) {
         setAcType('none')
@@ -470,7 +489,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     const after = text.slice(cursor)
 
     if (acType === 'slash') {
-      const newText = value + (value === '/model' || value === '/compact' || value === '/resume' || value === '/fork' || value === '/export' || value === '/simplify' ? ' ' : '') + after
+      const newText = value + (value === '/model' || value === '/effort' || value === '/compact' || value === '/resume' || value === '/fork' || value === '/export' || value === '/simplify' ? ' ' : '') + after
       setText(newText)
       setAcType('none')
     } else if (acType === 'file') {
@@ -537,6 +556,14 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     }
     setShowModelMenu(false)
   }, [modelIdx, onSend])
+
+  const handleEffortChange = useCallback((level: EffortLevel) => {
+    if (level !== effortLevel) {
+      setEffortLevel(level)
+      onSend(`/effort ${level}`)
+    }
+    setShowEffortMenu(false)
+  }, [effortLevel, onSend])
 
   const handleCompactNow = useCallback(() => {
     onSend('/compact')
@@ -872,6 +899,36 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
                     <div>
                       <div className="chat-input-menu-label">{m.label}</div>
                       <div className="chat-input-menu-desc">{m.desc} · {formatTokens(m.ctx)} ctx</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Effort selector */}
+          <div className="chat-input-dropdown" ref={effortRef}>
+            <button className="chat-input-pill effort-pill" onClick={() => setShowEffortMenu(!showEffortMenu)}>
+              <span className={`chat-input-effort-dot ${effortLevel}`} />
+              {EFFORT_LEVELS.find(e => e.id === effortLevel)?.short || 'Auto'}
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ opacity: 0.5 }}>
+                <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="2" fill="none"/>
+              </svg>
+            </button>
+            {showEffortMenu && (
+              <div className="chat-input-menu">
+                {EFFORT_LEVELS.map((e) => (
+                  <button
+                    key={e.id}
+                    className={`chat-input-menu-item ${effortLevel === e.id ? 'selected' : ''}`}
+                    onClick={() => handleEffortChange(e.id)}
+                  >
+                    <div>
+                      <div className="chat-input-menu-label">
+                        <span className={`chat-input-effort-dot ${e.id}`} />
+                        {e.label}
+                      </div>
+                      <div className="chat-input-menu-desc">{e.desc}</div>
                     </div>
                   </button>
                 ))}

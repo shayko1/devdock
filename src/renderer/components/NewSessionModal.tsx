@@ -11,7 +11,7 @@ export function NewSessionModal({ scanPath, onStart, onClose }: Props) {
   const [folders, setFolders] = useState<WorkspaceFolder[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
-  const [useWorktree, setUseWorktree] = useState(true)
+  const [useWorktree, setUseWorktree] = useState(false)
 
   useEffect(() => {
     window.api.listWorkspaceFolders(scanPath).then((f) => {
