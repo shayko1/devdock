@@ -13,8 +13,10 @@ import { pipelineManager } from './pipeline-manager'
 import { scanAgents, getAgentLogs, triggerAgent } from './agent-scanner'
 import { loadState, saveState } from './store'
 import { scanWorkspace } from './scanner'
-import { detectRtk, installRtkHook, uninstallRtkHook, getRtkGainStats } from './rtk-manager'
+import { detectRtk, installRtkHook, uninstallRtkHook, getRtkGainStats, writeRtkWrapper, setSessionRtkDisabled, isSessionRtkDisabled, cleanupSessionRtkFlag } from './rtk-manager'
+import { coachManager } from './coach-manager'
 import { AppState, Project, WorkspaceFolder } from '../shared/types'
+import { CoachConfig } from '../shared/coach-types'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -87,6 +89,29 @@ function ensureDevDockClaudeMd(cwd: string, rtkEnabled?: boolean) {
   } catch { /* ignore — non-critical */ }
 }
 
+function getCoachConfigPath() {
+  const userDataPath = app.getPath('userData')
+  return join(userDataPath, 'coach-config.json')
+}
+
+function loadCoachConfig() {
+  try {
+    const configPath = getCoachConfigPath()
+    if (existsSync(configPath)) {
+      const raw = readFileSync(configPath, 'utf-8')
+      const cfg = JSON.parse(raw) as CoachConfig
+      coachManager.setConfig(cfg)
+    }
+  } catch { /* use defaults */ }
+}
+
+function saveCoachConfig(config: CoachConfig) {
+  try {
+    const configPath = getCoachConfigPath()
+    writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
+  } catch { /* ignore */ }
+}
+
 async function createWindow() {
   const iconPng = join(__dirname, '../../resources/icon.png')
   const iconIcns = join(__dirname, '../../resources/icon.icns')
@@ -127,7 +152,16 @@ async function createWindow() {
   pipelineManager.setMainWindow(mainWindow)
   pipelineManager.loadConfigs()
   pipelineManager.loadRuns()
+  coachManager.setMainWindow(mainWindow)
+  loadCoachConfig()
+  ptyManager.onData((sessionId, data) => coachManager.feedData(sessionId, data))
   await startBrowserBridge()
+
+  // Write RTK wrapper if installed and enabled
+  const appState = loadState()
+  if (appState.rtkEnabled) {
+    writeRtkWrapper()
+  }
 
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
@@ -382,6 +416,8 @@ function setupIPC() {
 
       // Create a small script to run claude in the worktree
       const scriptPath = join(worktreeBase, timestamp, 'run-claude.sh')
+      const appState = loadState()
+      const wtPermFlag = appState.dangerousMode ? ' --dangerously-skip-permissions' : ''
       writeFileSync(scriptPath, [
         '#!/bin/zsh',
         'unset CLAUDECODE',
@@ -390,7 +426,7 @@ function setupIPC() {
         `echo "\\033[1;34m[DevDock]\\033[0m Branch: ${branchName}"`,
         `echo "\\033[1;34m[DevDock]\\033[0m Base: ${baseBranch}"`,
         `echo ""`,
-        'claude --dangerously-skip-permissions',
+        `claude${wtPermFlag}`,
       ].join('\n'), { mode: 0o755 })
 
       // Open Terminal.app running the script
@@ -436,6 +472,7 @@ function setupIPC() {
     useWorktree: boolean
     resumeClaudeId?: string
     existingWorktreePath?: string
+    dangerousMode?: boolean
   }) => {
     let worktreePath: string | null = opts.existingWorktreePath || null
     let branchName: string | null = null
@@ -489,10 +526,11 @@ function setupIPC() {
     const currentState = loadState()
     ensureDevDockClaudeMd(sessionCwd, currentState.rtkEnabled)
 
-    // Build command: resume if we have a Claude session ID, otherwise start fresh
-    let command = 'claude --dangerously-skip-permissions'
+    // Build command: safe mode by default, dangerous only when explicitly opted in
+    const permFlag = opts.dangerousMode ? ' --dangerously-skip-permissions' : ''
+    let command = `claude${permFlag}`
     if (opts.resumeClaudeId) {
-      command = `claude --resume ${opts.resumeClaudeId} --dangerously-skip-permissions`
+      command = `claude --resume ${opts.resumeClaudeId}${permFlag}`
     }
 
     return ptyManager.createSession(
@@ -515,6 +553,8 @@ function setupIPC() {
 
   ipcMain.handle('pty-destroy', (_event, sessionId: string) => {
     ptyManager.destroySession(sessionId)
+    cleanupSessionRtkFlag(sessionId)
+    coachManager.clearSession(sessionId)
   })
 
   ipcMain.handle('save-temp-image', (_event, opts: { name: string; data: number[]; sessionId: string }) => {
@@ -725,7 +765,9 @@ function setupIPC() {
   })
 
   ipcMain.handle('rtk-enable', () => {
-    return installRtkHook()
+    const result = installRtkHook()
+    if (result.success) writeRtkWrapper()
+    return result
   })
 
   ipcMain.handle('rtk-disable', () => {
@@ -734,6 +776,19 @@ function setupIPC() {
 
   ipcMain.handle('rtk-gain', () => {
     return getRtkGainStats()
+  })
+
+  ipcMain.handle('rtk-session-toggle', (_event, sessionId: string, disabled: boolean) => {
+    setSessionRtkDisabled(sessionId, disabled)
+    return { disabled }
+  })
+
+  ipcMain.handle('rtk-session-status', (_event, sessionId: string) => {
+    return { disabled: isSessionRtkDisabled(sessionId) }
+  })
+
+  ipcMain.handle('rtk-session-cleanup', (_event, sessionId: string) => {
+    cleanupSessionRtkFlag(sessionId)
   })
 
   // Agent scanner handlers
@@ -747,6 +802,32 @@ function setupIPC() {
 
   ipcMain.handle('trigger-agent', (_event, agentId: string) => {
     return triggerAgent(agentId)
+  })
+
+  // Coach (prompt improvement assistant) handlers
+  ipcMain.handle('coach-get-config', () => {
+    return coachManager.getConfig()
+  })
+
+  ipcMain.handle('coach-set-config', (_event, config: CoachConfig) => {
+    coachManager.setConfig(config)
+    saveCoachConfig(config)
+  })
+
+  ipcMain.handle('coach-get-suggestions', (_event, sessionId: string) => {
+    return coachManager.getSuggestions(sessionId)
+  })
+
+  ipcMain.handle('coach-get-cost', (_event, sessionId: string) => {
+    return coachManager.getCost(sessionId)
+  })
+
+  ipcMain.handle('coach-get-total-cost', () => {
+    return coachManager.getTotalCost()
+  })
+
+  ipcMain.handle('coach-dismiss', (_event, sessionId: string, suggestionId: string) => {
+    coachManager.dismissSuggestion(sessionId, suggestionId)
   })
 }
 

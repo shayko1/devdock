@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { AppState, ProcessStatus, Project, WorkspaceFolder } from '../shared/types'
 import { AgentInfo } from '../shared/agent-types'
+import { CoachConfig, CoachSuggestion, CoachAnalysis, CoachSessionCost } from '../shared/coach-types'
 
 const api = {
   getState: (): Promise<AppState> => ipcRenderer.invoke('get-state'),
@@ -34,7 +35,7 @@ const api = {
     ipcRenderer.invoke('open-claude-worktree', projectPath, projectName),
 
   // PTY (embedded terminal) API
-  ptyCreate: (opts: { sessionId: string; folderName: string; folderPath: string; useWorktree: boolean; resumeClaudeId?: string; existingWorktreePath?: string }): Promise<{ success: boolean; id?: string; folderName?: string; worktreePath?: string | null; branchName?: string | null; error?: string }> =>
+  ptyCreate: (opts: { sessionId: string; folderName: string; folderPath: string; useWorktree: boolean; resumeClaudeId?: string; existingWorktreePath?: string; dangerousMode?: boolean }): Promise<{ success: boolean; id?: string; folderName?: string; worktreePath?: string | null; branchName?: string | null; error?: string }> =>
     ipcRenderer.invoke('pty-create', opts),
   ptyWrite: (sessionId: string, data: string): void => {
     ipcRenderer.send('pty-write', sessionId, data)
@@ -124,13 +125,36 @@ const api = {
     ipcRenderer.invoke('rtk-disable'),
   rtkGain: (): Promise<{ totalSaved: number; totalOriginal: number; totalCompressed: number; savingsPercent: number; commandCount: number; raw: string } | null> =>
     ipcRenderer.invoke('rtk-gain'),
+  rtkSessionToggle: (sessionId: string, disabled: boolean): Promise<{ disabled: boolean }> =>
+    ipcRenderer.invoke('rtk-session-toggle', sessionId, disabled),
+  rtkSessionStatus: (sessionId: string): Promise<{ disabled: boolean }> =>
+    ipcRenderer.invoke('rtk-session-status', sessionId),
 
   // Agent scanner
   scanAgents: (): Promise<AgentInfo[]> => ipcRenderer.invoke('scan-agents'),
   getAgentLogs: (agentId: string, logType: 'history' | 'stdout'): Promise<string[]> =>
     ipcRenderer.invoke('get-agent-logs', agentId, logType),
   triggerAgent: (agentId: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('trigger-agent', agentId)
+    ipcRenderer.invoke('trigger-agent', agentId),
+
+  // Coach (prompt improvement assistant)
+  coachGetConfig: (): Promise<CoachConfig> =>
+    ipcRenderer.invoke('coach-get-config'),
+  coachSetConfig: (config: CoachConfig): Promise<void> =>
+    ipcRenderer.invoke('coach-set-config', config),
+  coachGetSuggestions: (sessionId: string): Promise<CoachSuggestion[]> =>
+    ipcRenderer.invoke('coach-get-suggestions', sessionId),
+  coachGetCost: (sessionId: string): Promise<CoachSessionCost> =>
+    ipcRenderer.invoke('coach-get-cost', sessionId),
+  coachGetTotalCost: (): Promise<CoachSessionCost> =>
+    ipcRenderer.invoke('coach-get-total-cost'),
+  coachDismiss: (sessionId: string, suggestionId: string): Promise<void> =>
+    ipcRenderer.invoke('coach-dismiss', sessionId, suggestionId),
+  onCoachSuggestion: (callback: (data: CoachAnalysis) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: CoachAnalysis) => callback(data)
+    ipcRenderer.on('coach-suggestion', handler)
+    return () => ipcRenderer.removeListener('coach-suggestion', handler)
+  }
 }
 
 contextBridge.exposeInMainWorld('api', api)

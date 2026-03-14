@@ -17,11 +17,14 @@ interface Props {
   folderPath: string
   worktreePath: string | null
   branchName: string | null
+  rtkAvailable: boolean
+  rtkDisabled: boolean
+  onToggleRtk: () => void
   onShowDiff: () => void
   onShowFiles: () => void
 }
 
-export function SessionInfoBar({ folderName, folderPath, worktreePath, branchName, onShowDiff, onShowFiles }: Props) {
+export function SessionInfoBar({ folderName, folderPath, worktreePath, branchName, rtkAvailable, rtkDisabled, onToggleRtk, onShowDiff, onShowFiles }: Props) {
   const [git, setGit] = useState<GitStatus | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
 
@@ -95,6 +98,22 @@ export function SessionInfoBar({ folderName, folderPath, worktreePath, branchNam
       </div>
 
       <div className="sib-actions">
+        {rtkAvailable && (
+          <button
+            className={`btn btn-sm ${!rtkDisabled ? 'sib-btn-rtk-on' : ''}`}
+            onClick={onToggleRtk}
+            title={rtkDisabled ? 'RTK compression is OFF for this session — click to enable' : 'RTK compression is ON for this session — click to disable'}
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '0.5px',
+              background: !rtkDisabled ? 'var(--green)' : undefined,
+              color: !rtkDisabled ? '#000' : undefined,
+            }}
+          >
+            RTK {rtkDisabled ? 'OFF' : 'ON'}
+          </button>
+        )}
         <button className="btn btn-sm" onClick={onShowDiff} title="Show diff">
           Show Diff
         </button>

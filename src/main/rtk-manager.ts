@@ -1,4 +1,7 @@
 import { execSync } from 'child_process'
+import { join } from 'path'
+import { homedir } from 'os'
+import { writeFileSync, unlinkSync, existsSync, mkdirSync } from 'fs'
 
 export interface RtkStatus {
   installed: boolean
@@ -112,4 +115,56 @@ export function getRtkGainStats(): RtkGainStats | null {
   if (cmdMatch) commandCount = parseInt(cmdMatch[1], 10)
 
   return { totalSaved, totalOriginal, totalCompressed, savingsPercent, commandCount, raw }
+}
+
+const SESSIONS_DIR = join(homedir(), '.devdock', 'rtk-sessions')
+
+/**
+ * Write a wrapper script at ~/.devdock/rtk that checks a per-session
+ * flag file. If the flag file exists for the current DEVDOCK_SESSION_ID,
+ * the wrapper runs the command directly (bypassing RTK compression).
+ * Otherwise it forwards to the real rtk binary.
+ */
+export function writeRtkWrapper(): boolean {
+  const status = detectRtk()
+  if (!status.installed || !status.path) return false
+
+  const devdockBin = join(homedir(), '.devdock')
+  mkdirSync(devdockBin, { recursive: true })
+  mkdirSync(SESSIONS_DIR, { recursive: true })
+
+  const wrapperPath = join(devdockBin, 'rtk')
+  const script = [
+    '#!/bin/bash',
+    `SESSIONS_DIR="${SESSIONS_DIR}"`,
+    'if [ -n "$DEVDOCK_SESSION_ID" ] && [ -f "$SESSIONS_DIR/$DEVDOCK_SESSION_ID.disabled" ]; then',
+    '  exec "$@"',
+    'fi',
+    `exec "${status.path}" "$@"`,
+  ].join('\n')
+
+  writeFileSync(wrapperPath, script, { mode: 0o755 })
+  return true
+}
+
+export function setSessionRtkDisabled(sessionId: string, disabled: boolean): void {
+  mkdirSync(SESSIONS_DIR, { recursive: true })
+  const flagPath = join(SESSIONS_DIR, `${sessionId}.disabled`)
+
+  if (disabled) {
+    writeFileSync(flagPath, '', { mode: 0o644 })
+  } else {
+    try { unlinkSync(flagPath) } catch { /* already gone */ }
+  }
+}
+
+export function isSessionRtkDisabled(sessionId: string): boolean {
+  const flagPath = join(SESSIONS_DIR, `${sessionId}.disabled`)
+  return existsSync(flagPath)
+}
+
+export function cleanupSessionRtkFlag(sessionId: string): void {
+  try {
+    unlinkSync(join(SESSIONS_DIR, `${sessionId}.disabled`))
+  } catch { /* ignore */ }
 }

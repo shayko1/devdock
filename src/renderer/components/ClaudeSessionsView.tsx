@@ -7,6 +7,7 @@ import { SearchView } from './SearchView'
 import { BrowserView } from './BrowserView'
 import { PipelineView } from './PipelineView'
 import { SessionInfoBar } from './SessionInfoBar'
+import { CoachPanel } from './CoachPanel'
 
 interface Session {
   id: string
@@ -16,27 +17,66 @@ interface Session {
   branchName: string | null
   exited?: boolean
   claudeSessionId?: string | null
+  dangerousMode?: boolean
 }
 
 interface Props {
   sessions: Session[]
+  rtkEnabled: boolean
   onNewSession: () => void
   onCloseSession: (sessionId: string) => void
   onResumeSession: (sessionId: string) => void
   onOpenPipelineSession?: (folderName: string, folderPath: string, worktreePath: string) => void
 }
 
-type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline'
+type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'coach'
 
-export function ClaudeSessionsView({ sessions, onNewSession, onCloseSession, onResumeSession, onOpenPipelineSession }: Props) {
+export function ClaudeSessionsView({ sessions, rtkEnabled, onNewSession, onCloseSession, onResumeSession, onOpenPipelineSession }: Props) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidePanel, setSidePanel] = useState<SidePanel>('none')
   const [viewingFile, setViewingFile] = useState<string | null>(null)
   const [viewingLine, setViewingLine] = useState<number | undefined>(undefined)
   const [sideWidth, setSideWidth] = useState(350)
   const [waitingSessions, setWaitingSessions] = useState<Set<string>>(new Set())
+  const [rtkDisabledSessions, setRtkDisabledSessions] = useState<Set<string>>(new Set())
+  const [rtkAvailable, setRtkAvailable] = useState(false)
+  const [coachEnabled, setCoachEnabled] = useState(false)
+  const [coachBadge, setCoachBadge] = useState(0)
   const dragging = useRef(false)
   const bodyRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!rtkEnabled) { setRtkAvailable(false); return }
+    window.api.rtkDetect().then(status => setRtkAvailable(status.installed))
+  }, [rtkEnabled])
+
+  useEffect(() => {
+    window.api.coachGetConfig?.()
+      .then(cfg => setCoachEnabled(cfg.enabled && cfg.apiKey.length > 0))
+      .catch(() => { /* coach not available */ })
+  }, [])
+
+  useEffect(() => {
+    if (!coachEnabled || !window.api.onCoachSuggestion) return
+    const unsub = window.api.onCoachSuggestion((analysis) => {
+      if (sidePanel !== 'coach') {
+        setCoachBadge(prev => prev + analysis.suggestions.length)
+      }
+    })
+    return unsub
+  }, [coachEnabled, sidePanel])
+
+  const handleToggleRtk = useCallback(async (sessionId: string) => {
+    const currentlyDisabled = rtkDisabledSessions.has(sessionId)
+    const newDisabled = !currentlyDisabled
+    await window.api.rtkSessionToggle(sessionId, newDisabled)
+    setRtkDisabledSessions(prev => {
+      const next = new Set(prev)
+      if (newDisabled) next.add(sessionId)
+      else next.delete(sessionId)
+      return next
+    })
+  }, [rtkDisabledSessions])
 
   const handleWaitingChange = useCallback((sessionId: string, waiting: boolean) => {
     setWaitingSessions(prev => {
@@ -103,6 +143,15 @@ export function ClaudeSessionsView({ sessions, onNewSession, onCloseSession, onR
     setViewingFile(null)
   }, [])
 
+  const toggleCoach = useCallback(() => {
+    setSidePanel(prev => {
+      if (prev === 'coach') return 'none'
+      setCoachBadge(0)
+      return 'coach'
+    })
+    setViewingFile(null)
+  }, [])
+
   // Drag resize logic
   const onDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -161,6 +210,24 @@ export function ClaudeSessionsView({ sessions, onNewSession, onCloseSession, onR
               </span>
             )}
             <span className="claude-session-tab-name">{session.folderName}</span>
+            {session.dangerousMode && (
+              <span
+                className="claude-session-tab-dangerous"
+                title="Dangerous mode — Claude runs commands without permission"
+                style={{
+                  fontSize: 9,
+                  fontWeight: 700,
+                  padding: '1px 4px',
+                  borderRadius: 3,
+                  background: '#f85149',
+                  color: '#fff',
+                  letterSpacing: '0.3px',
+                  flexShrink: 0
+                }}
+              >
+                UNSAFE
+              </span>
+            )}
             {session.branchName && (
               <span className="claude-session-tab-branch">
                 {session.branchName.replace('devdock/claude-', '').slice(0, 15)}
@@ -192,6 +259,26 @@ export function ClaudeSessionsView({ sessions, onNewSession, onCloseSession, onR
           +
         </button>
         <div style={{ flex: 1 }} />
+        {coachEnabled && (
+          <button
+            className={`btn btn-sm ${sidePanel === 'coach' ? 'btn-accent' : ''}`}
+            onClick={toggleCoach}
+            title="Prompt coach — suggestions to improve your prompts"
+            style={{ marginRight: 4, position: 'relative' }}
+          >
+            Coach
+            {coachBadge > 0 && sidePanel !== 'coach' && (
+              <span style={{
+                position: 'absolute', top: -4, right: -4,
+                background: 'var(--orange, #d29922)', color: '#000',
+                fontSize: 9, fontWeight: 700, borderRadius: 8,
+                padding: '1px 5px', minWidth: 14, textAlign: 'center'
+              }}>
+                {coachBadge}
+              </span>
+            )}
+          </button>
+        )}
         <button
           className={`btn btn-sm ${sidePanel === 'pipeline' ? 'btn-accent' : ''}`}
           onClick={togglePipeline}
@@ -231,6 +318,9 @@ export function ClaudeSessionsView({ sessions, onNewSession, onCloseSession, onR
           folderPath={activeSession.folderPath}
           worktreePath={activeSession.worktreePath}
           branchName={activeSession.branchName}
+          rtkAvailable={rtkAvailable}
+          rtkDisabled={rtkDisabledSessions.has(activeSession.id)}
+          onToggleRtk={() => handleToggleRtk(activeSession.id)}
           onShowDiff={handleShowChanges}
           onShowFiles={toggleFiles}
         />
@@ -243,6 +333,23 @@ export function ClaudeSessionsView({ sessions, onNewSession, onCloseSession, onR
               className="claude-session-terminal-wrapper"
               style={{ display: activeSessionId === session.id ? 'flex' : 'none', flex: 1, minHeight: 0 }}
             >
+              {session.dangerousMode && activeSessionId === session.id && (
+                <div style={{
+                  padding: '4px 12px',
+                  background: 'rgba(248, 81, 73, 0.15)',
+                  borderBottom: '1px solid rgba(248, 81, 73, 0.3)',
+                  fontSize: 11,
+                  color: '#f85149',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  flexShrink: 0
+                }}>
+                  <span style={{ fontSize: 13 }}>&#9888;</span>
+                  DANGEROUS MODE — Claude executes commands without asking permission
+                </div>
+              )}
               <XTerminal
                 sessionId={session.id}
                 active={activeSessionId === session.id}
@@ -275,7 +382,13 @@ export function ClaudeSessionsView({ sessions, onNewSession, onCloseSession, onR
           <>
             <div className="side-resize-handle" onMouseDown={onDragStart} />
             <div className="claude-sessions-side" style={{ width: sideWidth }}>
-              {sidePanel === 'pipeline' ? (
+              {sidePanel === 'coach' ? (
+                <CoachPanel
+                  sessionId={activeSession.id}
+                  onClose={() => setSidePanel('none')}
+                  onWriteToTerminal={(text) => window.api.ptyWrite(activeSession.id, text)}
+                />
+              ) : sidePanel === 'pipeline' ? (
                 <PipelineView
                   folderName={activeSession.folderName}
                   folderPath={activeSession.folderPath}

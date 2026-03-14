@@ -24,6 +24,7 @@ export interface AppState {
   scanPath: string
   removedPaths?: string[]
   rtkEnabled?: boolean
+  dangerousMode?: boolean
 }
 
 export interface ProcessStatus {

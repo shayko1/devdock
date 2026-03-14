@@ -4,8 +4,11 @@ import { join } from 'path'
 import { homedir } from 'os'
 
 // node-pty is a native module — use eval to prevent vite from bundling it
+// Tests inject mock via global __PTY_FOR_TEST__
 // eslint-disable-next-line no-eval
-const pty: typeof import('node-pty') = eval("require('node-pty')")
+const pty: typeof import('node-pty') =
+  (typeof globalThis !== 'undefined' && (globalThis as any).__PTY_FOR_TEST__) ||
+  eval("require('node-pty')")
 
 export interface PtySession {
   id: string
@@ -20,6 +23,7 @@ class PtyManager {
   private sessions = new Map<string, PtySession>()
   private mainWindow: BrowserWindow | null = null
   private shellPath: string | null = null
+  private dataHooks: ((sessionId: string, data: string) => void)[] = []
 
   setMainWindow(win: BrowserWindow) {
     this.mainWindow = win
@@ -27,6 +31,11 @@ class PtyManager {
 
   setShellPath(path: string) {
     this.shellPath = path
+  }
+
+  /** Register a hook that receives all PTY data for every session */
+  onData(hook: (sessionId: string, data: string) => void) {
+    this.dataHooks.push(hook)
   }
 
   createSession(
@@ -99,6 +108,9 @@ class PtyManager {
           this.mainWindow.webContents.send('pty-data', { sessionId, data })
         }
       } catch { /* window destroyed */ }
+      for (const hook of this.dataHooks) {
+        try { hook(sessionId, data) } catch { /* ignore hook errors */ }
+      }
     })
 
     ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {

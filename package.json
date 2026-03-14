@@ -9,6 +9,8 @@
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
     "package": "bash scripts/package-mac.sh",
+    "install-dev": "bash scripts/install-dev.sh",
+    "build:watch": "electron-vite build --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

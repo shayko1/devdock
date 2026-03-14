@@ -47,9 +47,23 @@ const mockApi = {
   pipelineGetConfig: vi.fn(),
   pipelineSetConfig: vi.fn(),
   onPipelineEvent: vi.fn().mockReturnValue(() => {}),
+  rtkDetect: vi.fn().mockResolvedValue({ installed: false, version: null, hookActive: false, path: null }),
+  rtkEnable: vi.fn().mockResolvedValue({ success: true, output: '' }),
+  rtkDisable: vi.fn().mockResolvedValue({ success: true, output: '' }),
+  rtkGain: vi.fn().mockResolvedValue(null),
+  rtkSessionToggle: vi.fn().mockResolvedValue({ disabled: false }),
+  rtkSessionStatus: vi.fn().mockResolvedValue({ disabled: false }),
+  rtkSessionCleanup: vi.fn(),
   scanAgents: vi.fn(),
   getAgentLogs: vi.fn(),
   triggerAgent: vi.fn(),
+  coachGetConfig: vi.fn().mockResolvedValue({ enabled: false, apiKey: '', model: 'gpt-4.1-nano', baseUrl: '' }),
+  coachSetConfig: vi.fn().mockResolvedValue(undefined),
+  coachGetSuggestions: vi.fn().mockResolvedValue([]),
+  coachGetCost: vi.fn().mockResolvedValue({ totalUsd: 0, calls: 0, promptTokens: 0, completionTokens: 0 }),
+  coachGetTotalCost: vi.fn().mockResolvedValue({ totalUsd: 0, calls: 0, promptTokens: 0, completionTokens: 0 }),
+  coachDismiss: vi.fn().mockResolvedValue(undefined),
+  onCoachSuggestion: vi.fn().mockReturnValue(() => {}),
 }
 
 // Only set window.api in jsdom (renderer tests); Node main process tests have no window

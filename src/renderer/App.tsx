@@ -24,6 +24,7 @@ interface ClaudeSession {
   branchName: string | null
   exited?: boolean
   claudeSessionId?: string | null
+  dangerousMode?: boolean
 }
 
 export function App() {
@@ -101,12 +102,14 @@ export function App() {
 
   const handleStartClaudeSession = useCallback(async (folder: WorkspaceFolder, useWorktree: boolean) => {
     const sessionId = `claude-${Date.now().toString(36)}`
+    const isDangerous = state.dangerousMode ?? false
     try {
       const result = await window.api.ptyCreate({
         sessionId,
         folderName: folder.name,
         folderPath: folder.path,
-        useWorktree
+        useWorktree,
+        dangerousMode: isDangerous
       })
       if (result.success) {
         const newSession: ClaudeSession = {
@@ -115,7 +118,8 @@ export function App() {
           folderPath: folder.path,
           worktreePath: result.worktreePath ?? null,
           branchName: result.branchName ?? null,
-          claudeSessionId: null
+          claudeSessionId: null,
+          dangerousMode: isDangerous
         }
         setClaudeSessions(prev => [...prev, newSession])
         setShowNewSession(false)
@@ -155,9 +159,10 @@ export function App() {
         sessionId: newPtyId,
         folderName: session.folderName,
         folderPath: session.folderPath,
-        useWorktree: false, // Don't create a new worktree, reuse existing
+        useWorktree: false,
         resumeClaudeId: session.claudeSessionId,
-        existingWorktreePath: session.worktreePath || undefined
+        existingWorktreePath: session.worktreePath || undefined,
+        dangerousMode: session.dangerousMode
       })
       if (result.success) {
         // Replace the exited session with the new resumed one
@@ -198,13 +203,15 @@ export function App() {
 
   const handleOpenPipelineSession = useCallback(async (pipelineFolderName: string, pipelineFolderPath: string, worktreePath: string) => {
     const sessionId = `claude-${Date.now().toString(36)}`
+    const isDangerous = state.dangerousMode ?? false
     try {
       const result = await window.api.ptyCreate({
         sessionId,
         folderName: pipelineFolderName,
         folderPath: pipelineFolderPath,
         useWorktree: false,
-        existingWorktreePath: worktreePath
+        existingWorktreePath: worktreePath,
+        dangerousMode: isDangerous
       })
       if (result.success) {
         const newSession: ClaudeSession = {
@@ -213,7 +220,8 @@ export function App() {
           folderPath: pipelineFolderPath,
           worktreePath: result.worktreePath ?? worktreePath,
           branchName: result.branchName ?? null,
-          claudeSessionId: null
+          claudeSessionId: null,
+          dangerousMode: isDangerous
         }
         setClaudeSessions(prev => [...prev, newSession])
         setActiveTab('claude')
@@ -252,6 +260,7 @@ export function App() {
           useWorktree: false,
           resumeClaudeId: session.claudeSessionId || undefined,
           existingWorktreePath: session.worktreePath || undefined,
+          dangerousMode: session.dangerousMode,
         })
         if (result.success) {
           const restored: ClaudeSession = {
@@ -493,6 +502,7 @@ export function App() {
       ) : activeTab === 'claude' ? (
         <ClaudeSessionsView
           sessions={claudeSessions}
+          rtkEnabled={state.rtkEnabled ?? false}
           onNewSession={() => setShowNewSession(true)}
           onCloseSession={handleCloseClaudeSession}
           onResumeSession={handleResumeClaudeSession}
@@ -673,8 +683,9 @@ export function App() {
         <SettingsModal
           currentPath={state.scanPath}
           rtkEnabled={state.rtkEnabled ?? false}
-          onSave={(newPath, rtkEnabled) => {
-            persist({ ...state, scanPath: newPath, rtkEnabled })
+          dangerousMode={state.dangerousMode ?? false}
+          onSave={(newPath, rtkEnabled, dangerousMode) => {
+            persist({ ...state, scanPath: newPath, rtkEnabled, dangerousMode })
             setShowSettings(false)
           }}
           onClose={() => setShowSettings(false)}
