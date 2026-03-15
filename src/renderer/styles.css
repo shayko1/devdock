@@ -1424,6 +1424,18 @@ body {
   max-width: 280px;
   position: relative;
 }
+.sib-branch-clickable {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  transition: border-color 0.15s, background 0.15s;
+}
+.sib-branch-clickable:hover {
+  border-color: var(--blue, #58a6ff);
+  background: var(--bg-hover, rgba(88,166,255,0.1));
+  opacity: 1;
+}
 .sib-branch:hover { opacity: 0.8; }
 .sib-copied {
   position: absolute;
