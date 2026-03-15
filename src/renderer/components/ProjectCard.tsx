@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { ProcessStatus, Project, SystemPortInfo } from '../../shared/types'
 
 interface Props {
@@ -6,6 +6,8 @@ interface Props {
   status: ProcessStatus | undefined
   systemPortInfo: SystemPortInfo | undefined
   selected: boolean
+  currentBranch: string | null
+  branches: string[]
   onStart: () => void
   onStop: () => void
   onEdit: () => void
@@ -13,6 +15,7 @@ interface Props {
   onSelect: () => void
   onOpenBrowser: () => void
   onKillSystemProcess: (pid: number) => void
+  onCheckoutBranch: (branch: string) => void
 }
 
 function timeAgo(dateStr: string | null): string {
@@ -28,11 +31,36 @@ function timeAgo(dateStr: string | null): string {
 }
 
 export function ProjectCard({
-  project, status, systemPortInfo, selected,
-  onStart, onStop, onEdit, onRemove, onSelect, onOpenBrowser, onKillSystemProcess
+  project, status, systemPortInfo, selected, currentBranch, branches,
+  onStart, onStop, onEdit, onRemove, onSelect, onOpenBrowser, onKillSystemProcess, onCheckoutBranch
 }: Props) {
   const isRunning = status?.running ?? false
   const isSystemRunning = !isRunning && !!systemPortInfo
+  const [branchOpen, setBranchOpen] = useState(false)
+  const [branchFilter, setBranchFilter] = useState('')
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!branchOpen) return
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setBranchOpen(false)
+        setBranchFilter('')
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [branchOpen])
+
+  const handleCheckout = useCallback((branch: string) => {
+    setBranchOpen(false)
+    setBranchFilter('')
+    onCheckoutBranch(branch)
+  }, [onCheckoutBranch])
+
+  const filteredBranches = branches.filter(b =>
+    b !== currentBranch && b.toLowerCase().includes(branchFilter.toLowerCase())
+  )
 
   return (
     <div
@@ -54,6 +82,54 @@ export function ProjectCard({
           />
         </span>
       </div>
+
+      {currentBranch && (
+        <div className="project-card-branch" ref={dropdownRef} onClick={(e) => e.stopPropagation()}>
+          <button
+            className="branch-toggle"
+            onClick={() => { setBranchOpen(!branchOpen); setBranchFilter('') }}
+            title={`Branch: ${currentBranch}`}
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Z"/>
+            </svg>
+            <span className="branch-name">{currentBranch}</span>
+            {branches.length > 1 && (
+              <svg className="branch-chevron" width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M4.427 7.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 7H4.604a.25.25 0 00-.177.427z"/>
+              </svg>
+            )}
+          </button>
+          {branchOpen && branches.length > 1 && (
+            <div className="branch-dropdown">
+              {branches.length > 5 && (
+                <input
+                  className="branch-search"
+                  placeholder="Filter branches..."
+                  value={branchFilter}
+                  onChange={(e) => setBranchFilter(e.target.value)}
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                />
+              )}
+              <div className="branch-list">
+                {filteredBranches.map(b => (
+                  <button
+                    key={b}
+                    className="branch-item"
+                    onClick={() => handleCheckout(b)}
+                  >
+                    {b}
+                  </button>
+                ))}
+                {filteredBranches.length === 0 && (
+                  <div className="branch-empty">No matching branches</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {project.description && (
         <div className="project-card-desc">{project.description}</div>

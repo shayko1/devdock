@@ -361,6 +361,61 @@ function setupIPC() {
     return result
   })
 
+  ipcMain.handle('list-branches', async (_event, folderPath: string) => {
+    try {
+      execSync('git rev-parse --is-inside-work-tree', {
+        cwd: folderPath, encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore']
+      })
+    } catch {
+      return { current: null, branches: [] }
+    }
+
+    let current: string | null = null
+    try {
+      current = execSync('git rev-parse --abbrev-ref HEAD', {
+        cwd: folderPath, encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore']
+      }).trim()
+    } catch { /* detached HEAD */ }
+
+    const branches: string[] = []
+    try {
+      const raw = execSync('git branch --format="%(refname:short)"', {
+        cwd: folderPath, encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore']
+      }).trim()
+      if (raw) {
+        for (const b of raw.split('\n')) {
+          const name = b.trim()
+          if (name) branches.push(name)
+        }
+      }
+    } catch { /* ignore */ }
+
+    return { current, branches }
+  })
+
+  ipcMain.handle('checkout-branch', async (_event, folderPath: string, branchName: string) => {
+    try {
+      execSync('git rev-parse --is-inside-work-tree', {
+        cwd: folderPath, encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore']
+      })
+    } catch {
+      return { success: false, error: 'Not a git repository' }
+    }
+
+    try {
+      execSync(`git checkout "${branchName}"`, {
+        cwd: folderPath, encoding: 'utf-8', timeout: 10000, stdio: ['ignore', 'pipe', 'pipe']
+      })
+      return { success: true }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('Your local changes') || msg.includes('would be overwritten')) {
+        return { success: false, error: 'You have uncommitted changes. Commit or stash them first.' }
+      }
+      return { success: false, error: msg.slice(0, 200) }
+    }
+  })
+
   ipcMain.handle('open-in-ide', (_event, projectPath: string, ide: 'cursor' | 'zed') => {
     try {
       if (ide === 'cursor') {

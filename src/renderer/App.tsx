@@ -407,11 +407,54 @@ export function App() {
     onHelp: () => setShowHelp(true)
   })
 
+  // Branch state: { projectId -> { current, branches } }
+  const [branchMap, setBranchMap] = useState<Map<string, { current: string | null; branches: string[] }>>(new Map())
+
+  const refreshBranches = useCallback(async (projects?: Project[]) => {
+    const list = projects ?? state.projects
+    const visible = list.filter(p => !p.hidden)
+    const results = await Promise.all(
+      visible.map(async (p) => {
+        try {
+          const info = await window.api.listBranches(p.path)
+          return [p.id, info] as const
+        } catch {
+          return [p.id, { current: null, branches: [] }] as const
+        }
+      })
+    )
+    setBranchMap(new Map(results))
+  }, [state.projects])
+
+  useEffect(() => {
+    if (loaded && state.projects.length > 0) {
+      refreshBranches()
+    }
+  }, [loaded]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleCheckoutBranch = useCallback(async (projectId: string, branch: string) => {
+    const project = state.projects.find(p => p.id === projectId)
+    if (!project) return
+    const result = await window.api.checkoutBranch(project.path, branch)
+    if (result.success) {
+      setBranchMap(prev => {
+        const next = new Map(prev)
+        const existing = next.get(projectId)
+        next.set(projectId, { current: branch, branches: existing?.branches ?? [branch] })
+        return next
+      })
+      showToast(`Switched to ${branch}`, 'success')
+    } else {
+      showToast(result.error || 'Failed to switch branch', 'error')
+    }
+  }, [state.projects, showToast])
+
   const handleScan = useCallback(async () => {
     setScanning(true)
     try {
       const count = await scanWorkspace()
       refreshSystemPorts()
+      refreshBranches()
       if (count > 0) {
         showToast(`Found ${count} new project${count > 1 ? 's' : ''}`, 'success')
       } else {
@@ -420,7 +463,7 @@ export function App() {
     } finally {
       setScanning(false)
     }
-  }, [scanWorkspace, refreshSystemPorts, showToast])
+  }, [scanWorkspace, refreshSystemPorts, refreshBranches, showToast])
 
   const filteredProjects = useMemo(() => {
     let projects = state.projects
@@ -666,6 +709,8 @@ export function App() {
                           status={statuses.get(project.id)}
                           systemPortInfo={systemRunningMap.get(project.id)}
                           selected={bulkSelection.has(project.id)}
+                          currentBranch={branchMap.get(project.id)?.current ?? null}
+                          branches={branchMap.get(project.id)?.branches ?? []}
                           onStart={() => startProject(project)}
                           onStop={() => stopProject(project.id)}
                           onEdit={() => setEditingProject(project)}
@@ -673,6 +718,7 @@ export function App() {
                           onSelect={() => handleCardClick(project.id)}
                           onOpenBrowser={() => handleOpenBrowser(project.id)}
                           onKillSystemProcess={(pid) => killSystemPortProcess(pid)}
+                          onCheckoutBranch={(branch) => handleCheckoutBranch(project.id, branch)}
                         />
                       ))
                     )}

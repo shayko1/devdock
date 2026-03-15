@@ -380,6 +380,109 @@ body {
   color: var(--orange);
 }
 
+/* Branch switcher */
+.project-card-branch {
+  position: relative;
+}
+
+.branch-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+  cursor: pointer;
+  max-width: 100%;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.branch-toggle:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.branch-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.branch-chevron {
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.branch-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  min-width: 200px;
+  max-width: 300px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.branch-search {
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+}
+
+.branch-search::placeholder {
+  color: var(--text-muted);
+}
+
+.branch-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.branch-item {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.branch-item:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.branch-empty {
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 /* Bulk action bar */
 .bulk-bar {
   display: flex;

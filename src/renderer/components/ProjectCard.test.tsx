@@ -24,6 +24,9 @@ const mockHandlers = {
   onSelect: vi.fn(),
   onOpenBrowser: vi.fn(),
   onKillSystemProcess: vi.fn(),
+  onCheckoutBranch: vi.fn(),
+  currentBranch: 'main' as string | null,
+  branches: ['main', 'develop'],
 }
 
 describe('ProjectCard', () => {

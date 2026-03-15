@@ -7,6 +7,7 @@ const defaultProps = {
   currentScanDepth: 50,
   rtkEnabled: false,
   dangerousMode: false,
+  chatInputEnabled: false,
   onSave: vi.fn(),
   onClose: vi.fn(),
 }
@@ -27,6 +28,7 @@ describe('SettingsModal', () => {
         currentScanDepth={50}
         rtkEnabled={false}
         dangerousMode={false}
+        chatInputEnabled={false}
         onSave={vi.fn()}
         onClose={vi.fn()}
       />
@@ -52,7 +54,7 @@ describe('SettingsModal', () => {
     const onSave = vi.fn()
     render(<SettingsModal {...defaultProps} onSave={onSave} />)
     fireEvent.click(screen.getByText('Save'))
-    expect(onSave).toHaveBeenCalledWith('/path', 50, false, false)
+    expect(onSave).toHaveBeenCalledWith('/path', 50, false, false, false)
   })
 
   it('cancel button calls onClose', () => {
@@ -72,12 +74,14 @@ describe('SettingsModal', () => {
 
   it('shows Dangerous Mode OFF badge when dangerousMode is false', () => {
     render(<SettingsModal {...defaultProps} dangerousMode={false} />)
-    expect(screen.getByText('OFF')).toBeInTheDocument()
+    const offBadges = screen.getAllByText('OFF')
+    expect(offBadges.length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows Dangerous Mode ON badge when dangerousMode is true', () => {
     render(<SettingsModal {...defaultProps} dangerousMode={true} />)
-    expect(screen.getByText('ON')).toBeInTheDocument()
+    const onBadges = screen.getAllByText('ON')
+    expect(onBadges.length).toBeGreaterThanOrEqual(1)
   })
 
   /** Coach section has first Enable, Dangerous Mode has second - use last one */
@@ -121,9 +125,10 @@ describe('SettingsModal', () => {
 
   it('clicking Disable when dangerous mode is on disables it immediately', () => {
     render(<SettingsModal {...defaultProps} dangerousMode={true} />)
-    expect(screen.getByText('ON')).toBeInTheDocument()
+    expect(screen.getAllByText('ON').length).toBeGreaterThanOrEqual(1)
     fireEvent.click(screen.getByText('Disable'))
-    expect(screen.getByText('OFF')).toBeInTheDocument()
+    const offBadges = screen.getAllByText('OFF')
+    expect(offBadges.length).toBeGreaterThanOrEqual(2)
   })
 
   it('save passes dangerousMode=true after enabling', () => {
@@ -134,7 +139,7 @@ describe('SettingsModal', () => {
     fireEvent.change(input, { target: { value: 'I understand the risks' } })
     fireEvent.click(screen.getByText('Confirm'))
     fireEvent.click(screen.getByText('Save'))
-    expect(onSave).toHaveBeenCalledWith('/path', 50, false, true)
+    expect(onSave).toHaveBeenCalledWith('/path', 50, false, true, false)
   })
 
   it('confirmation text is case-sensitive', () => {

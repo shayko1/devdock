@@ -31,6 +31,10 @@ const api = {
     filesChanged: number; insertions: number; deletions: number
     commitsAhead: number; uncommitted: number; isGitRepo: boolean
   }> => ipcRenderer.invoke('get-git-status', folderPath),
+  listBranches: (folderPath: string): Promise<{ current: string | null; branches: string[] }> =>
+    ipcRenderer.invoke('list-branches', folderPath),
+  checkoutBranch: (folderPath: string, branchName: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('checkout-branch', folderPath, branchName),
   openClaudeWorktree: (projectPath: string, projectName: string): Promise<{ success: boolean; worktreePath?: string; branchName?: string; baseBranch?: string; error?: string }> =>
     ipcRenderer.invoke('open-claude-worktree', projectPath, projectName),
 
