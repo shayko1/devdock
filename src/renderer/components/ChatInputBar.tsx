@@ -35,11 +35,10 @@ function contextSizeForModel(modelId: string): number {
 }
 
 const MODELS = [
-  { id: 'sonnet', label: 'Claude Sonnet 4', short: 'Sonnet 4', desc: 'Fast & capable', ctx: 200_000 },
-  { id: 'opus', label: 'Claude Opus 4', short: 'Opus 4', desc: 'Most powerful', ctx: 200_000 },
-  { id: 'haiku', label: 'Claude Haiku 3.5', short: 'Haiku 3.5', desc: 'Fastest, cheapest', ctx: 200_000 },
   { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', short: 'Sonnet 4.6', desc: 'Latest Sonnet', ctx: 200_000 },
   { id: 'claude-opus-4-6', label: 'Opus 4.6', short: 'Opus 4.6', desc: 'Latest Opus', ctx: 200_000 },
+  { id: 'sonnet', label: 'Claude Sonnet 4', short: 'Sonnet 4', desc: 'Fast & capable', ctx: 200_000 },
+  { id: 'haiku', label: 'Claude Haiku 3.5', short: 'Haiku 3.5', desc: 'Fastest, cheapest', ctx: 200_000 },
 ]
 
 type EffortLevel = 'auto' | 'low' | 'medium' | 'high'

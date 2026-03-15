@@ -419,10 +419,8 @@ body {
 }
 
 .branch-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 100;
+  position: fixed;
+  z-index: 10000;
   min-width: 200px;
   max-width: 300px;
   background: var(--bg-secondary);

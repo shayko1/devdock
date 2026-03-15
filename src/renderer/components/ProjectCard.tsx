@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { ProcessStatus, Project, SystemPortInfo } from '../../shared/types'
 
 interface Props {
@@ -38,12 +39,17 @@ export function ProjectCard({
   const isSystemRunning = !isRunning && !!systemPortInfo
   const [branchOpen, setBranchOpen] = useState(false)
   const [branchFilter, setBranchFilter] = useState('')
+  const toggleRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
 
   useEffect(() => {
     if (!branchOpen) return
     const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+        toggleRef.current && !toggleRef.current.contains(e.target as Node)
+      ) {
         setBranchOpen(false)
         setBranchFilter('')
       }
@@ -51,6 +57,15 @@ export function ProjectCard({
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [branchOpen])
+
+  const openDropdown = useCallback(() => {
+    if (toggleRef.current) {
+      const rect = toggleRef.current.getBoundingClientRect()
+      setDropdownPos({ top: rect.bottom + 4, left: rect.left })
+    }
+    setBranchOpen(prev => !prev)
+    setBranchFilter('')
+  }, [])
 
   const handleCheckout = useCallback((branch: string) => {
     setBranchOpen(false)
@@ -84,10 +99,11 @@ export function ProjectCard({
       </div>
 
       {currentBranch && (
-        <div className="project-card-branch" ref={dropdownRef} onClick={(e) => e.stopPropagation()}>
+        <div className="project-card-branch" onClick={(e) => e.stopPropagation()}>
           <button
+            ref={toggleRef}
             className="branch-toggle"
-            onClick={() => { setBranchOpen(!branchOpen); setBranchFilter('') }}
+            onClick={openDropdown}
             title={`Branch: ${currentBranch}`}
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
@@ -100,8 +116,12 @@ export function ProjectCard({
               </svg>
             )}
           </button>
-          {branchOpen && branches.length > 1 && (
-            <div className="branch-dropdown">
+          {branchOpen && branches.length > 1 && createPortal(
+            <div
+              ref={dropdownRef}
+              className="branch-dropdown"
+              style={{ top: dropdownPos.top, left: dropdownPos.left }}
+            >
               {branches.length > 5 && (
                 <input
                   className="branch-search"
@@ -126,7 +146,8 @@ export function ProjectCard({
                   <div className="branch-empty">No matching branches</div>
                 )}
               </div>
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       )}
