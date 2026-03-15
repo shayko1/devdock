@@ -1172,57 +1172,95 @@ body {
   height: calc(100vh - var(--titlebar-height) - 38px);
 }
 
-.claude-sessions-tabs {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 8px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
-  overflow-x: auto;
-  flex-shrink: 0;
+.claude-sessions.claude-sessions-horizontal {
+  flex-direction: row;
 }
 
-.claude-session-tab {
+/* ── Vertical Session Sidebar ── */
+.claude-sessions-sidebar {
+  width: 200px;
+  min-width: 160px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.sidebar-session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-session-card {
+  padding: 8px 10px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.sidebar-session-card:hover {
+  background: var(--bg-tertiary);
+}
+
+.sidebar-session-card.active {
+  background: var(--bg-tertiary);
+  border-left-color: var(--accent, #58a6ff);
+}
+
+.sidebar-session-card.waiting {
+  border-left-color: var(--yellow, #d29922);
+}
+
+.sidebar-session-card.exited {
+  opacity: 0.55;
+}
+.sidebar-session-card.exited:hover {
+  opacity: 0.8;
+}
+
+.sidebar-card-row1 {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 10px;
-  border-radius: 6px;
+}
+
+.sidebar-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.sidebar-status-dot.active {
+  background: var(--green, #3fb950);
+}
+.sidebar-status-dot.waiting {
+  background: var(--yellow, #d29922);
+  animation: waiting-pulse 1.5s ease-in-out infinite;
+}
+.sidebar-status-dot.exited {
+  background: var(--text-muted, #6e7681);
+}
+
+.sidebar-card-name {
   font-size: 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  white-space: nowrap;
-  background: transparent;
-  border: 1px solid transparent;
-  transition: all 0.15s;
-}
-
-.claude-session-tab:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.claude-session-tab.active {
-  background: var(--bg-tertiary);
-  border-color: var(--border);
-  color: var(--text-primary);
-}
-
-.claude-session-tab.exited {
-  opacity: 0.5;
-}
-
-.claude-session-tab-name {
   font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
-.claude-session-tab-branch {
-  font-size: 10px;
-  color: var(--text-muted);
-}
-
-.claude-session-tab-close {
+.sidebar-card-close {
   background: transparent;
   border: none;
   color: var(--text-muted);
@@ -1231,46 +1269,139 @@ body {
   line-height: 1;
   padding: 0 2px;
   border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.1s;
+  flex-shrink: 0;
 }
-
-.claude-session-tab-close:hover {
+.sidebar-session-card:hover .sidebar-card-close {
+  opacity: 1;
+}
+.sidebar-card-close:hover {
   background: var(--red-dim);
   color: white;
 }
 
-.claude-session-tab-resume {
-  background: var(--green-dim);
-  border: none;
-  color: white;
-  cursor: pointer;
+.sidebar-card-branch {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  margin-right: 2px;
-}
-.claude-session-tab-resume:hover {
-  background: var(--green);
+  color: var(--text-muted);
+  margin-top: 2px;
+  padding-left: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* Waiting for input indicator */
-.claude-session-tab.waiting {
-  border-color: var(--yellow);
-}
-.claude-session-tab-waiting {
-  display: inline-flex;
+.sidebar-card-badges {
+  display: flex;
   align-items: center;
-  margin-right: 5px;
+  gap: 4px;
+  margin-top: 4px;
+  padding-left: 13px;
+  flex-wrap: wrap;
+  min-height: 0;
 }
-.waiting-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--yellow);
-  animation: waiting-pulse 1.5s ease-in-out infinite;
+.sidebar-card-badges:empty {
+  display: none;
 }
+
+.sidebar-badge-unsafe {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #f85149;
+  color: #fff;
+  letter-spacing: 0.3px;
+}
+
+.sidebar-badge-waiting {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(210, 153, 34, 0.2);
+  color: var(--yellow, #d29922);
+}
+
+.sidebar-badge-resume {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--green-dim, rgba(63, 185, 80, 0.15));
+  color: var(--green, #3fb950);
+  border: none;
+  cursor: pointer;
+}
+.sidebar-badge-resume:hover {
+  background: var(--green, #3fb950);
+  color: #fff;
+}
+
+.sidebar-badge-exited {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--text-muted);
+}
+
+.sidebar-new-session-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.sidebar-new-session-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+/* ── Main content area (toolbar + infobar + terminal) ── */
+.claude-main-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ── Compact toolbar row above terminal ── */
+.claude-toolbar-row {
+  display: flex;
+  align-items: center;
+  padding: 3px 8px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
 @keyframes waiting-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.75); }
+}
+
+/* Legacy tab styles (kept for backward compatibility) */
+.claude-sessions-tabs {
+  display: none;
+}
+.claude-session-tab {
+  display: none;
 }
 
 .claude-session-terminal-wrapper {
@@ -1297,10 +1428,7 @@ body {
 }
 
 .claude-sessions-new-btn {
-  margin-left: 4px;
-  font-size: 16px !important;
-  line-height: 1;
-  padding: 2px 8px !important;
+  display: none;
 }
 
 /* ─── Icon Toolbar ─── */

@@ -348,116 +348,122 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
   }
 
   return (
-    <div className="claude-sessions">
-      <div className="claude-sessions-tabs">
-        {sessions.map((session) => (
-          <div
-            key={session.id}
-            className={`claude-session-tab ${activeSessionId === session.id ? 'active' : ''} ${session.exited ? 'exited' : ''} ${waitingSessions.has(session.id) && !session.exited ? 'waiting' : ''}`}
-            onClick={() => handleSelectSession(session.id)}
-          >
-            {waitingSessions.has(session.id) && !session.exited && (
-              <span className="claude-session-tab-waiting" title="Waiting for your input">
-                <span className="waiting-dot" />
-              </span>
-            )}
-            <span className="claude-session-tab-name">{session.folderName}</span>
-            {session.dangerousMode && (
-              <span
-                className="claude-session-tab-dangerous"
-                title="Dangerous mode — Claude runs commands without permission"
-                style={{
-                  fontSize: 9,
-                  fontWeight: 700,
-                  padding: '1px 4px',
-                  borderRadius: 3,
-                  background: '#f85149',
-                  color: '#fff',
-                  letterSpacing: '0.3px',
-                  flexShrink: 0
-                }}
+    <div className="claude-sessions claude-sessions-horizontal">
+      {/* Vertical sidebar */}
+      <div className="claude-sessions-sidebar">
+        <div className="sidebar-session-list">
+          {sessions.map((session) => {
+            const isActive = activeSessionId === session.id
+            const isWaiting = waitingSessions.has(session.id) && !session.exited
+            const isExited = !!session.exited
+            return (
+              <div
+                key={session.id}
+                className={`sidebar-session-card ${isActive ? 'active' : ''} ${isExited ? 'exited' : ''} ${isWaiting ? 'waiting' : ''}`}
+                onClick={() => handleSelectSession(session.id)}
               >
-                UNSAFE
-              </span>
-            )}
-            {session.branchName && (
-              <span className="claude-session-tab-branch">
-                {session.branchName.replace('devdock/claude-', '').slice(0, 15)}
-              </span>
-            )}
-            {session.exited && session.claudeSessionId && (
-              <button
-                className="claude-session-tab-resume"
-                onClick={(e) => { e.stopPropagation(); onResumeSession(session.id) }}
-                title="Resume session"
-              >
-                Resume
-              </button>
-            )}
-            <button
-              className="claude-session-tab-close"
-              onClick={(e) => handleClose(session.id, e)}
-              title="Close session"
-            >
-              ×
-            </button>
-          </div>
-        ))}
+                <div className="sidebar-card-row1">
+                  <span className={`sidebar-status-dot ${isExited ? 'exited' : isWaiting ? 'waiting' : 'active'}`} />
+                  <span className="sidebar-card-name">{session.folderName}</span>
+                  <button
+                    className="sidebar-card-close"
+                    onClick={(e) => handleClose(session.id, e)}
+                    title="Close session"
+                  >
+                    ×
+                  </button>
+                </div>
+                {session.branchName && (
+                  <div className="sidebar-card-branch">
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0, opacity: 0.5 }}>
+                      <path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Z"/>
+                    </svg>
+                    {session.branchName.replace('devdock/claude-', '').slice(0, 20)}
+                  </div>
+                )}
+                <div className="sidebar-card-badges">
+                  {session.dangerousMode && (
+                    <span className="sidebar-badge-unsafe" title="Dangerous mode">UNSAFE</span>
+                  )}
+                  {isWaiting && (
+                    <span className="sidebar-badge-waiting">Waiting</span>
+                  )}
+                  {isExited && session.claudeSessionId && (
+                    <button
+                      className="sidebar-badge-resume"
+                      onClick={(e) => { e.stopPropagation(); onResumeSession(session.id) }}
+                      title="Resume session"
+                    >
+                      Resume
+                    </button>
+                  )}
+                  {isExited && !session.claudeSessionId && (
+                    <span className="sidebar-badge-exited">Ended</span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
         <button
-          className="btn btn-sm claude-sessions-new-btn"
+          className="sidebar-new-session-btn"
           onClick={onNewSession}
           title="New Claude session"
         >
-          +
+          + New Session
         </button>
-        <div style={{ flex: 1 }} />
-        <div className="claude-toolbar-icons">
-          {coachEnabled && (
-            <button
-              className={`claude-tb-icon ${sidePanel === 'coach' ? 'active' : ''}`}
-              onClick={toggleCoach}
-              title="Prompt Coach — AI suggestions to improve your prompts"
-              style={{ position: 'relative' }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5A4.5 4.5 0 0 0 3.5 6c0 1.855 1.244 3.407 2.945 3.88.036.34.143.656.31.935A5.5 5.5 0 0 1 2.5 6a5.5 5.5 0 0 1 11 0 5.5 5.5 0 0 1-4.255 4.815c.167-.28.274-.595.31-.935C11.256 9.407 12.5 7.855 12.5 6A4.5 4.5 0 0 0 8 1.5zM6.5 12.5A1.5 1.5 0 0 1 8 11h0a1.5 1.5 0 0 1 0 3h0a1.5 1.5 0 0 1-1.5-1.5z"/></svg>
-              {coachBadge > 0 && sidePanel !== 'coach' && (
-                <span className="claude-tb-badge">{coachBadge}</span>
-              )}
-            </button>
-          )}
-          <button className={`claude-tb-icon ${sidePanel === 'history' ? 'active' : ''}`} onClick={toggleHistory} title="Session History — browse & resume past conversations">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM2.5 8a5.5 5.5 0 1 1 11 0 5.5 5.5 0 0 1-11 0zM8 5a.5.5 0 0 1 .5.5V8l2 1a.5.5 0 0 1-.5.87l-2.25-1.25A.5.5 0 0 1 7.5 8V5.5A.5.5 0 0 1 8 5z"/></svg>
-          </button>
-          <button className={`claude-tb-icon ${sidePanel === 'mcp' ? 'active' : ''}`} onClick={toggleMcp} title="MCP Servers & Skills — manage tools and commands">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M5 1a2 2 0 0 0-2 2v1H2a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h1v4a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9h1a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-1V3a2 2 0 0 0-2-2H5zm0 1h6a1 1 0 0 1 1 1v1H4V3a1 1 0 0 1 1-1zM2 5h12v3H2V5zm3 5h2v1H5v-1zm4 0h2v1H9v-1z"/></svg>
-          </button>
-          <span className="claude-tb-sep" />
-          <button className={`claude-tb-icon ${sidePanel === 'files' || sidePanel === 'file-view' || sidePanel === 'changes' || sidePanel === 'search' ? 'active' : ''}`} onClick={toggleFiles} title="Files & Search — browse project files and search content (click to toggle)">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 2A1.5 1.5 0 0 0 0 3.5v2h3.5A1.5 1.5 0 0 1 5 7v.5h6V7a1.5 1.5 0 0 1 1.5-1.5H16v-2A1.5 1.5 0 0 0 14.5 2h-5l-1-1h-7zM0 7v5.5A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5V7h-3.5a.5.5 0 0 0-.5.5V9H5V7.5a.5.5 0 0 0-.5-.5H0z"/></svg>
-          </button>
-          <button className={`claude-tb-icon ${sidePanel === 'browser' ? 'active' : ''}`} onClick={toggleBrowser} title="Browser Preview — inspect web pages alongside your session">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-6.5a6.5 6.5 0 0 0-5.58 3.18L5.5 8l-3.08 3.32A6.5 6.5 0 0 0 8 14.5 6.5 6.5 0 0 0 8 1.5zm.5 1.04V5h3.04A5.51 5.51 0 0 0 8.5 2.54zM12.46 6H8.5v2h4a5.48 5.48 0 0 0 0-2zM12.46 9H8.5v2h3.04a5.48 5.48 0 0 0 .92-2zM8.5 12v2.46A5.51 5.51 0 0 0 11.54 12H8.5z"/></svg>
-          </button>
-          <button className={`claude-tb-icon ${sidePanel === 'pipeline' ? 'active' : ''}`} onClick={togglePipeline} title="CI Pipeline — monitor build and deploy status">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M6 2a.5.5 0 0 1 .47.33L10 11.44l1.53-3.82A.5.5 0 0 1 12 7.33h3.5a.5.5 0 0 1 0 1H12.3l-1.83 4.58a.5.5 0 0 1-.94 0L6 3.56l-1.53 3.82A.5.5 0 0 1 4 7.67H.5a.5.5 0 0 1 0-1h3.2L5.53 2.1A.5.5 0 0 1 6 2z"/></svg>
-          </button>
-        </div>
       </div>
-      {activeSession && (
-        <SessionInfoBar
-          folderName={activeSession.folderName}
-          folderPath={activeSession.folderPath}
-          worktreePath={activeSession.worktreePath}
-          branchName={activeSession.branchName}
-          rtkAvailable={rtkAvailable}
-          rtkDisabled={rtkDisabledSessions.has(activeSession.id)}
-          onToggleRtk={() => handleToggleRtk(activeSession.id)}
-          onShowDiff={handleShowChanges}
-          onShowFiles={toggleFiles}
-        />
-      )}
-      <div className="claude-sessions-body" ref={bodyRef}>
-        <div className="claude-sessions-terminal">
+
+      {/* Main area (toolbar + info bar + terminal) */}
+      <div className="claude-main-area">
+        <div className="claude-toolbar-row">
+          <div className="claude-toolbar-icons">
+            {coachEnabled && (
+              <button
+                className={`claude-tb-icon ${sidePanel === 'coach' ? 'active' : ''}`}
+                onClick={toggleCoach}
+                title="Prompt Coach"
+                style={{ position: 'relative' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5A4.5 4.5 0 0 0 3.5 6c0 1.855 1.244 3.407 2.945 3.88.036.34.143.656.31.935A5.5 5.5 0 0 1 2.5 6a5.5 5.5 0 0 1 11 0 5.5 5.5 0 0 1-4.255 4.815c.167-.28.274-.595.31-.935C11.256 9.407 12.5 7.855 12.5 6A4.5 4.5 0 0 0 8 1.5zM6.5 12.5A1.5 1.5 0 0 1 8 11h0a1.5 1.5 0 0 1 0 3h0a1.5 1.5 0 0 1-1.5-1.5z"/></svg>
+                {coachBadge > 0 && sidePanel !== 'coach' && (
+                  <span className="claude-tb-badge">{coachBadge}</span>
+                )}
+              </button>
+            )}
+            <button className={`claude-tb-icon ${sidePanel === 'history' ? 'active' : ''}`} onClick={toggleHistory} title="Session History">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM2.5 8a5.5 5.5 0 1 1 11 0 5.5 5.5 0 0 1-11 0zM8 5a.5.5 0 0 1 .5.5V8l2 1a.5.5 0 0 1-.5.87l-2.25-1.25A.5.5 0 0 1 7.5 8V5.5A.5.5 0 0 1 8 5z"/></svg>
+            </button>
+            <button className={`claude-tb-icon ${sidePanel === 'mcp' ? 'active' : ''}`} onClick={toggleMcp} title="MCP & Skills">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M5 1a2 2 0 0 0-2 2v1H2a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h1v4a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9h1a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-1V3a2 2 0 0 0-2-2H5zm0 1h6a1 1 0 0 1 1 1v1H4V3a1 1 0 0 1 1-1zM2 5h12v3H2V5zm3 5h2v1H5v-1zm4 0h2v1H9v-1z"/></svg>
+            </button>
+            <span className="claude-tb-sep" />
+            <button className={`claude-tb-icon ${sidePanel === 'files' || sidePanel === 'file-view' || sidePanel === 'changes' || sidePanel === 'search' ? 'active' : ''}`} onClick={toggleFiles} title="Files & Search">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 2A1.5 1.5 0 0 0 0 3.5v2h3.5A1.5 1.5 0 0 1 5 7v.5h6V7a1.5 1.5 0 0 1 1.5-1.5H16v-2A1.5 1.5 0 0 0 14.5 2h-5l-1-1h-7zM0 7v5.5A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5V7h-3.5a.5.5 0 0 0-.5.5V9H5V7.5a.5.5 0 0 0-.5-.5H0z"/></svg>
+            </button>
+            <button className={`claude-tb-icon ${sidePanel === 'browser' ? 'active' : ''}`} onClick={toggleBrowser} title="Browser Preview">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-6.5a6.5 6.5 0 0 0-5.58 3.18L5.5 8l-3.08 3.32A6.5 6.5 0 0 0 8 14.5 6.5 6.5 0 0 0 8 1.5zm.5 1.04V5h3.04A5.51 5.51 0 0 0 8.5 2.54zM12.46 6H8.5v2h4a5.48 5.48 0 0 0 0-2zM12.46 9H8.5v2h3.04a5.48 5.48 0 0 0 .92-2zM8.5 12v2.46A5.51 5.51 0 0 0 11.54 12H8.5z"/></svg>
+            </button>
+            <button className={`claude-tb-icon ${sidePanel === 'pipeline' ? 'active' : ''}`} onClick={togglePipeline} title="CI Pipeline">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M6 2a.5.5 0 0 1 .47.33L10 11.44l1.53-3.82A.5.5 0 0 1 12 7.33h3.5a.5.5 0 0 1 0 1H12.3l-1.83 4.58a.5.5 0 0 1-.94 0L6 3.56l-1.53 3.82A.5.5 0 0 1 4 7.67H.5a.5.5 0 0 1 0-1h3.2L5.53 2.1A.5.5 0 0 1 6 2z"/></svg>
+            </button>
+          </div>
+        </div>
+        {activeSession && (
+          <SessionInfoBar
+            folderName={activeSession.folderName}
+            folderPath={activeSession.folderPath}
+            worktreePath={activeSession.worktreePath}
+            branchName={activeSession.branchName}
+            rtkAvailable={rtkAvailable}
+            rtkDisabled={rtkDisabledSessions.has(activeSession.id)}
+            onToggleRtk={() => handleToggleRtk(activeSession.id)}
+            onShowDiff={handleShowChanges}
+            onShowFiles={toggleFiles}
+          />
+        )}
+        <div className="claude-sessions-body" ref={bodyRef}>
+          <div className="claude-sessions-terminal">
           {sessions.map((session) => (
             <div
               key={session.id}
@@ -644,6 +650,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
             </div>
           </>
         )}
+        </div>
       </div>
     </div>
   )
