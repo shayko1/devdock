@@ -1,0 +1,133 @@
+/* ─── Session Info Bar Git Dropdown ─── */
+.sib-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 100;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  min-width: 180px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.sib-dropdown button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  padding: 6px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sib-dropdown button:hover {
+  background: var(--bg-card-hover);
+}
+
+/* Session info bar */
+.session-info-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  flex-shrink: 0;
+  min-height: 28px;
+}
+.sib-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+.sib-folder {
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.sib-branch {
+  color: var(--blue, #58a6ff);
+  background: var(--bg-primary);
+  padding: 1px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+  position: relative;
+}
+.sib-branch-clickable {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  transition: border-color 0.15s, background 0.15s;
+}
+.sib-branch-clickable:hover {
+  border-color: var(--blue, #58a6ff);
+  background: var(--bg-hover, rgba(88,166,255,0.1));
+  opacity: 1;
+}
+.sib-branch:hover { opacity: 0.8; }
+.sib-copied {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-tertiary, var(--bg-hover));
+  color: var(--green);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.sib-commits {
+  color: var(--yellow, #e8a838);
+  white-space: nowrap;
+  font-weight: 500;
+}
+.sib-base {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.sib-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.sib-stat {
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+.sib-plus { color: var(--green, #3fb950); }
+.sib-minus { color: var(--red, #f85149); }
+.sib-uncommitted {
+  color: var(--yellow, #e8a838);
+  font-weight: 500;
+}
+.sib-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+.sib-actions .btn {
+  font-size: 10px;
+  padding: 1px 6px;
+}
+.sib-btn-push { color: var(--blue, #58a6ff); border-color: var(--blue, #58a6ff); }
+.sib-btn-pr { color: var(--green, #3fb950); border-color: var(--green, #3fb950); }
+.sib-btn-refresh { font-size: 12px !important; padding: 0 4px !important; }

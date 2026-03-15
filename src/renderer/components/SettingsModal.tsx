@@ -15,24 +15,33 @@ interface RtkGain {
   raw: string
 }
 
+const DEFAULT_MODELS = [
+  { id: '', label: 'Default (Sonnet 4.6)', desc: 'Claude picks based on plan' },
+  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', desc: 'Latest Sonnet — fast & capable' },
+  { id: 'claude-opus-4-6', label: 'Opus 4.6', desc: 'Latest Opus — most capable' },
+  { id: 'haiku', label: 'Claude Haiku 3.5', desc: 'Fastest, cheapest' },
+]
+
 interface Props {
   currentPath: string
   currentScanDepth: number
   rtkEnabled: boolean
   dangerousMode: boolean
   chatInputEnabled: boolean
-  onSave: (newPath: string, scanDepth: number, rtkEnabled: boolean, dangerousMode: boolean, chatInputEnabled: boolean) => void
+  defaultModel: string
+  onSave: (newPath: string, scanDepth: number, rtkEnabled: boolean, dangerousMode: boolean, chatInputEnabled: boolean, defaultModel: string) => void
   onClose: () => void
 }
 
 const DEFAULT_SCAN_DEPTH = 50
 
-export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dangerousMode, chatInputEnabled, onSave, onClose }: Props) {
+export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dangerousMode, chatInputEnabled, defaultModel, onSave, onClose }: Props) {
   const [path, setPath] = useState(currentPath)
   const [scanDepth, setScanDepth] = useState(currentScanDepth)
   const [rtk, setRtk] = useState(rtkEnabled)
   const [dangerous, setDangerous] = useState(dangerousMode)
   const [chatInput, setChatInput] = useState(chatInputEnabled)
+  const [model, setModel] = useState(defaultModel)
   const [dangerousConfirm, setDangerousConfirm] = useState('')
   const [showDangerousConfirm, setShowDangerousConfirm] = useState(false)
   const [rtkStatus, setRtkStatus] = useState<RtkStatus | null>(null)
@@ -82,7 +91,7 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
 
   const handleSave = () => {
     if (path.trim()) {
-      onSave(path.trim(), scanDepth, rtk, dangerous, chatInput)
+      onSave(path.trim(), scanDepth, rtk, dangerous, chatInput, model)
     }
   }
 
@@ -228,6 +237,37 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
             Show a Cursor-style input bar below the terminal with mode/model selectors, image upload,
             and context indicator. You can still type directly in the terminal when this is on.
           </p>
+        </div>
+
+        {/* Default Model */}
+        <div style={{
+          marginBottom: 20,
+          padding: 14,
+          borderRadius: 8,
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border)'
+        }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
+            Default Claude Model
+          </label>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+            The model used when starting new Claude sessions. Can be overridden per-session via the chat input bar.
+          </p>
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            style={{
+              width: '100%', padding: '6px 8px', borderRadius: 6, fontSize: 12,
+              background: 'var(--bg-tertiary, var(--bg-primary))',
+              color: 'var(--text-primary)', border: '1px solid var(--border)'
+            }}
+          >
+            {DEFAULT_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label} — {m.desc}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* RTK section */}

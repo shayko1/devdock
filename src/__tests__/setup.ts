@@ -39,6 +39,7 @@ const mockApi = {
   onBrowserEvent: vi.fn().mockReturnValue(() => {}),
   onPtyData: vi.fn().mockReturnValue(() => {}),
   onPtyExit: vi.fn().mockReturnValue(() => {}),
+  onStatuslineData: vi.fn().mockReturnValue(() => {}),
   onProcessLog: vi.fn().mockReturnValue(() => {}),
   onProcessStatusChanged: vi.fn().mockReturnValue(() => {}),
   pipelineStart: vi.fn(),

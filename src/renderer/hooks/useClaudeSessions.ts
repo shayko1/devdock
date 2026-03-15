@@ -1,0 +1,318 @@
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { WorkspaceFolder } from '../../shared/types'
+
+export interface ClaudeSession {
+  id: string
+  folderName: string
+  folderPath: string
+  worktreePath: string | null
+  branchName: string | null
+  exited?: boolean
+  claudeSessionId?: string | null
+  dangerousMode?: boolean
+  pendingRecap?: boolean
+  title?: string
+}
+
+interface UseClaudeSessionsOptions {
+  dangerousMode: boolean
+  defaultModel?: string
+  onSessionActivated?: () => void
+  onNewSessionModalClosed?: () => void
+}
+
+function generateSessionId(): string {
+  return `claude-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`
+}
+
+function detectClaudeId(
+  ptySessionId: string,
+  cwd: string,
+  previousClaudeId: string | null,
+  setSessions: React.Dispatch<React.SetStateAction<ClaudeSession[]>>
+) {
+  const detect = async () => {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      await new Promise(r => setTimeout(r, 3000))
+      const { sessionId: claudeId } = await window.api.detectClaudeSessionId(cwd)
+      if (claudeId && claudeId !== previousClaudeId) {
+        setSessions(prev => prev.map(s =>
+          s.id === ptySessionId ? { ...s, claudeSessionId: claudeId } : s
+        ))
+        window.api.activeSessionsUpdateClaudeId(ptySessionId, claudeId)
+        return
+      }
+    }
+  }
+  detect()
+}
+
+export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActivated, onNewSessionModalClosed }: UseClaudeSessionsOptions) {
+  const [sessions, setSessions] = useState<ClaudeSession[]>([])
+
+  // Auto-resume sessions on startup
+  const autoResumeRef = useRef(false)
+  useEffect(() => {
+    if (autoResumeRef.current) return
+    autoResumeRef.current = true
+    localStorage.removeItem('devdock-claude-sessions')
+
+    const restoreSessions = async () => {
+      const saved = await window.api.activeSessionsGetAll()
+      if (saved.length === 0) return
+      onSessionActivated?.()
+      for (const rec of saved) {
+        const newId = generateSessionId()
+        try {
+          const result = await window.api.ptyCreate({
+            sessionId: newId,
+            folderName: rec.folderName,
+            folderPath: rec.folderPath,
+            useWorktree: false,
+            resumeClaudeId: rec.claudeSessionId || undefined,
+            existingWorktreePath: rec.worktreePath || undefined,
+            dangerousMode: rec.dangerousMode,
+          })
+          if (result.success) {
+            setSessions(prev => [...prev, {
+              id: newId,
+              folderName: result.folderName || rec.folderName,
+              folderPath: rec.folderPath,
+              worktreePath: result.worktreePath ?? rec.worktreePath,
+              branchName: result.branchName ?? rec.branchName,
+              claudeSessionId: rec.claudeSessionId ?? null,
+              dangerousMode: rec.dangerousMode,
+            }])
+            window.api.activeSessionsRemove(rec.id)
+            window.api.activeSessionsSet({
+              id: newId,
+              claudeSessionId: rec.claudeSessionId,
+              folderName: rec.folderName,
+              folderPath: rec.folderPath,
+              worktreePath: rec.worktreePath,
+              branchName: rec.branchName,
+              dangerousMode: rec.dangerousMode,
+            })
+          } else {
+            window.api.activeSessionsRemove(rec.id)
+          }
+        } catch {
+          window.api.activeSessionsRemove(rec.id)
+        }
+      }
+    }
+    restoreSessions()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for PTY exits
+  useEffect(() => {
+    const unsub = window.api.onPtyExit(({ sessionId }) => {
+      setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, exited: true } : s))
+    })
+    return unsub
+  }, [])
+
+  const startSession = useCallback(async (folder: WorkspaceFolder, useWorktree: boolean) => {
+    const sessionId = `claude-${Date.now().toString(36)}`
+    const isDangerous = dangerousMode
+    try {
+      const result = await window.api.ptyCreate({
+        sessionId,
+        folderName: folder.name,
+        folderPath: folder.path,
+        useWorktree,
+        dangerousMode: isDangerous,
+        model: defaultModel || undefined,
+      })
+      if (result.success) {
+        const newSession: ClaudeSession = {
+          id: sessionId,
+          folderName: result.folderName || folder.name,
+          folderPath: folder.path,
+          worktreePath: result.worktreePath ?? null,
+          branchName: result.branchName ?? null,
+          claudeSessionId: null,
+          dangerousMode: isDangerous
+        }
+        setSessions(prev => [...prev, newSession])
+        onNewSessionModalClosed?.()
+        onSessionActivated?.()
+
+        window.api.activeSessionsSet({
+          id: sessionId,
+          claudeSessionId: null,
+          folderName: newSession.folderName,
+          folderPath: newSession.folderPath,
+          worktreePath: newSession.worktreePath,
+          branchName: newSession.branchName,
+          dangerousMode: isDangerous,
+        })
+
+        detectClaudeId(sessionId, result.worktreePath || folder.path, null, setSessions)
+      } else {
+        alert(`Failed to create session: ${result.error}`)
+      }
+    } catch (err) {
+      alert(`Error creating session: ${err}`)
+    }
+  }, [dangerousMode, defaultModel, onSessionActivated, onNewSessionModalClosed])
+
+  const resumeSession = useCallback(async (sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId)
+    if (!session || !session.claudeSessionId) return
+
+    const newPtyId = `claude-${Date.now().toString(36)}`
+    try {
+      const result = await window.api.ptyCreate({
+        sessionId: newPtyId,
+        folderName: session.folderName,
+        folderPath: session.folderPath,
+        useWorktree: false,
+        resumeClaudeId: session.claudeSessionId,
+        existingWorktreePath: session.worktreePath || undefined,
+        dangerousMode: session.dangerousMode
+      })
+      if (result.success) {
+        setSessions(prev => prev.map(s =>
+          s.id === sessionId
+            ? { ...s, id: newPtyId, exited: false, worktreePath: result.worktreePath ?? s.worktreePath, branchName: result.branchName ?? s.branchName }
+            : s
+        ))
+
+        window.api.activeSessionsRemove(sessionId)
+        window.api.activeSessionsSet({
+          id: newPtyId,
+          claudeSessionId: session.claudeSessionId,
+          folderName: session.folderName,
+          folderPath: session.folderPath,
+          worktreePath: result.worktreePath ?? session.worktreePath,
+          branchName: result.branchName ?? session.branchName,
+          dangerousMode: session.dangerousMode,
+        })
+
+        detectClaudeId(newPtyId, session.worktreePath || session.folderPath, session.claudeSessionId, setSessions)
+      } else {
+        alert(`Failed to resume session: ${result.error}`)
+      }
+    } catch (err) {
+      alert(`Error resuming session: ${err}`)
+    }
+  }, [sessions])
+
+  const openPipelineSession = useCallback(async (pipelineFolderName: string, pipelineFolderPath: string, worktreePath: string) => {
+    const sessionId = `claude-${Date.now().toString(36)}`
+    const isDangerous = dangerousMode
+    try {
+      const result = await window.api.ptyCreate({
+        sessionId,
+        folderName: pipelineFolderName,
+        folderPath: pipelineFolderPath,
+        useWorktree: false,
+        existingWorktreePath: worktreePath,
+        dangerousMode: isDangerous
+      })
+      if (result.success) {
+        const newSession: ClaudeSession = {
+          id: sessionId,
+          folderName: result.folderName || pipelineFolderName,
+          folderPath: pipelineFolderPath,
+          worktreePath: result.worktreePath ?? worktreePath,
+          branchName: result.branchName ?? null,
+          claudeSessionId: null,
+          dangerousMode: isDangerous
+        }
+        setSessions(prev => [...prev, newSession])
+        onSessionActivated?.()
+
+        window.api.activeSessionsSet({
+          id: sessionId,
+          claudeSessionId: null,
+          folderName: newSession.folderName,
+          folderPath: newSession.folderPath,
+          worktreePath: newSession.worktreePath,
+          branchName: newSession.branchName,
+          dangerousMode: isDangerous,
+        })
+
+        detectClaudeId(sessionId, worktreePath, null, setSessions)
+      }
+    } catch (err) {
+      alert(`Error opening pipeline session: ${err}`)
+    }
+  }, [dangerousMode, onSessionActivated])
+
+  const resumeFromHistory = useCallback(async (claudeSessionId: string, folderName: string, folderPath: string, worktreePath?: string | null) => {
+    if (sessions.some(s => s.claudeSessionId === claudeSessionId && !s.exited)) return
+
+    const newId = `claude-${Date.now().toString(36)}`
+    const isDangerous = dangerousMode
+    try {
+      const result = await window.api.ptyCreate({
+        sessionId: newId,
+        folderName,
+        folderPath,
+        useWorktree: false,
+        resumeClaudeId: claudeSessionId,
+        existingWorktreePath: worktreePath || undefined,
+        dangerousMode: isDangerous,
+      })
+      if (result.success) {
+        const newSession: ClaudeSession = {
+          id: newId,
+          folderName: result.folderName || folderName,
+          folderPath,
+          worktreePath: result.worktreePath ?? worktreePath ?? null,
+          branchName: result.branchName ?? null,
+          claudeSessionId,
+          dangerousMode: isDangerous,
+          pendingRecap: true,
+        }
+        setSessions(prev => [...prev, newSession])
+        onSessionActivated?.()
+
+        window.api.activeSessionsSet({
+          id: newId,
+          claudeSessionId,
+          folderName,
+          folderPath,
+          worktreePath: newSession.worktreePath,
+          branchName: newSession.branchName,
+          dangerousMode: isDangerous,
+        })
+      } else {
+        alert(`Failed to resume: ${result.error}`)
+      }
+    } catch (err) {
+      alert(`Error resuming from history: ${err}`)
+    }
+  }, [sessions, dangerousMode, onSessionActivated])
+
+  const closeSession = useCallback(async (sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId)
+    await window.api.ptyDestroy(sessionId)
+
+    if (session?.worktreePath) {
+      const keep = confirm(
+        `Session "${session.folderName}" used a git worktree.\n\n` +
+        `Keep the worktree branch for later?\n\n` +
+        `• OK = Keep worktree (you can use it later)\n` +
+        `• Cancel = Delete worktree and branch`
+      )
+      if (!keep) {
+        await window.api.cleanupWorktree(session.worktreePath, session.folderPath || '')
+      }
+    }
+
+    window.api.activeSessionsRemove(sessionId)
+    setSessions(prev => prev.filter(s => s.id !== sessionId))
+  }, [sessions])
+
+  return {
+    sessions,
+    startSession,
+    resumeSession,
+    openPipelineSession,
+    resumeFromHistory,
+    closeSession,
+  }
+}

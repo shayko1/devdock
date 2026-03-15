@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { AgentInfo } from '../../shared/agent-types'
+import { Skeleton } from './Skeleton'
+import './AgentsView.css'
 
 export function AgentsView() {
   const [agents, setAgents] = useState<AgentInfo[]>([])
@@ -130,8 +132,29 @@ export function AgentsView() {
 
   if (loading) {
     return (
-      <div className="agents-view" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ color: 'var(--text-muted)' }}>Scanning for agents...</span>
+      <div className="agents-view">
+        <div className="agents-header">
+          <Skeleton width={120} height={16} />
+          <Skeleton width={60} height={28} borderRadius={6} />
+        </div>
+        <div className="agents-grid">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="skeleton-agent-card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Skeleton width={8} height={8} borderRadius="50%" />
+                <Skeleton width="50%" height={14} />
+                <div style={{ flex: 1 }} />
+                <Skeleton width={50} height={18} borderRadius={12} />
+              </div>
+              <Skeleton width="80%" height={12} style={{ marginTop: 8 }} />
+              <Skeleton width="60%" height={12} />
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <Skeleton width={80} height={26} borderRadius={6} />
+                <Skeleton width={75} height={26} borderRadius={6} />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

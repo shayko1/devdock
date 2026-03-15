@@ -1,0 +1,101 @@
+/* Changes View (git diff) */
+.changes-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.cv-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.cv-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cv-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  border-radius: 3px;
+  line-height: 1;
+  margin-left: auto;
+}
+
+.cv-close:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.cv-content {
+  flex: 1;
+  overflow: auto;
+  font-family: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
+  font-size: 12px;
+}
+
+.cv-stat {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.cv-stat pre {
+  margin: 0;
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+.cv-diff {
+  padding: 4px 0;
+}
+
+.cv-loading, .cv-empty, .cv-error {
+  padding: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.cv-error {
+  color: var(--red);
+}
+
+.diff-line {
+  padding: 0 10px;
+  white-space: pre;
+  line-height: 1.5;
+}
+
+.diff-add {
+  background: rgba(63, 185, 80, 0.1);
+  color: var(--green);
+}
+
+.diff-remove {
+  background: rgba(248, 81, 73, 0.1);
+  color: var(--red);
+}
+
+.diff-hunk {
+  color: var(--purple);
+  padding-top: 6px;
+}
+
+.diff-header {
+  color: var(--accent);
+  font-weight: 600;
+  padding-top: 10px;
+}

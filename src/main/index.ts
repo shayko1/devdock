@@ -1,4 +1,4 @@
-import { app, BrowserWindow, nativeImage } from 'electron'
+import { app, BrowserWindow, nativeImage, shell } from 'electron'
 import { join } from 'path'
 import { processManager, getShellPath } from './process-manager'
 import { ptyManager } from './pty-manager'
@@ -7,6 +7,7 @@ import { pipelineManager } from './pipeline-manager'
 import { loadState } from './store'
 import { writeRtkWrapper } from './rtk-manager'
 import { coachManager } from './coach-manager'
+import { statuslineWatcher } from './statusline-watcher'
 
 import {
   registerStateHandlers,
@@ -68,12 +69,36 @@ async function createWindow() {
   loadCoachConfig()
   setSessionMainWindow(mainWindow)
   ptyManager.onData((sessionId, data) => coachManager.feedData(sessionId, data))
+
+  // Statusline: deploy script, inject settings, watch sessions
+  statuslineWatcher.setMainWindow(mainWindow)
+  statuslineWatcher.setup()
+  ptyManager.onExit((sessionId) => statuslineWatcher.unwatchSession(sessionId))
+
   await startBrowserBridge()
 
   const appState = loadState()
   if (appState.rtkEnabled) {
     writeRtkWrapper()
   }
+
+  // Open external links in the system browser, not inside the Electron window
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      shell.openExternal(url)
+    }
+    return { action: 'deny' }
+  })
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    // Allow navigation to the app itself (dev server or file://)
+    const currentURL = mainWindow?.webContents.getURL() || ''
+    const isSameOrigin = currentURL && new URL(url).origin === new URL(currentURL).origin
+    if (!isSameOrigin) {
+      event.preventDefault()
+      shell.openExternal(url)
+    }
+  })
 
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
@@ -123,5 +148,6 @@ app.on('before-quit', () => {
   processManager.stopAll()
   ptyManager.destroyAll()
   pipelineManager.destroyAll()
+  statuslineWatcher.unwatchAll()
   stopBrowserBridge()
 })

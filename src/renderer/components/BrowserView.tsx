@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import './BrowserView.css'
 
 interface Props {
   sessionId: string

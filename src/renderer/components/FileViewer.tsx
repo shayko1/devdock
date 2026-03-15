@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { tokenizeLine, renderTokens } from './syntax-highlight'
+import './FileViewer.css'
 
 interface Props {
   filePath: string

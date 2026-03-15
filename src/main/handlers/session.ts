@@ -9,6 +9,7 @@ import { cleanupSessionRtkFlag } from '../rtk-manager'
 import { coachManager } from '../coach-manager'
 import { activeSessions, scanProjectSessions, getSessionTitle } from '../session-history'
 import { ensureDevDockClaudeMd } from '../claude-md'
+import { statuslineWatcher } from '../statusline-watcher'
 
 let mainWindowRef: Electron.BrowserWindow | null = null
 
@@ -87,6 +88,7 @@ export function registerSessionHandlers() {
     resumeClaudeId?: string
     existingWorktreePath?: string
     dangerousMode?: boolean
+    model?: string
   }) => {
     let worktreePath: string | null = opts.existingWorktreePath || null
     let branchName: string | null = null
@@ -140,12 +142,13 @@ export function registerSessionHandlers() {
     runWorkspaceSetup(sessionCwd, opts.folderPath)
 
     const permFlag = opts.dangerousMode ? ' --dangerously-skip-permissions' : ''
-    let command = `claude${permFlag}`
+    const modelFlag = opts.model ? ` --model ${opts.model}` : ''
+    let command = `claude${modelFlag}${permFlag}`
     if (opts.resumeClaudeId) {
-      command = `claude --resume ${opts.resumeClaudeId}${permFlag}`
+      command = `claude --resume ${opts.resumeClaudeId}${modelFlag}${permFlag}`
     }
 
-    return ptyManager.createSession(
+    const result = ptyManager.createSession(
       opts.sessionId,
       opts.folderName,
       opts.folderPath,
@@ -153,6 +156,12 @@ export function registerSessionHandlers() {
       branchName,
       command
     )
+
+    if (result.success) {
+      statuslineWatcher.watchSession(opts.sessionId)
+    }
+
+    return result
   })
 
   ipcMain.on('pty-write', (_event, sessionId: string, data: string) => {
@@ -165,6 +174,7 @@ export function registerSessionHandlers() {
 
   ipcMain.handle('pty-destroy', (_event, sessionId: string) => {
     ptyManager.destroySession(sessionId)
+    statuslineWatcher.unwatchSession(sessionId)
     cleanupSessionRtkFlag(sessionId)
     coachManager.clearSession(sessionId)
   })

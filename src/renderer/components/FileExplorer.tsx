@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import './FileExplorer.css'
 
 interface FileEntry {
   name: string

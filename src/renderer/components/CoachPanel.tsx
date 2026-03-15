@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import type { CoachSuggestion, CoachSessionCost } from '../../shared/coach-types'
+import './CoachPanel.css'
 
 interface Props {
   sessionId: string

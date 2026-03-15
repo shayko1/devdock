@@ -1,0 +1,26 @@
+/* ── New Session Modal Folder Items ── */
+
+.new-session-folder-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.new-session-folder-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.new-session-folder-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.new-session-folder-path {
+  font-size: 11px;
+  color: var(--text-muted);
+}

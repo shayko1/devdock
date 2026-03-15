@@ -1,5 +1,6 @@
 import React from 'react'
 import { Project } from '../../shared/types'
+import './Sidebar.css'
 
 interface Props {
   projects: Project[]

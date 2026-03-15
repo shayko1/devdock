@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useAppState } from './hooks/useAppState'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useGridNavigation } from './hooks/useGridNavigation'
+import { useClaudeSessions } from './hooks/useClaudeSessions'
 import { Sidebar } from './components/Sidebar'
 import { ProjectCard } from './components/ProjectCard'
 import { EditProjectModal } from './components/EditProjectModal'
@@ -12,21 +14,11 @@ import { ShortcutsHelp } from './components/ShortcutsHelp'
 import { SettingsModal } from './components/SettingsModal'
 import { Toast } from './components/Toast'
 import { AgentsView } from './components/AgentsView'
-import { Project, WorkspaceFolder } from '../shared/types'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { Skeleton } from './components/Skeleton'
+import { Project } from '../shared/types'
 
 type TabId = 'launchpad' | 'folders' | 'claude' | 'agents'
-
-interface ClaudeSession {
-  id: string
-  folderName: string
-  folderPath: string
-  worktreePath: string | null
-  branchName: string | null
-  exited?: boolean
-  claudeSessionId?: string | null
-  dangerousMode?: boolean
-  pendingRecap?: boolean
-}
 
 export function App() {
   const {
@@ -58,7 +50,6 @@ export function App() {
   const [showHelp, setShowHelp] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showNewSession, setShowNewSession] = useState(false)
-  const [claudeSessions, setClaudeSessions] = useState<ClaudeSession[]>([])
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light' | 'system'>(() => {
     return (localStorage.getItem('devdock-theme') as 'dark' | 'light' | 'system') || 'dark'
@@ -69,309 +60,19 @@ export function App() {
     localStorage.setItem('devdock-theme', theme)
   }, [theme])
 
-  // Auto-resume sessions on startup
-  const autoResumeRef = useRef(false)
-  useEffect(() => {
-    if (autoResumeRef.current) return
-    autoResumeRef.current = true
-    localStorage.removeItem('devdock-claude-sessions')
-
-    const restoreSessions = async () => {
-      const saved = await window.api.activeSessionsGetAll()
-      if (saved.length === 0) return
-      setActiveTab('claude')
-      for (const rec of saved) {
-        const newId = `claude-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`
-        try {
-          const result = await window.api.ptyCreate({
-            sessionId: newId,
-            folderName: rec.folderName,
-            folderPath: rec.folderPath,
-            useWorktree: false,
-            resumeClaudeId: rec.claudeSessionId || undefined,
-            existingWorktreePath: rec.worktreePath || undefined,
-            dangerousMode: rec.dangerousMode,
-          })
-          if (result.success) {
-            setClaudeSessions(prev => [...prev, {
-              id: newId,
-              folderName: result.folderName || rec.folderName,
-              folderPath: rec.folderPath,
-              worktreePath: result.worktreePath ?? rec.worktreePath,
-              branchName: result.branchName ?? rec.branchName,
-              claudeSessionId: rec.claudeSessionId ?? null,
-              dangerousMode: rec.dangerousMode,
-            }])
-            // Replace old entry with new PTY id
-            window.api.activeSessionsRemove(rec.id)
-            window.api.activeSessionsSet({
-              id: newId,
-              claudeSessionId: rec.claudeSessionId,
-              folderName: rec.folderName,
-              folderPath: rec.folderPath,
-              worktreePath: rec.worktreePath,
-              branchName: rec.branchName,
-              dangerousMode: rec.dangerousMode,
-            })
-          } else {
-            window.api.activeSessionsRemove(rec.id)
-          }
-        } catch {
-          window.api.activeSessionsRemove(rec.id)
-        }
-      }
-    }
-    restoreSessions()
-  }, [])
-
-  // Listen for PTY exits
-  useEffect(() => {
-    const unsub = window.api.onPtyExit(({ sessionId }) => {
-      setClaudeSessions(prev => prev.map(s => s.id === sessionId ? { ...s, exited: true } : s))
-    })
-    return unsub
-  }, [])
-
-  const handleStartClaudeSession = useCallback(async (folder: WorkspaceFolder, useWorktree: boolean) => {
-    const sessionId = `claude-${Date.now().toString(36)}`
-    const isDangerous = state.dangerousMode ?? false
-    try {
-      const result = await window.api.ptyCreate({
-        sessionId,
-        folderName: folder.name,
-        folderPath: folder.path,
-        useWorktree,
-        dangerousMode: isDangerous
-      })
-      if (result.success) {
-        const newSession: ClaudeSession = {
-          id: sessionId,
-          folderName: result.folderName || folder.name,
-          folderPath: folder.path,
-          worktreePath: result.worktreePath ?? null,
-          branchName: result.branchName ?? null,
-          claudeSessionId: null,
-          dangerousMode: isDangerous
-        }
-        setClaudeSessions(prev => [...prev, newSession])
-        setShowNewSession(false)
-        setActiveTab('claude')
-
-        // Track for auto-resume
-        window.api.activeSessionsSet({
-          id: sessionId,
-          claudeSessionId: null,
-          folderName: newSession.folderName,
-          folderPath: newSession.folderPath,
-          worktreePath: newSession.worktreePath,
-          branchName: newSession.branchName,
-          dangerousMode: isDangerous,
-        })
-
-        // Detect Claude's internal session ID after it starts
-        const cwd = result.worktreePath || folder.path
-        const detectId = async () => {
-          for (let attempt = 0; attempt < 6; attempt++) {
-            await new Promise(r => setTimeout(r, 3000))
-            const { sessionId: claudeId } = await window.api.detectClaudeSessionId(cwd)
-            if (claudeId) {
-              setClaudeSessions(prev => prev.map(s =>
-                s.id === sessionId ? { ...s, claudeSessionId: claudeId } : s
-              ))
-              window.api.activeSessionsUpdateClaudeId(sessionId, claudeId)
-              return
-            }
-          }
-        }
-        detectId()
-      } else {
-        alert(`Failed to create session: ${result.error}`)
-      }
-    } catch (err) {
-      alert(`Error creating session: ${err}`)
-    }
-  }, [state.dangerousMode])
-
-  const handleResumeClaudeSession = useCallback(async (sessionId: string) => {
-    const session = claudeSessions.find(s => s.id === sessionId)
-    if (!session || !session.claudeSessionId) return
-
-    const newPtyId = `claude-${Date.now().toString(36)}`
-    try {
-      const result = await window.api.ptyCreate({
-        sessionId: newPtyId,
-        folderName: session.folderName,
-        folderPath: session.folderPath,
-        useWorktree: false,
-        resumeClaudeId: session.claudeSessionId,
-        existingWorktreePath: session.worktreePath || undefined,
-        dangerousMode: session.dangerousMode
-      })
-      if (result.success) {
-        setClaudeSessions(prev => prev.map(s =>
-          s.id === sessionId
-            ? { ...s, id: newPtyId, exited: false, worktreePath: result.worktreePath ?? s.worktreePath, branchName: result.branchName ?? s.branchName }
-            : s
-        ))
-
-        window.api.activeSessionsRemove(sessionId)
-        window.api.activeSessionsSet({
-          id: newPtyId,
-          claudeSessionId: session.claudeSessionId,
-          folderName: session.folderName,
-          folderPath: session.folderPath,
-          worktreePath: result.worktreePath ?? session.worktreePath,
-          branchName: result.branchName ?? session.branchName,
-          dangerousMode: session.dangerousMode,
-        })
-
-        const cwd = session.worktreePath || session.folderPath
-        const detectId = async () => {
-          for (let attempt = 0; attempt < 6; attempt++) {
-            await new Promise(r => setTimeout(r, 3000))
-            const { sessionId: claudeId } = await window.api.detectClaudeSessionId(cwd)
-            if (claudeId && claudeId !== session.claudeSessionId) {
-              setClaudeSessions(prev => prev.map(s =>
-                s.id === newPtyId ? { ...s, claudeSessionId: claudeId } : s
-              ))
-              window.api.activeSessionsUpdateClaudeId(newPtyId, claudeId)
-              return
-            }
-          }
-        }
-        detectId()
-      } else {
-        alert(`Failed to resume session: ${result.error}`)
-      }
-    } catch (err) {
-      alert(`Error resuming session: ${err}`)
-    }
-  }, [claudeSessions])
-
-  const handleOpenPipelineSession = useCallback(async (pipelineFolderName: string, pipelineFolderPath: string, worktreePath: string) => {
-    const sessionId = `claude-${Date.now().toString(36)}`
-    const isDangerous = state.dangerousMode ?? false
-    try {
-      const result = await window.api.ptyCreate({
-        sessionId,
-        folderName: pipelineFolderName,
-        folderPath: pipelineFolderPath,
-        useWorktree: false,
-        existingWorktreePath: worktreePath,
-        dangerousMode: isDangerous
-      })
-      if (result.success) {
-        const newSession: ClaudeSession = {
-          id: sessionId,
-          folderName: result.folderName || pipelineFolderName,
-          folderPath: pipelineFolderPath,
-          worktreePath: result.worktreePath ?? worktreePath,
-          branchName: result.branchName ?? null,
-          claudeSessionId: null,
-          dangerousMode: isDangerous
-        }
-        setClaudeSessions(prev => [...prev, newSession])
-        setActiveTab('claude')
-
-        window.api.activeSessionsSet({
-          id: sessionId,
-          claudeSessionId: null,
-          folderName: newSession.folderName,
-          folderPath: newSession.folderPath,
-          worktreePath: newSession.worktreePath,
-          branchName: newSession.branchName,
-          dangerousMode: isDangerous,
-        })
-
-        const cwd = worktreePath
-        const detectId = async () => {
-          for (let attempt = 0; attempt < 6; attempt++) {
-            await new Promise(r => setTimeout(r, 3000))
-            const { sessionId: claudeId } = await window.api.detectClaudeSessionId(cwd)
-            if (claudeId) {
-              setClaudeSessions(prev => prev.map(s =>
-                s.id === sessionId ? { ...s, claudeSessionId: claudeId } : s
-              ))
-              window.api.activeSessionsUpdateClaudeId(sessionId, claudeId)
-              return
-            }
-          }
-        }
-        detectId()
-      }
-    } catch (err) {
-      alert(`Error opening pipeline session: ${err}`)
-    }
-  }, [state.dangerousMode])
-
-  // Resume any session from history (called by SessionHistory panel)
-  const handleResumeFromHistory = useCallback(async (claudeSessionId: string, folderName: string, folderPath: string, worktreePath?: string | null) => {
-    // Check if already open
-    if (claudeSessions.some(s => s.claudeSessionId === claudeSessionId && !s.exited)) return
-
-    const newId = `claude-${Date.now().toString(36)}`
-    const isDangerous = state.dangerousMode ?? false
-    try {
-      const result = await window.api.ptyCreate({
-        sessionId: newId,
-        folderName,
-        folderPath,
-        useWorktree: false,
-        resumeClaudeId: claudeSessionId,
-        existingWorktreePath: worktreePath || undefined,
-        dangerousMode: isDangerous,
-      })
-      if (result.success) {
-        const newSession: ClaudeSession = {
-          id: newId,
-          folderName: result.folderName || folderName,
-          folderPath,
-          worktreePath: result.worktreePath ?? worktreePath ?? null,
-          branchName: result.branchName ?? null,
-          claudeSessionId,
-          dangerousMode: isDangerous,
-          pendingRecap: true,
-        }
-        setClaudeSessions(prev => [...prev, newSession])
-        setActiveTab('claude')
-
-        window.api.activeSessionsSet({
-          id: newId,
-          claudeSessionId,
-          folderName,
-          folderPath,
-          worktreePath: newSession.worktreePath,
-          branchName: newSession.branchName,
-          dangerousMode: isDangerous,
-        })
-      } else {
-        alert(`Failed to resume: ${result.error}`)
-      }
-    } catch (err) {
-      alert(`Error resuming from history: ${err}`)
-    }
-  }, [claudeSessions, state.dangerousMode])
-
-  const handleCloseClaudeSession = useCallback(async (sessionId: string) => {
-    const session = claudeSessions.find(s => s.id === sessionId)
-    await window.api.ptyDestroy(sessionId)
-
-    if (session?.worktreePath) {
-      const keep = confirm(
-        `Session "${session.folderName}" used a git worktree.\n\n` +
-        `Keep the worktree branch for later?\n\n` +
-        `• OK = Keep worktree (you can use it later)\n` +
-        `• Cancel = Delete worktree and branch`
-      )
-      if (!keep) {
-        await window.api.cleanupWorktree(session.worktreePath, session.folderPath || '')
-      }
-    }
-
-    // Remove from active sessions — will NOT auto-resume
-    window.api.activeSessionsRemove(sessionId)
-    setClaudeSessions(prev => prev.filter(s => s.id !== sessionId))
-  }, [claudeSessions])
+  const {
+    sessions: claudeSessions,
+    startSession: handleStartClaudeSession,
+    resumeSession: handleResumeClaudeSession,
+    openPipelineSession: handleOpenPipelineSession,
+    resumeFromHistory: handleResumeFromHistory,
+    closeSession: handleCloseClaudeSession,
+  } = useClaudeSessions({
+    dangerousMode: state.dangerousMode ?? false,
+    defaultModel: state.defaultModel,
+    onSessionActivated: () => setActiveTab('claude'),
+    onNewSessionModalClosed: () => setShowNewSession(false),
+  })
 
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -539,6 +240,12 @@ export function App() {
     }
   }
 
+  const { gridProps, focusedIndex } = useGridNavigation({
+    itemCount: filteredProjects.length,
+    enabled: activeTab === 'launchpad' && !bulkMode,
+    onSelect: (index) => handleCardClick(filteredProjects[index].id),
+  })
+
   const handleBulkHide = () => {
     const count = bulkSelection.size
     bulkHideProjects([...bulkSelection])
@@ -557,8 +264,36 @@ export function App() {
 
   if (!loaded) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-        <span style={{ color: 'var(--text-muted)' }}>Loading...</span>
+      <div className="skeleton-app-loading">
+        <div className="skeleton-titlebar">
+          <Skeleton width={80} height={14} />
+        </div>
+        <div className="skeleton-tabs">
+          <Skeleton width={80} height={14} />
+          <Skeleton width={80} height={14} />
+          <Skeleton width={60} height={14} />
+          <Skeleton width={60} height={14} />
+        </div>
+        <div className="skeleton-body">
+          <div className="skeleton-sidebar">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} height={28} style={{ marginBottom: 8 }} />
+            ))}
+          </div>
+          <div className="skeleton-grid">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="skeleton-card">
+                <Skeleton width="60%" height={16} />
+                <Skeleton width="40%" height={12} />
+                <Skeleton height={12} />
+                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                  <Skeleton width={50} height={18} borderRadius={12} />
+                  <Skeleton width={40} height={18} borderRadius={12} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
@@ -618,27 +353,33 @@ export function App() {
       </div>
 
       {activeTab === 'agents' ? (
-        <AgentsView />
+        <ErrorBoundary name="Agents">
+          <AgentsView />
+        </ErrorBoundary>
       ) : activeTab === 'claude' ? (
-        <ClaudeSessionsView
-          sessions={claudeSessions}
-          rtkEnabled={state.rtkEnabled ?? false}
-          chatInputEnabled={state.chatInputEnabled ?? true}
-          onNewSession={() => setShowNewSession(true)}
-          onCloseSession={handleCloseClaudeSession}
-          onResumeSession={handleResumeClaudeSession}
-          onResumeFromHistory={handleResumeFromHistory}
-          onOpenPipelineSession={handleOpenPipelineSession}
-        />
+        <ErrorBoundary name="Claude Sessions">
+          <ClaudeSessionsView
+            sessions={claudeSessions}
+            rtkEnabled={state.rtkEnabled ?? false}
+            chatInputEnabled={state.chatInputEnabled ?? true}
+            onNewSession={() => setShowNewSession(true)}
+            onCloseSession={handleCloseClaudeSession}
+            onResumeSession={handleResumeClaudeSession}
+            onResumeFromHistory={handleResumeFromHistory}
+            onOpenPipelineSession={handleOpenPipelineSession}
+          />
+        </ErrorBoundary>
       ) : activeTab === 'folders' ? (
-        <FoldersView
-          scanPath={state.scanPath}
-          onStartClaudeSession={(folder, useWorktree) => {
-            handleStartClaudeSession(folder, useWorktree)
-          }}
-        />
+        <ErrorBoundary name="Folders">
+          <FoldersView
+            scanPath={state.scanPath}
+            onStartClaudeSession={(folder, useWorktree) => {
+              handleStartClaudeSession(folder, useWorktree)
+            }}
+          />
+        </ErrorBoundary>
       ) : (
-        <>
+        <ErrorBoundary name="Launchpad">
           {state.projects.length === 0 ? (
             <div className="empty-state">
               <div className="empty-state-text">No projects yet. Scan your workspace to get started.</div>
@@ -696,15 +437,16 @@ export function App() {
                   onScan={handleScan}
                 />
                 <div className="main-content">
-                  <div className="projects-grid">
+                  <div className={`projects-grid ${focusedIndex >= 0 ? 'keyboard-active' : ''}`} {...gridProps}>
                     {filteredProjects.length === 0 ? (
                       <div className="empty-state">
                         <div className="empty-state-text">No projects match your filter.</div>
                       </div>
                     ) : (
-                      filteredProjects.map((project) => (
+                      filteredProjects.map((project, index) => (
                         <ProjectCard
                           key={project.id}
+                          keyboardFocused={focusedIndex === index}
                           project={project}
                           status={statuses.get(project.id)}
                           systemPortInfo={systemRunningMap.get(project.id)}
@@ -731,7 +473,7 @@ export function App() {
               </div>
             </>
           )}
-        </>
+        </ErrorBoundary>
       )}
 
       {editingProject && (
@@ -767,8 +509,9 @@ export function App() {
           rtkEnabled={state.rtkEnabled ?? false}
           dangerousMode={state.dangerousMode ?? false}
           chatInputEnabled={state.chatInputEnabled ?? true}
-          onSave={(newPath, scanDepth, rtkEnabled, dangerousMode, chatInputEnabled) => {
-            persist({ ...state, scanPath: newPath, scanDepth, rtkEnabled, dangerousMode, chatInputEnabled })
+          defaultModel={state.defaultModel ?? ''}
+          onSave={(newPath, scanDepth, rtkEnabled, dangerousMode, chatInputEnabled, defaultModel) => {
+            persist({ ...state, scanPath: newPath, scanDepth, rtkEnabled, dangerousMode, chatInputEnabled, defaultModel })
             setShowSettings(false)
           }}
           onClose={() => setShowSettings(false)}

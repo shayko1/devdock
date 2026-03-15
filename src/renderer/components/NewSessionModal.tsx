@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { WorkspaceFolder } from '../../shared/types'
+import './NewSessionModal.css'
 
 interface Props {
   scanPath: string
@@ -19,6 +20,15 @@ export function NewSessionModal({ scanPath, onStart, onClose }: Props) {
       setLoading(false)
     })
   }, [scanPath])
+
+  const handleBrowseFolder = async () => {
+    const selected = await window.api.selectFolder()
+    if (selected) {
+      const name = selected.split('/').filter(Boolean).pop() || selected
+      const folder = { name, path: selected } as WorkspaceFolder
+      onStart(folder, useWorktree)
+    }
+  }
 
   const filtered = folders.filter(
     (f) => !search || f.name.toLowerCase().includes(search.toLowerCase())
@@ -43,14 +53,23 @@ export function NewSessionModal({ scanPath, onStart, onClose }: Props) {
           autoFocus
           style={{ width: '100%', marginBottom: 8 }}
         />
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer', marginBottom: 12 }}>
-          <input
-            type="checkbox"
-            checked={useWorktree}
-            onChange={(e) => setUseWorktree(e.target.checked)}
-          />
-          Create git worktree (recommended for isolation)
-        </label>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={useWorktree}
+              onChange={(e) => setUseWorktree(e.target.checked)}
+            />
+            Create git worktree (recommended for isolation)
+          </label>
+          <button
+            className="btn btn-sm"
+            onClick={handleBrowseFolder}
+            style={{ fontSize: 12, whiteSpace: 'nowrap' }}
+          >
+            Open Folder...
+          </button>
+        </div>
         <div style={{ overflowY: 'auto', maxHeight: '50vh', margin: '0 -24px', padding: '0 24px' }}>
           {loading ? (
             <div style={{ padding: 16, color: 'var(--text-muted)' }}>Loading...</div>

@@ -1,4 +1,5 @@
 import React from 'react'
+import './syntax-highlight.css'
 
 type TokenType = 'keyword' | 'string' | 'comment' | 'number' | 'type' | 'function' | 'operator' | 'decorator' | 'tag' | 'attr' | 'punctuation' | 'heading' | 'bold' | 'italic' | 'link' | 'code' | 'property'
 

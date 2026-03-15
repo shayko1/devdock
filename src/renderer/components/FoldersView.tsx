@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, memo } from 'react'
 import { WorkspaceFolder } from '../../shared/types'
+import { Skeleton } from './Skeleton'
+import './FoldersView.css'
 
 interface Props {
   scanPath: string
@@ -188,7 +190,29 @@ export function FoldersView({ scanPath, onStartClaudeSession }: Props) {
   if (loading) {
     return (
       <div className="folders-view">
-        <div style={{ padding: 24, color: 'var(--text-muted)' }}>Loading folders...</div>
+        <div className="folders-toolbar">
+          <Skeleton height={32} style={{ flex: 1 }} borderRadius={6} />
+          <Skeleton width={40} height={28} borderRadius={6} />
+          <Skeleton width={55} height={28} borderRadius={6} />
+        </div>
+        <div className="folders-list">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="skeleton-folder-row">
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <Skeleton width="30%" height={14} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Skeleton width={60} height={12} />
+                  <Skeleton width={50} height={12} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <Skeleton width={55} height={26} borderRadius={6} />
+                <Skeleton width={50} height={26} borderRadius={6} />
+                <Skeleton width={36} height={26} borderRadius={6} />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

@@ -1,0 +1,296 @@
+/* ===== Pipeline View ===== */
+.pl-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+.pl-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  gap: 8px;
+}
+.pl-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.pl-disabled {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.pl-disabled p { margin: 8px 0; }
+.pl-disabled-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 16px !important;
+}
+
+/* Settings */
+.pl-settings {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+.pl-setting-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.pl-setting-row label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  width: 100px;
+  flex-shrink: 0;
+}
+.pl-setting-row input {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.pl-setting-row input[type="number"] { width: 60px; flex: none; }
+.pl-setting-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* Task input */
+.pl-input-area {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.pl-task-input {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text-primary);
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+  margin-bottom: 8px;
+}
+.pl-task-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* Runs list */
+.pl-runs {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+.pl-empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Single run */
+.pl-run {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--bg-secondary);
+}
+.pl-run-done { border-left: 3px solid var(--green); }
+.pl-run-failed { border-left: 3px solid var(--red); }
+.pl-run-paused { border-left: 3px solid var(--yellow); }
+.pl-run-planning,
+.pl-run-implementing,
+.pl-run-validating,
+.pl-run-reviewing { border-left: 3px solid var(--blue); }
+
+.pl-run-header {
+  margin-bottom: 8px;
+}
+.pl-run-task {
+  font-size: 12px;
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+.pl-run-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pl-retry-badge {
+  font-size: 10px;
+  background: var(--yellow-dim);
+  color: var(--yellow);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+/* Branch info */
+.pl-branch-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-tertiary, var(--bg-hover));
+  border-radius: 4px;
+  font-size: 11px;
+  margin-top: 4px;
+}
+.pl-branch-label {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.pl-branch-name {
+  color: var(--blue, #58a6ff);
+  background: var(--bg-primary);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status badges */
+.pl-status {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.pl-status-done { background: var(--green-dim); color: var(--green); }
+.pl-status-failed { background: var(--red-dim); color: var(--red); }
+.pl-status-paused { background: var(--yellow-dim); color: var(--yellow); }
+.pl-status-planning,
+.pl-status-implementing,
+.pl-status-validating,
+.pl-status-reviewing {
+  background: var(--blue-dim);
+  color: var(--blue);
+  animation: waiting-pulse 1.5s ease-in-out infinite;
+}
+
+/* Stage progress indicator */
+.pl-stages {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 8px 0;
+  flex-wrap: wrap;
+}
+.pl-stage-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.pl-stage-dot.active {
+  border-color: var(--blue);
+  color: var(--blue);
+  animation: waiting-pulse 1.5s ease-in-out infinite;
+}
+.pl-stage-dot.done {
+  border-color: var(--green);
+  background: var(--green-dim);
+  color: var(--green);
+}
+.pl-stage-dot.failed {
+  border-color: var(--red);
+  color: var(--red);
+}
+.pl-stage-line {
+  width: 16px;
+  height: 2px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.pl-stage-line.done {
+  background: var(--green);
+}
+.pl-stage-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+.pl-stage-label.active {
+  color: var(--blue);
+  font-weight: 600;
+}
+
+/* Pipeline actions */
+.pl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+/* Error */
+.pl-error {
+  font-size: 12px;
+  color: var(--red);
+  background: var(--red-dim);
+  padding: 6px 10px;
+  border-radius: 4px;
+  margin: 6px 0;
+}
+
+/* Logs */
+.pl-logs { margin-top: 6px; }
+.pl-log-entry {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 4px;
+  overflow: hidden;
+}
+.pl-log-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.pl-log-header:hover { background: var(--bg-hover); }
+.pl-log-status { font-size: 10px; }
+.pl-log-status.success { color: var(--green); }
+.pl-log-status.failed { color: var(--red); }
+.pl-log-status.running { color: var(--blue); animation: waiting-pulse 1.5s ease-in-out infinite; }
+.pl-log-status.retry { color: var(--yellow, #e8a838); }
+.pl-log-retry-marker { opacity: 0.85; border-left: 2px solid var(--yellow, #e8a838); }
+.pl-log-retry-marker .pl-log-stage { color: var(--yellow, #e8a838); font-style: italic; }
+.pl-log-stage { color: var(--text-secondary); }
+.pl-log-duration { color: var(--text-muted); margin-left: auto; }
+.pl-log-expand { color: var(--text-muted); font-size: 9px; }
+.pl-log-output {
+  padding: 8px;
+  font-size: 11px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+  border-top: 1px solid var(--border);
+}

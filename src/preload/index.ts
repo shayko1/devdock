@@ -1,22 +1,38 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { AppState, ProcessStatus, Project, WorkspaceFolder } from '../shared/types'
-import { AgentInfo } from '../shared/agent-types'
-import { CoachConfig, CoachSuggestion, CoachAnalysis, CoachSessionCost } from '../shared/coach-types'
+import type {
+  AppState, ProcessStatus, Project, WorkspaceFolder,
+  AgentInfo, PipelineRun, PipelineConfig,
+  CoachConfig, CoachSuggestion, CoachAnalysis, CoachSessionCost,
+  IpcResult, GitInfo, GitStatus, BranchList, WorktreeResult,
+  PtyCreateOptions, PtyCreateResult, PtySessionInfo,
+  DirectoryEntry, FileContent, FileSearchResult, FileSearchEntry, DiffResult,
+  SystemPortInfo, RtkStatus, RtkToggleResult, RtkGainStats,
+  BrowserEvent, ActiveSession, ClaudeSessionInfo, SessionTitle,
+  McpConfigEntry, SkillEntry, CreateCommandOptions, SaveTempImageOptions,
+  StatuslineData,
+} from '../shared/ipc-types'
 
 const api = {
+  // State
   getState: (): Promise<AppState> => ipcRenderer.invoke('get-state'),
   saveState: (state: AppState): Promise<boolean> => ipcRenderer.invoke('save-state', state),
   scanWorkspace: (scanPath: string, maxDepth?: number): Promise<Project[]> => ipcRenderer.invoke('scan-workspace', scanPath, maxDepth),
+
+  // Process management
   startProject: (project: Project): Promise<ProcessStatus> => ipcRenderer.invoke('start-project', project),
   stopProject: (projectId: string): Promise<boolean> => ipcRenderer.invoke('stop-project', projectId),
   getProcessStatuses: (): Promise<ProcessStatus[]> => ipcRenderer.invoke('get-process-statuses'),
   getLogs: (projectId: string): Promise<string[]> => ipcRenderer.invoke('get-logs', projectId),
   openInBrowser: (url: string): Promise<void> => ipcRenderer.invoke('open-in-browser', url),
-  detectSystemPorts: (ports: number[]): Promise<Record<number, { port: number; pid: number; command: string }>> =>
+  detectSystemPorts: (ports: number[]): Promise<Record<number, SystemPortInfo>> =>
     ipcRenderer.invoke('detect-system-ports', ports),
   killSystemProcess: (pid: number): Promise<boolean> => ipcRenderer.invoke('kill-system-process', pid),
+
+  // Workspace folders
   listWorkspaceFolders: (scanPath: string): Promise<WorkspaceFolder[]> =>
     ipcRenderer.invoke('list-workspace-folders', scanPath),
+
+  // IDE / OS integration
   openInIde: (projectPath: string, ide: 'cursor' | 'zed'): Promise<boolean> =>
     ipcRenderer.invoke('open-in-ide', projectPath, ide),
   openInFinder: (projectPath: string): Promise<void> =>
@@ -24,22 +40,21 @@ const api = {
   openInTerminal: (projectPath: string): Promise<boolean> =>
     ipcRenderer.invoke('open-in-terminal', projectPath),
   selectFolder: (): Promise<string | null> => ipcRenderer.invoke('select-folder'),
-  getGitInfo: (folderPath: string): Promise<{ gitBranch: string | null; gitRemote: string | null }> =>
+
+  // Git
+  getGitInfo: (folderPath: string): Promise<GitInfo> =>
     ipcRenderer.invoke('get-git-info', folderPath),
-  getGitStatus: (folderPath: string): Promise<{
-    branch: string | null; baseBranch: string | null; remote: string | null
-    filesChanged: number; insertions: number; deletions: number
-    commitsAhead: number; uncommitted: number; isGitRepo: boolean
-  }> => ipcRenderer.invoke('get-git-status', folderPath),
-  listBranches: (folderPath: string): Promise<{ current: string | null; branches: string[] }> =>
+  getGitStatus: (folderPath: string): Promise<GitStatus> =>
+    ipcRenderer.invoke('get-git-status', folderPath),
+  listBranches: (folderPath: string): Promise<BranchList> =>
     ipcRenderer.invoke('list-branches', folderPath),
-  checkoutBranch: (folderPath: string, branchName: string): Promise<{ success: boolean; error?: string }> =>
+  checkoutBranch: (folderPath: string, branchName: string): Promise<IpcResult> =>
     ipcRenderer.invoke('checkout-branch', folderPath, branchName),
-  openClaudeWorktree: (projectPath: string, projectName: string): Promise<{ success: boolean; worktreePath?: string; branchName?: string; baseBranch?: string; error?: string }> =>
+  openClaudeWorktree: (projectPath: string, projectName: string): Promise<WorktreeResult> =>
     ipcRenderer.invoke('open-claude-worktree', projectPath, projectName),
 
-  // PTY (embedded terminal) API
-  ptyCreate: (opts: { sessionId: string; folderName: string; folderPath: string; useWorktree: boolean; resumeClaudeId?: string; existingWorktreePath?: string; dangerousMode?: boolean }): Promise<{ success: boolean; id?: string; folderName?: string; worktreePath?: string | null; branchName?: string | null; error?: string }> =>
+  // PTY (embedded terminal)
+  ptyCreate: (opts: PtyCreateOptions): Promise<PtyCreateResult> =>
     ipcRenderer.invoke('pty-create', opts),
   ptyWrite: (sessionId: string, data: string): void => {
     ipcRenderer.send('pty-write', sessionId, data)
@@ -49,24 +64,25 @@ const api = {
   },
   ptyDestroy: (sessionId: string): Promise<void> =>
     ipcRenderer.invoke('pty-destroy', sessionId),
-  cleanupWorktree: (worktreePath: string, folderPath: string): Promise<{ success: boolean; error?: string }> =>
+  cleanupWorktree: (worktreePath: string, folderPath: string): Promise<IpcResult> =>
     ipcRenderer.invoke('cleanup-worktree', worktreePath, folderPath),
-  ptyListSessions: (): Promise<{ id: string; folderName: string; worktreePath: string | null; branchName: string | null }[]> =>
+  ptyListSessions: (): Promise<PtySessionInfo[]> =>
     ipcRenderer.invoke('pty-list-sessions'),
+
   // File explorer
-  listDirectory: (dirPath: string): Promise<{ name: string; path: string; isDir: boolean; size: number }[]> =>
+  listDirectory: (dirPath: string): Promise<DirectoryEntry[]> =>
     ipcRenderer.invoke('list-directory', dirPath),
-  readFile: (filePath: string): Promise<{ content?: string; error?: string }> =>
+  readFile: (filePath: string): Promise<FileContent> =>
     ipcRenderer.invoke('read-file', filePath),
-  searchFiles: (rootPath: string, query: string): Promise<{ results: { file: string; relativePath: string; matches: { line: number; text: string }[] }[]; error?: string }> =>
+  searchFiles: (rootPath: string, query: string): Promise<FileSearchResult> =>
     ipcRenderer.invoke('search-files', rootPath, query),
-  findFilesByName: (rootPath: string, query: string): Promise<{ name: string; path: string; relativePath: string; isDir: boolean }[]> =>
+  findFilesByName: (rootPath: string, query: string): Promise<FileSearchEntry[]> =>
     ipcRenderer.invoke('find-files-by-name', rootPath, query),
-  getWorktreeDiff: (worktreePath: string): Promise<{ diff?: string; error?: string }> =>
+  getWorktreeDiff: (worktreePath: string): Promise<DiffResult> =>
     ipcRenderer.invoke('get-worktree-diff', worktreePath),
   detectClaudeSessionId: (cwd: string): Promise<{ sessionId: string | null }> =>
     ipcRenderer.invoke('detect-claude-session-id', cwd),
-  saveTempImage: (opts: { name: string; data: number[]; sessionId: string }): Promise<{ path?: string; error?: string }> =>
+  saveTempImage: (opts: SaveTempImageOptions): Promise<{ path?: string; error?: string }> =>
     ipcRenderer.invoke('save-temp-image', opts),
 
   // Browser bridge
@@ -76,12 +92,13 @@ const api = {
     ipcRenderer.invoke('close-browser', sessionId),
   isBrowserOpen: (sessionId: string): Promise<boolean> =>
     ipcRenderer.invoke('is-browser-open', sessionId),
-  onBrowserEvent: (callback: (data: { sessionId: string; event: string; data: any }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string; event: string; data: any }) => callback(data)
+  onBrowserEvent: (callback: (data: BrowserEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: BrowserEvent) => callback(data)
     ipcRenderer.on('browser-event', handler)
     return () => ipcRenderer.removeListener('browser-event', handler)
   },
 
+  // PTY events
   onPtyData: (callback: (data: { sessionId: string; data: string }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string; data: string }) => callback(data)
     ipcRenderer.on('pty-data', handler)
@@ -93,12 +110,19 @@ const api = {
     return () => ipcRenderer.removeListener('pty-exit', handler)
   },
 
+  // Statusline data (structured context/model/cost from Claude Code)
+  onStatuslineData: (callback: (data: StatuslineData) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: StatuslineData) => callback(data)
+    ipcRenderer.on('statusline-data', handler)
+    return () => ipcRenderer.removeListener('statusline-data', handler)
+  },
+
+  // Process events
   onProcessLog: (callback: (data: { projectId: string; line: string }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: { projectId: string; line: string }) => callback(data)
     ipcRenderer.on('process-log', handler)
     return () => ipcRenderer.removeListener('process-log', handler)
   },
-
   onProcessStatusChanged: (callback: (status: ProcessStatus) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, status: ProcessStatus) => callback(status)
     ipcRenderer.on('process-status-changed', handler)
@@ -106,30 +130,30 @@ const api = {
   },
 
   // Pipeline
-  pipelineStart: (folderName: string, folderPath: string, taskDescription: string): Promise<any> =>
+  pipelineStart: (folderName: string, folderPath: string, taskDescription: string): Promise<PipelineRun> =>
     ipcRenderer.invoke('pipeline-start', folderName, folderPath, taskDescription),
   pipelineCancel: (pipelineId: string): Promise<void> =>
     ipcRenderer.invoke('pipeline-cancel', pipelineId),
-  pipelineGetRuns: (): Promise<any[]> =>
+  pipelineGetRuns: (): Promise<PipelineRun[]> =>
     ipcRenderer.invoke('pipeline-get-runs'),
-  pipelineGetConfig: (folderPath: string): Promise<any> =>
+  pipelineGetConfig: (folderPath: string): Promise<PipelineConfig> =>
     ipcRenderer.invoke('pipeline-get-config', folderPath),
-  pipelineSetConfig: (folderPath: string, config: any): Promise<void> =>
+  pipelineSetConfig: (folderPath: string, config: Partial<PipelineConfig>): Promise<void> =>
     ipcRenderer.invoke('pipeline-set-config', folderPath, config),
-  onPipelineEvent: (callback: (run: any) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, run: any) => callback(run)
+  onPipelineEvent: (callback: (run: PipelineRun) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, run: PipelineRun) => callback(run)
     ipcRenderer.on('pipeline-event', handler)
     return () => ipcRenderer.removeListener('pipeline-event', handler)
   },
 
-  // RTK (Rust Token Killer) — optional token compression
-  rtkDetect: (): Promise<{ installed: boolean; version: string | null; hookActive: boolean; path: string | null }> =>
+  // RTK (Rust Token Killer)
+  rtkDetect: (): Promise<RtkStatus> =>
     ipcRenderer.invoke('rtk-detect'),
-  rtkEnable: (): Promise<{ success: boolean; output: string }> =>
+  rtkEnable: (): Promise<RtkToggleResult> =>
     ipcRenderer.invoke('rtk-enable'),
-  rtkDisable: (): Promise<{ success: boolean; output: string }> =>
+  rtkDisable: (): Promise<RtkToggleResult> =>
     ipcRenderer.invoke('rtk-disable'),
-  rtkGain: (): Promise<{ totalSaved: number; totalOriginal: number; totalCompressed: number; savingsPercent: number; commandCount: number; raw: string } | null> =>
+  rtkGain: (): Promise<RtkGainStats | null> =>
     ipcRenderer.invoke('rtk-gain'),
   rtkSessionToggle: (sessionId: string, disabled: boolean): Promise<{ disabled: boolean }> =>
     ipcRenderer.invoke('rtk-session-toggle', sessionId, disabled),
@@ -140,10 +164,10 @@ const api = {
   scanAgents: (): Promise<AgentInfo[]> => ipcRenderer.invoke('scan-agents'),
   getAgentLogs: (agentId: string, logType: 'history' | 'stdout'): Promise<string[]> =>
     ipcRenderer.invoke('get-agent-logs', agentId, logType),
-  triggerAgent: (agentId: string): Promise<{ success: boolean; error?: string }> =>
+  triggerAgent: (agentId: string): Promise<IpcResult> =>
     ipcRenderer.invoke('trigger-agent', agentId),
 
-  // Coach (prompt improvement assistant)
+  // Coach
   coachGetConfig: (): Promise<CoachConfig> =>
     ipcRenderer.invoke('coach-get-config'),
   coachSetConfig: (config: CoachConfig): Promise<void> =>
@@ -163,31 +187,31 @@ const api = {
   },
 
   // MCP & Skills
-  mcpGetConfig: (projectPath?: string): Promise<{ scope: string; path: string; servers: Record<string, any> }[]> =>
+  mcpGetConfig: (projectPath?: string): Promise<McpConfigEntry[]> =>
     ipcRenderer.invoke('mcp-get-config', projectPath),
-  mcpSaveConfig: (filePath: string, servers: Record<string, any>): Promise<{ success: boolean; error?: string }> =>
+  mcpSaveConfig: (filePath: string, servers: Record<string, any>): Promise<IpcResult> =>
     ipcRenderer.invoke('mcp-save-config', filePath, servers),
-  skillsList: (projectPath?: string): Promise<{ name: string; scope: string; path: string; description: string }[]> =>
+  skillsList: (projectPath?: string): Promise<SkillEntry[]> =>
     ipcRenderer.invoke('skills-list', projectPath),
-  createCommand: (opts: { name: string; content: string; scope: 'user' | 'project'; projectPath?: string }): Promise<{ success: boolean; path?: string; error?: string }> =>
+  createCommand: (opts: CreateCommandOptions): Promise<IpcResult & { path?: string }> =>
     ipcRenderer.invoke('create-command', opts),
-  deleteCommand: (filePath: string): Promise<{ success: boolean; error?: string }> =>
+  deleteCommand: (filePath: string): Promise<IpcResult> =>
     ipcRenderer.invoke('delete-command', filePath),
 
   // Active sessions (auto-resume)
-  activeSessionsSet: (session: { id: string; claudeSessionId: string | null; folderName: string; folderPath: string; worktreePath: string | null; branchName: string | null; dangerousMode?: boolean }): Promise<void> =>
+  activeSessionsSet: (session: ActiveSession): Promise<void> =>
     ipcRenderer.invoke('active-sessions-set', session),
   activeSessionsUpdateClaudeId: (id: string, claudeSessionId: string): Promise<void> =>
     ipcRenderer.invoke('active-sessions-update-claude-id', id, claudeSessionId),
   activeSessionsRemove: (id: string): Promise<void> =>
     ipcRenderer.invoke('active-sessions-remove', id),
-  activeSessionsGetAll: (): Promise<any[]> =>
+  activeSessionsGetAll: (): Promise<ActiveSession[]> =>
     ipcRenderer.invoke('active-sessions-get-all'),
 
-  // Session history (Claude's own files)
-  sessionHistoryScan: (folderPath: string, folderName: string): Promise<any[]> =>
+  // Session history
+  sessionHistoryScan: (folderPath: string, folderName: string): Promise<ClaudeSessionInfo[]> =>
     ipcRenderer.invoke('session-history-scan', folderPath, folderName),
-  sessionHistoryTitle: (claudeSessionId: string, dirName: string): Promise<{ title: string; keywords: string[]; messageCount: number } | null> =>
+  sessionHistoryTitle: (claudeSessionId: string, dirName: string): Promise<SessionTitle | null> =>
     ipcRenderer.invoke('session-history-title', claudeSessionId, dirName),
 }
 

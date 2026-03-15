@@ -1,0 +1,94 @@
+/* ── Skeleton shimmer animation ── */
+
+.skeleton {
+  background: var(--bg-tertiary);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+  animation: skeleton-shimmer 1.5s infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ── App-level loading skeleton ── */
+
+.skeleton-app-loading {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.skeleton-titlebar {
+  height: 38px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding-left: 80px;
+}
+
+.skeleton-tabs {
+  display: flex;
+  gap: 20px;
+  padding: 10px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.skeleton-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.skeleton-sidebar {
+  width: 240px;
+  padding: 16px;
+  border-right: 1px solid var(--border);
+}
+
+.skeleton-grid {
+  flex: 1;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+
+.skeleton-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Folder row skeleton ── */
+
+.skeleton-folder-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── Agent card skeleton ── */
+
+.skeleton-agent-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}

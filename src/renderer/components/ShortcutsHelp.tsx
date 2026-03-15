@@ -1,4 +1,5 @@
 import React from 'react'
+import './ShortcutsHelp.css'
 
 interface Props {
   onClose: () => void

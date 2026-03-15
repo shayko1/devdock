@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react'
+import './SearchView.css'
 
 interface SearchMatch {
   line: number

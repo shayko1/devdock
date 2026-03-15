@@ -24,6 +24,7 @@ class PtyManager {
   private mainWindow: BrowserWindow | null = null
   private shellPath: string | null = null
   private dataHooks: ((sessionId: string, data: string) => void)[] = []
+  private exitHooks: ((sessionId: string) => void)[] = []
 
   setMainWindow(win: BrowserWindow) {
     this.mainWindow = win
@@ -36,6 +37,11 @@ class PtyManager {
   /** Register a hook that receives all PTY data for every session */
   onData(hook: (sessionId: string, data: string) => void) {
     this.dataHooks.push(hook)
+  }
+
+  /** Register a hook that fires when a PTY session exits */
+  onExit(hook: (sessionId: string) => void) {
+    this.exitHooks.push(hook)
   }
 
   createSession(
@@ -120,6 +126,9 @@ class PtyManager {
         }
       } catch { /* window destroyed */ }
       this.sessions.delete(sessionId)
+      for (const hook of this.exitHooks) {
+        try { hook(sessionId) } catch { /* ignore hook errors */ }
+      }
     })
 
     this.sessions.set(sessionId, session)

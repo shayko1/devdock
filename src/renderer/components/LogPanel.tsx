@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import './LogPanel.css'
 
 interface Props {
   projectName: string | null

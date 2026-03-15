@@ -1,5 +1,6 @@
 import React, { useState, useRef, KeyboardEvent } from 'react'
 import { Project } from '../../shared/types'
+import './EditProjectModal.css'
 
 interface Props {
   project: Project

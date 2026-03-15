@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import './ChatInputBar.css'
 
 interface Props {
   sessionId: string
@@ -9,30 +10,6 @@ interface Props {
 }
 
 type Mode = 'agent' | 'chat' | 'plan'
-
-// Context window sizes per model family
-const MODEL_CONTEXT_SIZES: Record<string, number> = {
-  'opus': 200_000,
-  'opus-4': 200_000,
-  'opus-4-6': 1_000_000,
-  'claude-opus-4-6': 1_000_000,
-  'sonnet': 200_000,
-  'sonnet-4': 200_000,
-  'sonnet-4-6': 1_000_000,
-  'claude-sonnet-4-6': 1_000_000,
-  'haiku': 200_000,
-  'haiku-3.5': 200_000,
-  'haiku-4.5': 200_000,
-  'claude-haiku-4-5': 200_000,
-}
-
-function contextSizeForModel(modelId: string): number {
-  const lower = modelId.toLowerCase().trim()
-  for (const [key, val] of Object.entries(MODEL_CONTEXT_SIZES)) {
-    if (lower.includes(key)) return val
-  }
-  return 200_000
-}
 
 const MODELS = [
   { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', short: 'Sonnet 4.6', desc: 'Latest Sonnet', ctx: 200_000 },
@@ -132,14 +109,12 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
   const [effortLevel, setEffortLevel] = useState<EffortLevel>('auto')
   const [showEffortMenu, setShowEffortMenu] = useState(false)
 
-  // Context tracking (real from Claude Code statusline data or estimated)
+  // Context tracking (from Claude Code statusline JSON data)
   const [contextUsedTokens, setContextUsedTokens] = useState(0)
   const [contextMaxTokens, setContextMaxTokens] = useState(200_000)
   const [contextPercent, setContextPercent] = useState(0)
-  const [contextSource, setContextSource] = useState<'parsed' | 'estimated'>('estimated')
   const [sessionCost, setSessionCost] = useState(0)
   const [detectedModel, setDetectedModel] = useState('')
-  const charCountRef = useRef(0)
 
   // Session status
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle')
@@ -177,23 +152,92 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
   const effortRef = useRef<HTMLDivElement>(null)
   const acRef = useRef<HTMLDivElement>(null)
 
-  // Reset on session change
+  // Per-session state cache — preserves model, effort, context across tab switches AND app restarts
+  interface SessionCache {
+    mode: Mode
+    modelIdx: number
+    effortLevel: EffortLevel
+    detectedModel: string
+    contextUsedTokens: number
+    contextMaxTokens: number
+    contextPercent: number
+    sessionCost: number
+    sessionStatus: SessionStatus
+  }
+
+  const CACHE_KEY = 'devdock-session-cache'
+  const loadPersistedCache = (): Map<string, SessionCache> => {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY)
+      if (raw) return new Map(Object.entries(JSON.parse(raw)))
+    } catch { /* ignore */ }
+    return new Map()
+  }
+  const persistCache = (cache: Map<string, SessionCache>) => {
+    try {
+      const obj: Record<string, SessionCache> = {}
+      for (const [k, v] of cache) obj[k] = v
+      localStorage.setItem(CACHE_KEY, JSON.stringify(obj))
+    } catch { /* ignore */ }
+  }
+
+  const sessionCacheRef = useRef<Map<string, SessionCache>>(loadPersistedCache())
+  const prevSessionRef = useRef<string | null>(null)
+
+  // Live state ref — always holds current values so the save effect reads fresh data
+  const liveStateRef = useRef<SessionCache>({
+    mode: 'agent', modelIdx: 0, effortLevel: 'auto', detectedModel: '',
+    contextUsedTokens: 0, contextMaxTokens: 200_000, contextPercent: 0,
+    sessionCost: 0, sessionStatus: 'idle',
+  })
+  // Keep liveStateRef in sync with every render
+  liveStateRef.current = {
+    mode, modelIdx, effortLevel, detectedModel,
+    contextUsedTokens, contextMaxTokens, contextPercent,
+    sessionCost, sessionStatus,
+  }
+
+  // Save/restore session state on session switch
   useEffect(() => {
-    setContextUsedTokens(0)
-    setContextMaxTokens(200_000)
-    setContextPercent(0)
-    setContextSource('estimated')
-    setSessionCost(0)
-    setDetectedModel('')
-    setSessionStatus('idle')
+    // Save state for the session we're leaving — reads from ref to avoid stale closures
+    if (prevSessionRef.current && prevSessionRef.current !== sessionId) {
+      sessionCacheRef.current.set(prevSessionRef.current, { ...liveStateRef.current })
+      persistCache(sessionCacheRef.current)
+    }
+    prevSessionRef.current = sessionId
+
+    // Restore state for the session we're switching to (or defaults for new)
+    const cached = sessionCacheRef.current.get(sessionId)
+    if (cached) {
+      setMode(cached.mode)
+      setModelIdx(cached.modelIdx)
+      setEffortLevel(cached.effortLevel)
+      setDetectedModel(cached.detectedModel)
+      setContextUsedTokens(cached.contextUsedTokens)
+      setContextMaxTokens(cached.contextMaxTokens)
+      setContextPercent(cached.contextPercent)
+      setSessionCost(cached.sessionCost)
+      setSessionStatus(cached.sessionStatus)
+    } else {
+      setMode('agent')
+      setModelIdx(0)
+      setEffortLevel('auto')
+      setDetectedModel('')
+      setContextUsedTokens(0)
+      setContextMaxTokens(200_000)
+      setContextPercent(0)
+      setSessionCost(0)
+      setSessionStatus('idle')
+    }
+
+    // Always reset transient UI state
     setShowCompactHint(false)
     compactDismissedRef.current = false
-    charCountRef.current = 0
     setText('')
     setImages([])
     setAcType('none')
     skillsLoadedRef.current = false
-  }, [sessionId])
+  }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load custom skills, commands, and MCP server names
   useEffect(() => {
@@ -216,112 +260,40 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
   useEffect(() => {
     const strip = (s: string) => s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '')
 
+    // PTY listener — only for effort level and session status detection
     const unsub = window.api.onPtyData(({ sessionId: sid, data }) => {
       if (sid !== sessionId) return
       const clean = strip(data)
 
-      // ── Model detection ──
-      const modelIdMatch = clean.match(/model[:\s]+["']?(claude-[a-z0-9.-]+)/i)
-        || clean.match(/Using\s+(Claude\s+\w+\s*\d*(?:\.\d+)?)/i)
-      if (modelIdMatch) {
-        const m = modelIdMatch[1].trim()
-        setDetectedModel(m)
-        const newMax = contextSizeForModel(m)
-        setContextMaxTokens(newMax)
-      }
-
-      // ── Effort level detection ──
+      // ── Effort level detection (not in statusline JSON) ──
       const effortMatch = clean.match(/Effort level:\s*(auto|low|medium|high)/i)
         || clean.match(/effort[:\s]+(auto|low|medium|high)/i)
       if (effortMatch) {
         setEffortLevel(effortMatch[1].toLowerCase() as EffortLevel)
       }
 
-      // ── Context window from statusline JSON fragments ──
-      // Claude Code sends statusline data containing context_window object
-      const cwSizeMatch = clean.match(/context_window_size["\s:]+(\d+)/i)
-      if (cwSizeMatch) {
-        const cws = parseInt(cwSizeMatch[1], 10)
-        if (cws >= 100_000) setContextMaxTokens(cws)
-      }
-
-      const usedPctMatch = clean.match(/used_percentage["\s:]+(\d+(?:\.\d+)?)/i)
-      if (usedPctMatch) {
-        const pct = parseFloat(usedPctMatch[1])
-        if (pct >= 0 && pct <= 100) {
-          setContextPercent(pct)
-          setContextUsedTokens(prev => {
-            const fromPct = Math.round((pct / 100) * contextMaxTokens)
-            return fromPct || prev
-          })
-          setContextSource('parsed')
-        }
-      }
-
-      // ── Context percentage from terminal text ──
-      const pctMatch = clean.match(/(\d+(?:\.\d+)?)\s*%\s*(?:of\s+)?context/i)
-        || clean.match(/Context:\s*(\d+(?:\.\d+)?)\s*%/i)
-      if (pctMatch) {
-        const pct = parseFloat(pctMatch[1])
-        if (pct >= 0 && pct <= 100) {
-          setContextPercent(pct)
-          setContextUsedTokens(Math.round((pct / 100) * contextMaxTokens))
-          setContextSource('parsed')
-        }
-      }
-
-      // ── Token counts "XXk/200k tokens" ──
-      const tokenMatch = clean.match(/([\d,.]+)\s*[kK]?\s*\/\s*([\d,.]+)\s*[kK]?\s*(?:tokens?)?/i)
-      if (tokenMatch) {
-        const parse = (s: string): number => {
-          const n = parseFloat(s.replace(/,/g, ''))
-          return s.toLowerCase().includes('k') ? n * 1000 : n
-        }
-        const used = parse(tokenMatch[1])
-        const max = parse(tokenMatch[2])
-        if (used > 0 && max > 0 && max >= 10000) {
-          setContextUsedTokens(Math.round(used))
-          setContextMaxTokens(Math.round(max))
-          setContextPercent(Math.round((used / max) * 100))
-          setContextSource('parsed')
-        }
-      }
-
-      // ── Cost tracking ──
-      const costMatch = clean.match(/total_cost_usd["\s:]+(\d+\.?\d*)/i)
-        || clean.match(/\$(\d+\.\d{2,5})/i)
-      if (costMatch) {
-        const cost = parseFloat(costMatch[1])
-        if (cost > 0 && cost < 1000) setSessionCost(cost)
-      }
-
       // ── Session status detection ──
-      // Thinking indicators
       if (clean.includes('Thinking') || clean.includes('thinking...') || clean.match(/⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏/)) {
         setSessionStatus('thinking')
         if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
         statusTimerRef.current = setTimeout(() => setSessionStatus('idle'), 30000)
       }
-      // Tool execution
       else if (clean.match(/Running|Executing|Reading|Writing|Searching|Editing/i) && clean.match(/\.\.\.|…/)) {
         setSessionStatus('tool')
         if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
         statusTimerRef.current = setTimeout(() => setSessionStatus('idle'), 30000)
       }
-      // Writing code / generating output
       else if (clean.match(/^[│┃├┌└─┐┘┤┬┴┼╔╗╚╝╠╣╦╩╬]/) || clean.match(/\s{2,}(import|export|function|const|let|var|class|def|if|for|while)\s/)) {
         setSessionStatus('writing')
         if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
         statusTimerRef.current = setTimeout(() => setSessionStatus('idle'), 10000)
       }
-      // Compacting
       else if (clean.includes('Compacting') || clean.includes('compacting') || clean.includes('Summarizing conversation')) {
         setSessionStatus('compact')
         if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
         statusTimerRef.current = setTimeout(() => setSessionStatus('idle'), 60000)
       }
 
-      // Prompt waiting (Claude Code shows ">" or "❯" when waiting)
       if (clean.match(/^[>❯]\s*$/) || clean.includes('What would you like')) {
         setSessionStatus('idle')
         if (statusTimerRef.current) { clearTimeout(statusTimerRef.current); statusTimerRef.current = null }
@@ -329,29 +301,63 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
 
       // Clear/compact resets
       if (clean.includes('Conversation has been') || clean.includes('Context cleared') || clean.includes('conversation cleared') || clean.includes('compacted to')) {
-        setContextUsedTokens(0)
-        setContextPercent(2)
-        setContextSource('estimated')
-        charCountRef.current = 0
         setShowCompactHint(false)
         compactDismissedRef.current = false
-        return
-      }
-
-      // Fallback: estimate from character volume (~4 chars per token)
-      charCountRef.current += data.length
-      if (contextSource === 'estimated') {
-        const estTokens = Math.round(charCountRef.current / 4)
-        const estPct = Math.min(95, (estTokens / contextMaxTokens) * 100)
-        setContextUsedTokens(estTokens)
-        setContextPercent(estPct)
       }
     })
+
+    // Statusline listener — structured context, model, and cost data from Claude Code
+    const unsubStatus = window.api.onStatuslineData((data) => {
+      if (data.sessionId !== sessionId) return
+
+      // Model
+      if (data.model || data.modelId) {
+        const id = data.modelId || data.model || ''
+        const name = data.model || ''
+        const matchedIdx = MODELS.findIndex(mod =>
+          id.toLowerCase().includes(mod.id.toLowerCase()) ||
+          name.toLowerCase().includes(mod.short.toLowerCase())
+        )
+        if (matchedIdx >= 0) {
+          setModelIdx(matchedIdx)
+          setDetectedModel('')
+        } else if (name) {
+          setDetectedModel(name)
+        }
+      }
+
+      // Context window
+      if (data.contextWindowSize != null && data.contextWindowSize >= 10_000) {
+        setContextMaxTokens(data.contextWindowSize)
+      }
+      if (data.contextUsedPercent != null) {
+        const pct = data.contextUsedPercent
+        setContextPercent(pct)
+        setContextUsedTokens(prev => {
+          const maxT = data.contextWindowSize || contextMaxTokens
+          const fromPct = Math.round((pct / 100) * maxT)
+          return fromPct || prev
+        })
+      }
+
+      // Cost
+      if (data.costUsd != null && data.costUsd > 0) {
+        setSessionCost(data.costUsd)
+      }
+    })
+
     return () => {
       unsub()
+      unsubStatus()
       if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
     }
-  }, [sessionId, contextMaxTokens, contextSource])
+  }, [sessionId, contextMaxTokens])
+
+  // Persist session cache to localStorage when key state changes
+  useEffect(() => {
+    sessionCacheRef.current.set(sessionId, { ...liveStateRef.current })
+    persistCache(sessionCacheRef.current)
+  }, [sessionId, modelIdx, effortLevel, contextPercent, sessionCost]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show compact suggestion when context is high
   useEffect(() => {
@@ -554,6 +560,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
   const handleModelChange = useCallback((idx: number) => {
     if (idx !== modelIdx) {
       setModelIdx(idx)
+      setDetectedModel('')
       onSend(`/model ${MODELS[idx].id}`)
       setContextMaxTokens(MODELS[idx].ctx)
     }
@@ -1001,7 +1008,6 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
             className="chat-input-context"
             title={[
               `${formatTokens(contextUsedTokens)} / ${formatTokens(contextMaxTokens)} tokens (${Math.round(contextPercent)}%)`,
-              contextSource === 'estimated' ? 'Estimated from character volume' : 'From Claude Code',
               detectedModel ? `Model: ${detectedModel}` : '',
               contextPercent >= COMPACT_THRESHOLD ? 'Tip: Run /compact to free space' : '',
             ].filter(Boolean).join('\n')}

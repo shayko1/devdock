@@ -1,0 +1,18 @@
+/* Syntax highlighting */
+.sh-keyword { color: #c586c0; }
+.sh-string { color: #ce9178; }
+.sh-comment { color: #6a9955; font-style: italic; }
+.sh-number { color: #b5cea8; }
+.sh-type { color: #4ec9b0; }
+.sh-function { color: #dcdcaa; }
+.sh-operator { color: #d4d4d4; }
+.sh-decorator { color: #dcdcaa; font-style: italic; }
+.sh-punctuation { color: #808080; }
+.sh-tag { color: #569cd6; }
+.sh-attr { color: #9cdcfe; }
+.sh-property { color: #9cdcfe; }
+.sh-heading { color: #569cd6; font-weight: 700; }
+.sh-bold { color: #e6edf3; font-weight: 700; }
+.sh-italic { color: #e6edf3; font-style: italic; }
+.sh-link { color: #58a6ff; text-decoration: underline; }
+.sh-code { color: #ce9178; background: rgba(110, 118, 129, 0.15); border-radius: 3px; padding: 0 3px; }

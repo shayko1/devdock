@@ -641,3 +641,138 @@ describe('Process and signal handling', () => {
     expect(output).toMatch(/pid=\d+/)
   })
 })
+
+// ─── BRACKETED PASTE (DevDock ChatInputBar send mechanism) ──────
+describe('Bracketed paste input (ChatInputBar simulation)', () => {
+  // This is exactly how DevDock sends text from ChatInputBar to the PTY:
+  // Step 1: \x1b[200~text\x1b[201~ (bracketed paste)
+  // Step 2: \r (Enter key, sent separately)
+
+  it('bracketed paste + \\r in single write executes command', async () => {
+    const pty = runInteractive()
+    try {
+      await pty.waitForOutput(/[\$%#>]/, 5000)
+      // Single write: paste markers + \r together (original approach)
+      pty.write('\x1b[200~echo "BP_SINGLE_TEST"\x1b[201~\r')
+      await pty.waitForOutput('BP_SINGLE_TEST', 5000)
+      expect(pty.getOutput()).toContain('BP_SINGLE_TEST')
+    } finally {
+      pty.destroy()
+    }
+  })
+
+  it('bracketed paste then delayed \\r executes command', async () => {
+    const pty = runInteractive()
+    try {
+      await pty.waitForOutput(/[\$%#>]/, 5000)
+      // Two writes: paste first, then \r after 50ms (current DevDock approach)
+      pty.write('\x1b[200~echo "BP_DELAYED_TEST"\x1b[201~')
+      await new Promise(r => setTimeout(r, 50))
+      pty.write('\r')
+      await pty.waitForOutput('BP_DELAYED_TEST', 5000)
+      expect(pty.getOutput()).toContain('BP_DELAYED_TEST')
+    } finally {
+      pty.destroy()
+    }
+  })
+
+  it('plain text + \\r without bracketed paste executes command', async () => {
+    const pty = runInteractive()
+    try {
+      await pty.waitForOutput(/[\$%#>]/, 5000)
+      // Simplest approach: just text + \r
+      pty.write('echo "PLAIN_TEST"\r')
+      await pty.waitForOutput('PLAIN_TEST', 5000)
+      expect(pty.getOutput()).toContain('PLAIN_TEST')
+    } finally {
+      pty.destroy()
+    }
+  })
+
+  it('plain text + \\n without bracketed paste executes command', async () => {
+    const pty = runInteractive()
+    try {
+      await pty.waitForOutput(/[\$%#>]/, 5000)
+      // Alternative: text + \n instead of \r
+      pty.write('echo "NEWLINE_TEST"\n')
+      await pty.waitForOutput('NEWLINE_TEST', 5000)
+      expect(pty.getOutput()).toContain('NEWLINE_TEST')
+    } finally {
+      pty.destroy()
+    }
+  })
+
+  it('bracketed paste + \\n executes command', async () => {
+    const pty = runInteractive()
+    try {
+      await pty.waitForOutput(/[\$%#>]/, 5000)
+      // Bracketed paste with \n instead of \r
+      pty.write('\x1b[200~echo "BP_NEWLINE_TEST"\x1b[201~\n')
+      await pty.waitForOutput('BP_NEWLINE_TEST', 5000)
+      expect(pty.getOutput()).toContain('BP_NEWLINE_TEST')
+    } finally {
+      pty.destroy()
+    }
+  })
+
+  it('bracketed paste into node readline — single write with \\r', async () => {
+    // Simulates Claude Code: a Node.js program using readline
+    const dir = makeTempDir()
+    writeFileSync(join(dir, 'rl.js'), `
+const rl = require('readline');
+const i = rl.createInterface({ input: process.stdin, output: process.stdout });
+i.question('INPUT> ', (answer) => { console.log('GOT:' + answer + ':'); i.close(); });
+`)
+    const pty = runInteractive({ cwd: dir })
+    try {
+      await pty.waitForOutput(/[\$%#>]/, 5000)
+      pty.write('node rl.js\r')
+      await pty.waitForOutput('INPUT>', 5000)
+      // Send bracketed paste + \r in single write
+      pty.write('\x1b[200~hello_bp_cr\x1b[201~\r')
+      await pty.waitForOutput('GOT:hello_bp_cr:', 5000)
+    } finally {
+      pty.destroy()
+    }
+  }, 15000)
+
+  it('plain text + \\r into node readline works', async () => {
+    const dir = makeTempDir()
+    writeFileSync(join(dir, 'rl.js'), `
+const rl = require('readline');
+const i = rl.createInterface({ input: process.stdin, output: process.stdout });
+i.question('INPUT> ', (answer) => { console.log('GOT:' + answer + ':'); i.close(); });
+`)
+    const pty = runInteractive({ cwd: dir })
+    try {
+      await pty.waitForOutput(/[\$%#>]/, 5000)
+      pty.write('node rl.js\r')
+      await pty.waitForOutput('INPUT>', 5000)
+      // Plain text + \r (no bracketed paste)
+      pty.write('hello_plain_cr\r')
+      await pty.waitForOutput('GOT:hello_plain_cr:', 5000)
+    } finally {
+      pty.destroy()
+    }
+  }, 15000)
+
+  it('plain text + \\n into node readline works', async () => {
+    const dir = makeTempDir()
+    writeFileSync(join(dir, 'rl.js'), `
+const rl = require('readline');
+const i = rl.createInterface({ input: process.stdin, output: process.stdout });
+i.question('INPUT> ', (answer) => { console.log('GOT:' + answer + ':'); i.close(); });
+`)
+    const pty = runInteractive({ cwd: dir })
+    try {
+      await pty.waitForOutput(/[\$%#>]/, 5000)
+      pty.write('node rl.js\r')
+      await pty.waitForOutput('INPUT>', 5000)
+      // Plain text + \n
+      pty.write('hello_plain_nl\n')
+      await pty.waitForOutput('GOT:hello_plain_nl:', 5000)
+    } finally {
+      pty.destroy()
+    }
+  }, 15000)
+})

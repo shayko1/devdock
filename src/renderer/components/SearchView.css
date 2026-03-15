@@ -1,0 +1,147 @@
+/* Search View */
+.search-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.sv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sv-title {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.sv-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.sv-close:hover { color: var(--text-primary); }
+
+.sv-input-row {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sv-input {
+  width: 100%;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 6px 8px;
+  outline: none;
+  font-family: inherit;
+}
+.sv-input:focus {
+  border-color: var(--accent);
+}
+
+.sv-results {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+.sv-status {
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.sv-summary {
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sv-file-group {
+  border-bottom: 1px solid var(--border);
+}
+
+.sv-file-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.sv-file-header:hover {
+  background: var(--bg-tertiary);
+}
+
+.sv-expand {
+  font-size: 10px;
+  width: 12px;
+  color: var(--text-muted);
+}
+
+.sv-file-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sv-match-count {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  padding: 1px 6px;
+  font-size: 10px;
+  min-width: 16px;
+  text-align: center;
+}
+
+.sv-match-row {
+  display: flex;
+  gap: 8px;
+  padding: 3px 10px 3px 28px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.sv-match-row:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.sv-line-num {
+  color: var(--text-muted);
+  min-width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 11px;
+}
+
+.sv-line-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 11px;
+}
+
+.sv-highlight {
+  background: rgba(210, 153, 34, 0.3);
+  color: var(--orange);
+  border-radius: 2px;
+}

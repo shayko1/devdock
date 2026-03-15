@@ -10,6 +10,7 @@ import { SessionInfoBar } from './SessionInfoBar'
 import { CoachPanel } from './CoachPanel'
 import { ChatInputBar } from './ChatInputBar'
 import { McpSkillsPanel } from './McpSkillsPanel'
+import './ClaudeSessionsView.css'
 
 function formatTimeAgo(ts: number): string {
   const diff = Date.now() - ts
@@ -34,6 +35,7 @@ interface Session {
   claudeSessionId?: string | null
   dangerousMode?: boolean
   pendingRecap?: boolean
+  title?: string
 }
 
 interface HistoryRecord {
@@ -75,6 +77,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
   const [rtkAvailable, setRtkAvailable] = useState(false)
   const [coachEnabled, setCoachEnabled] = useState(false)
   const [coachBadge, setCoachBadge] = useState(0)
+  const [sessionTitles, setSessionTitles] = useState<Map<string, string>>(new Map())
   const dragging = useRef(false)
   const bodyRef = useRef<HTMLDivElement>(null)
 
@@ -154,15 +157,34 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
     if (sessions.length === 0) {
       setActiveSessionId(null)
     } else if (!activeSessionId || !sessions.find(s => s.id === activeSessionId)) {
-      setActiveSessionId(sessions[sessions.length - 1].id)
+      // Try to restore the last-active session (matched by claudeSessionId which survives restarts)
+      const savedClaudeId = localStorage.getItem('devdock-last-active-claude-session')
+      const preferred = savedClaudeId
+        ? sessions.find(s => s.claudeSessionId === savedClaudeId)
+        : null
+      setActiveSessionId(preferred?.id ?? sessions[sessions.length - 1].id)
     }
   }, [sessions, activeSessionId])
 
+  // Track session titles from first user message sent via ChatInputBar
+  // (terminal output parsing is unreliable — it captures escape codes and garbage)
+  useEffect(() => {
+    // Cleanup placeholder — no PTY listener needed; titles come from handleChatSend
+    const unsub = () => {}
+
+    return unsub
+  }, [sessions])
+
   const handleSelectSession = useCallback((id: string) => {
     setActiveSessionId(id)
+    // Persist which session is active (by claudeSessionId which survives restarts)
+    const session = sessions.find(s => s.id === id)
+    if (session?.claudeSessionId) {
+      localStorage.setItem('devdock-last-active-claude-session', session.claudeSessionId)
+    }
     setViewingFile(null)
     if (sidePanel === 'file-view') setSidePanel('files')
-  }, [sidePanel])
+  }, [sidePanel, sessions])
 
   const handleClose = useCallback((sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -285,11 +307,27 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
 
   const handleChatSend = useCallback((text: string) => {
     if (!activeSessionId) return
+    // Only wrap in bracketed paste if multi-line; otherwise send plain text + \r
     const escaped = text.includes('\n')
       ? `\x1b[200~${text}\x1b[201~`
       : text
     window.api.ptyWrite(activeSessionId, escaped + '\r')
-  }, [activeSessionId])
+
+    // Update session title from first non-command message — extract a short summary
+    if (!text.startsWith('/') && text.trim().length > 5 && !sessionTitles.has(activeSessionId)) {
+      const raw = text.trim()
+      // Take the first sentence or line, whichever is shorter
+      const firstLine = raw.split('\n')[0].trim()
+      const firstSentence = firstLine.split(/[.!?]\s/)[0].trim()
+      const short = firstSentence.length < firstLine.length ? firstSentence : firstLine
+      const title = short.length > 45 ? short.slice(0, 42) + '...' : short
+      setSessionTitles(prev => {
+        const next = new Map(prev)
+        next.set(activeSessionId, title)
+        return next
+      })
+    }
+  }, [activeSessionId, sessionTitles])
 
   const handleChatImageUpload = useCallback(async (file: File) => {
     if (!activeSessionId) return
@@ -364,7 +402,9 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
               >
                 <div className="sidebar-card-row1">
                   <span className={`sidebar-status-dot ${isExited ? 'exited' : isWaiting ? 'waiting' : 'active'}`} />
-                  <span className="sidebar-card-name">{session.folderName}</span>
+                  <span className="sidebar-card-name" title={sessionTitles.get(session.id) || session.folderName}>
+                    {sessionTitles.get(session.id) || session.folderName}
+                  </span>
                   <button
                     className="sidebar-card-close"
                     onClick={(e) => handleClose(session.id, e)}
@@ -373,6 +413,9 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
                     ×
                   </button>
                 </div>
+                {sessionTitles.get(session.id) && (
+                  <span className="sidebar-card-project">{session.folderName}</span>
+                )}
                 {session.branchName && (
                   <div className="sidebar-card-branch">
                     <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0, opacity: 0.5 }}>
@@ -382,6 +425,14 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
                   </div>
                 )}
                 <div className="sidebar-card-badges">
+                  {!isExited && !isWaiting && (
+                    <span className="sidebar-badge-thinking">
+                      Thinking
+                      <span className="thinking-dots">
+                        <span /><span /><span />
+                      </span>
+                    </span>
+                  )}
                   {session.dangerousMode && (
                     <span className="sidebar-badge-unsafe" title="Dangerous mode">UNSAFE</span>
                   )}

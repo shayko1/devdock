@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { PipelineRun, PipelineStage, PipelineConfig, DEFAULT_PIPELINE_CONFIG } from '../../shared/pipeline-types'
+import './PipelineView.css'
 
 interface Props {
   folderName: string

@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
+import './XTerminal.css'
 
 interface Props {
   sessionId: string
@@ -56,15 +57,19 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
   useEffect(() => {
     if (!containerRef.current) return
 
-    let fontSize = 13
+    let fontSize = 14
     const term = new Terminal({
       fontSize,
       fontFamily: "'JetBrains Mono', 'SF Mono', 'Menlo', monospace",
+      lineHeight: 1.4,
+      letterSpacing: 0.3,
       cursorBlink: true,
       cursorStyle: 'bar',
+      cursorWidth: 2,
       theme: DARK_THEME,
       allowProposedApi: true,
       rightClickSelectsWord: true,
+      scrollback: 10000,
     })
 
     const fitAddon = new FitAddon()
@@ -139,7 +144,7 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
 
       // Cmd+= or Cmd++ — increase font size
       if (isMeta && (e.key === '=' || e.key === '+')) {
-        fontSize = Math.min(24, fontSize + 1)
+        fontSize = Math.min(28, fontSize + 1)
         term.options.fontSize = fontSize
         fitAddon.fit()
         return false
@@ -147,7 +152,7 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
 
       // Cmd+- — decrease font size
       if (isMeta && e.key === '-') {
-        fontSize = Math.max(9, fontSize - 1)
+        fontSize = Math.max(11, fontSize - 1)
         term.options.fontSize = fontSize
         fitAddon.fit()
         return false
@@ -155,7 +160,7 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
 
       // Cmd+0 — reset font size
       if (isMeta && e.key === '0') {
-        fontSize = 13
+        fontSize = 14
         term.options.fontSize = fontSize
         fitAddon.fit()
         return false

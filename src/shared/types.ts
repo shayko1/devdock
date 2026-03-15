@@ -27,6 +27,7 @@ export interface AppState {
   rtkEnabled?: boolean
   dangerousMode?: boolean
   chatInputEnabled?: boolean
+  defaultModel?: string
 }
 
 export interface ProcessStatus {

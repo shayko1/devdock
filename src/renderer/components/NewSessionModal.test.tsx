@@ -40,11 +40,11 @@ describe('NewSessionModal', () => {
     expect(screen.queryByText('project-b')).not.toBeInTheDocument()
   })
 
-  it('worktree checkbox is checked by default', async () => {
+  it('worktree checkbox is unchecked by default', async () => {
     render(<NewSessionModal scanPath="/tmp" onStart={vi.fn()} onClose={vi.fn()} />)
     await screen.findByText('project-a')
     const checkbox = screen.getByRole('checkbox', { name: /Create git worktree/ })
-    expect(checkbox).toBeChecked()
+    expect(checkbox).not.toBeChecked()
   })
 
   it('clicking a folder calls onStart with the folder and useWorktree value', async () => {
@@ -52,7 +52,7 @@ describe('NewSessionModal', () => {
     render(<NewSessionModal scanPath="/tmp" onStart={onStart} onClose={vi.fn()} />)
     const folderA = await screen.findByText('project-a')
     fireEvent.click(folderA.closest('.new-session-folder-item')!)
-    expect(onStart).toHaveBeenCalledWith(mockFolders[0], true)
+    expect(onStart).toHaveBeenCalledWith(mockFolders[0], false)
   })
 
   it('close button calls onClose', async () => {

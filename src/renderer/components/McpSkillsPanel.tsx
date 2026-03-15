@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import './McpSkillsPanel.css'
 
 interface McpServer {
   name: string

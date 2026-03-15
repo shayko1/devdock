@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { ProcessStatus, Project, SystemPortInfo } from '../../shared/types'
+import './ProjectCard.css'
 
 interface Props {
   project: Project
   status: ProcessStatus | undefined
   systemPortInfo: SystemPortInfo | undefined
   selected: boolean
+  keyboardFocused?: boolean
   currentBranch: string | null
   branches: string[]
   onStart: () => void
@@ -32,7 +34,7 @@ function timeAgo(dateStr: string | null): string {
 }
 
 export function ProjectCard({
-  project, status, systemPortInfo, selected, currentBranch, branches,
+  project, status, systemPortInfo, selected, keyboardFocused, currentBranch, branches,
   onStart, onStop, onEdit, onRemove, onSelect, onOpenBrowser, onKillSystemProcess, onCheckoutBranch
 }: Props) {
   const isRunning = status?.running ?? false
@@ -79,7 +81,7 @@ export function ProjectCard({
 
   return (
     <div
-      className={`project-card ${isRunning ? 'running' : ''} ${isSystemRunning ? 'system-running' : ''} ${selected ? 'selected' : ''}`}
+      className={`project-card ${isRunning ? 'running' : ''} ${isSystemRunning ? 'system-running' : ''} ${selected ? 'selected' : ''} ${keyboardFocused ? 'keyboard-focused' : ''}`}
       onClick={onSelect}
     >
       <div className="project-card-header">
