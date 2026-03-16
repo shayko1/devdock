@@ -28,6 +28,7 @@ export interface AppState {
   dangerousMode?: boolean
   chatInputEnabled?: boolean
   defaultModel?: string
+  workspaceChosen?: boolean
 }
 
 export interface ProcessStatus {

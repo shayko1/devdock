@@ -207,6 +207,8 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     prevSessionRef.current = sessionId
 
     // Restore state for the session we're switching to (or defaults for new)
+    // Note: sessionStatus is NOT restored from cache — it's transient and can become
+    // stale while the session runs in the background. Live PTY data will set it correctly.
     const cached = sessionCacheRef.current.get(sessionId)
     if (cached) {
       setMode(cached.mode)
@@ -217,7 +219,6 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       setContextMaxTokens(cached.contextMaxTokens)
       setContextPercent(cached.contextPercent)
       setSessionCost(cached.sessionCost)
-      setSessionStatus(cached.sessionStatus)
     } else {
       setMode('agent')
       setModelIdx(0)
@@ -227,8 +228,8 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       setContextMaxTokens(200_000)
       setContextPercent(0)
       setSessionCost(0)
-      setSessionStatus('idle')
     }
+    setSessionStatus('idle')
 
     // Always reset transient UI state
     setShowCompactHint(false)
@@ -255,6 +256,10 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
   const reloadSkills = useCallback(() => {
     window.api.skillsList(rootPath).then(setCustomSkills).catch(() => {})
   }, [rootPath])
+
+  // Ref for contextMaxTokens so the PTY listener doesn't re-subscribe on every change
+  const contextMaxTokensRef = useRef(contextMaxTokens)
+  contextMaxTokensRef.current = contextMaxTokens
 
   // PTY data listener — parse real-time context, status, model, cost
   useEffect(() => {
@@ -333,10 +338,10 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       if (data.contextUsedPercent != null) {
         const pct = data.contextUsedPercent
         setContextPercent(pct)
-        setContextUsedTokens(prev => {
-          const maxT = data.contextWindowSize || contextMaxTokens
+        setContextUsedTokens(() => {
+          const maxT = data.contextWindowSize || contextMaxTokensRef.current
           const fromPct = Math.round((pct / 100) * maxT)
-          return fromPct || prev
+          return fromPct || 0
         })
       }
 
@@ -351,7 +356,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       unsubStatus()
       if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
     }
-  }, [sessionId, contextMaxTokens])
+  }, [sessionId])
 
   // Persist session cache to localStorage when key state changes
   useEffect(() => {

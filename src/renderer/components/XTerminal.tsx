@@ -80,6 +80,16 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
     termRef.current = term
     fitAddonRef.current = fitAddon
 
+    // Helper to fit terminal while preserving scroll position
+    const safeFit = () => {
+      const buf = term.buffer.active
+      const wasAtBottom = buf.viewportY >= buf.baseY
+      fitAddon.fit()
+      if (wasAtBottom) {
+        term.scrollToBottom()
+      }
+    }
+
     // Register clickable link provider for URLs
     const urlRegex = /https?:\/\/[^\s)\]>"'`]+/g
     term.registerLinkProvider({
@@ -146,7 +156,7 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
       if (isMeta && (e.key === '=' || e.key === '+')) {
         fontSize = Math.min(28, fontSize + 1)
         term.options.fontSize = fontSize
-        fitAddon.fit()
+        safeFit()
         return false
       }
 
@@ -154,7 +164,7 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
       if (isMeta && e.key === '-') {
         fontSize = Math.max(11, fontSize - 1)
         term.options.fontSize = fontSize
-        fitAddon.fit()
+        safeFit()
         return false
       }
 
@@ -162,7 +172,7 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
       if (isMeta && e.key === '0') {
         fontSize = 14
         term.options.fontSize = fontSize
-        fitAddon.fit()
+        safeFit()
         return false
       }
 
@@ -293,7 +303,7 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
     // ResizeObserver to fit terminal when container changes
     const ro = new ResizeObserver(() => {
       if (containerRef.current && containerRef.current.clientWidth > 0) {
-        fitAddon.fit()
+        safeFit()
       }
     })
     ro.observe(containerRef.current)
@@ -315,10 +325,18 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
 
   // Re-fit when tab becomes active
   useEffect(() => {
-    if (active && fitAddonRef.current) {
+    if (active && fitAddonRef.current && termRef.current) {
       setTimeout(() => {
-        fitAddonRef.current?.fit()
-        termRef.current?.focus()
+        const term = termRef.current
+        const fitAddon = fitAddonRef.current
+        if (!term || !fitAddon) return
+        const buf = term.buffer.active
+        const wasAtBottom = buf.viewportY >= buf.baseY
+        fitAddon.fit()
+        if (wasAtBottom) {
+          term.scrollToBottom()
+        }
+        term.focus()
       }, 50)
     }
   }, [active])

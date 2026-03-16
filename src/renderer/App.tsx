@@ -151,9 +151,11 @@ export function App() {
   }, [state.projects, showToast])
 
   const handleScan = useCallback(async () => {
+    console.log('[App] handleScan triggered')
     setScanning(true)
     try {
       const count = await scanWorkspace()
+      console.log('[App] handleScan complete — new projects:', count)
       refreshSystemPorts()
       refreshBranches()
       if (count > 0) {
@@ -161,6 +163,8 @@ export function App() {
       } else {
         showToast('No new projects found', 'info')
       }
+    } catch (err) {
+      console.error('[App] handleScan error:', err)
     } finally {
       setScanning(false)
     }
@@ -262,6 +266,17 @@ export function App() {
     showToast(`Removed ${count} project${count > 1 ? 's' : ''}`, 'success')
   }
 
+  const handleChooseWorkspace = useCallback(async () => {
+    const selected = await window.api.selectFolder()
+    if (selected) {
+      persist({ ...state, scanPath: selected, workspaceChosen: true })
+    }
+  }, [state, persist])
+
+  const handleAcceptDefault = useCallback(() => {
+    persist({ ...state, workspaceChosen: true })
+  }, [state, persist])
+
   if (!loaded) {
     return (
       <div className="skeleton-app-loading">
@@ -293,6 +308,42 @@ export function App() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!state.workspaceChosen && state.projects.length === 0) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', background: 'var(--bg-primary)', color: 'var(--text-primary)',
+        padding: 40, textAlign: 'center', gap: 24,
+      }}>
+        <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.02em' }}>
+          <span style={{ opacity: 0.4, marginRight: 8 }}>DD</span>DevDock
+        </div>
+        <p style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 420, lineHeight: 1.6 }}>
+          Choose the root folder that contains your projects.
+          DevDock will scan it for repositories and workspaces.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 320 }}>
+          <button
+            className="btn btn-primary"
+            onClick={handleChooseWorkspace}
+            style={{ padding: '10px 20px', fontSize: 14 }}
+          >
+            Choose Workspace Folder
+          </button>
+          {state.scanPath && (
+            <button
+              className="btn btn-sm"
+              onClick={handleAcceptDefault}
+              style={{ fontSize: 12, color: 'var(--text-muted)' }}
+            >
+              Use default: {state.scanPath}
+            </button>
+          )}
         </div>
       </div>
     )

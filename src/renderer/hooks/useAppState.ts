@@ -84,7 +84,9 @@ export function useAppState() {
   const scanWorkspace = useCallback(async () => {
     const scanPath = stateRef.current.scanPath
     const scanDepth = stateRef.current.scanDepth
+    console.log('[scan] start — path:', scanPath, 'depth:', scanDepth)
     const scanned = await window.api.scanWorkspace(scanPath, scanDepth)
+    console.log('[scan] done —', scanned.length, 'projects')
 
     // Merge: keep existing projects, skip previously removed ones
     const existingPaths = new Set(stateRef.current.projects.map((p) => p.path))

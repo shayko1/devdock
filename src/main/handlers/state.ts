@@ -12,6 +12,10 @@ export function registerStateHandlers() {
   })
 
   ipcMain.handle('scan-workspace', (_event, scanPath: string, maxDepth?: number) => {
-    return scanWorkspace(scanPath, maxDepth)
+    console.log('[scan-workspace] handler called — scanPath:', scanPath, 'maxDepth:', maxDepth)
+    const t0 = Date.now()
+    const result = scanWorkspace(scanPath, maxDepth)
+    console.log('[scan-workspace] handler done —', result.length, 'projects in', Date.now() - t0, 'ms')
+    return result
   })
 }

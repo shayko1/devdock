@@ -354,9 +354,14 @@ function detectPort(pkgJson: PackageJson | null, projectPath: string): number | 
   return null
 }
 
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.git', '__pycache__', 'vendor', 'target', '.next', '.nuxt'])
+const SKIP_DIRS = new Set([
+  'node_modules', 'dist', 'build', '.git', '__pycache__', 'vendor', 'target', '.next', '.nuxt',
+  'bazel-out', 'bazel-bin', 'bazel-testlogs', 'bazel-genfiles',  // Bazel build outputs
+  '.cache', '.tmp', '.idea', '.vscode',                           // IDE / cache dirs
+  'out', '.gradle', '.m2', '.sbt',                                // Build tool caches
+])
 
-const DEFAULT_MAX_DEPTH = 50
+const DEFAULT_MAX_DEPTH = 3
 
 function isProjectDir(dirPath: string): { isProject: boolean; pkgJson: PackageJson | null } {
   let pkgJson: PackageJson | null = null
@@ -387,6 +392,9 @@ function isProjectDir(dirPath: string): { isProject: boolean; pkgJson: PackageJs
   return { isProject, pkgJson }
 }
 
+let _scanDirsVisited = 0
+let _scanLastLog = 0
+
 function scanRecursive(dirPath: string, depth: number, maxDepth: number, projects: Project[]): void {
   if (depth > maxDepth) return
 
@@ -397,6 +405,13 @@ function scanRecursive(dirPath: string, depth: number, maxDepth: number, project
     return
   }
 
+  _scanDirsVisited++
+  // Log progress every 500 dirs so we can see if/where it's slow
+  if (_scanDirsVisited - _scanLastLog >= 500) {
+    console.log(`[scanner] progress: ${_scanDirsVisited} dirs visited, ${projects.length} projects found, depth=${depth}, current: ${dirPath}`)
+    _scanLastLog = _scanDirsVisited
+  }
+
   for (const entry of entries) {
     const fullPath = join(dirPath, entry)
     try {
@@ -405,7 +420,7 @@ function scanRecursive(dirPath: string, depth: number, maxDepth: number, project
       continue
     }
 
-    if (entry.startsWith('.') || SKIP_DIRS.has(entry)) continue
+    if (entry.startsWith('.') || entry.startsWith('bazel-') || SKIP_DIRS.has(entry)) continue
 
     const { isProject, pkgJson } = isProjectDir(fullPath)
 
@@ -437,7 +452,12 @@ function scanRecursive(dirPath: string, depth: number, maxDepth: number, project
 }
 
 export function scanWorkspace(scanPath: string, maxDepth: number = DEFAULT_MAX_DEPTH): Project[] {
+  console.log('[scanner] scanWorkspace called — path:', scanPath, 'maxDepth:', maxDepth)
+  _scanDirsVisited = 0
+  _scanLastLog = 0
+  const t0 = Date.now()
   const projects: Project[] = []
   scanRecursive(scanPath, 0, maxDepth, projects)
+  console.log(`[scanner] scanWorkspace DONE — ${projects.length} projects, ${_scanDirsVisited} dirs visited, ${Date.now() - t0}ms`)
   return projects.sort((a, b) => a.name.localeCompare(b.name))
 }
