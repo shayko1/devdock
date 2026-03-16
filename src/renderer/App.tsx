@@ -114,16 +114,24 @@ export function App() {
   const refreshBranches = useCallback(async (projects?: Project[]) => {
     const list = projects ?? state.projects
     const visible = list.filter(p => !p.hidden)
-    const results = await Promise.all(
-      visible.map(async (p) => {
-        try {
-          const info = await window.api.listBranches(p.path)
-          return [p.id, info] as const
-        } catch {
-          return [p.id, { current: null, branches: [] }] as const
-        }
-      })
-    )
+
+    // Process in batches of 5 to avoid spawning hundreds of git processes
+    const BATCH = 5
+    const results: (readonly [string, { current: string | null; branches: string[] }])[] = []
+    for (let i = 0; i < visible.length; i += BATCH) {
+      const batch = visible.slice(i, i + BATCH)
+      const batchResults = await Promise.all(
+        batch.map(async (p) => {
+          try {
+            const info = await window.api.listBranches(p.path)
+            return [p.id, info] as const
+          } catch {
+            return [p.id, { current: null, branches: [] as string[] }] as const
+          }
+        })
+      )
+      results.push(...batchResults)
+    }
     setBranchMap(new Map(results))
   }, [state.projects])
 
