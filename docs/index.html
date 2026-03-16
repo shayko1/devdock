@@ -1,0 +1,1547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevDock — The AI Terminal You've Been Missing</title>
+<meta name="description" content="DevDock is a native desktop environment for Claude Code. Multi-session terminals, autonomous pipelines, real-time context tracking, and browser automation. All in one window.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════
+   RESET & VARIABLES
+   ═══════════════════════════════════════════════ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-deep: #04060a;
+  --bg: #080b12;
+  --bg-surface: #0d1117;
+  --bg-card: #111820;
+  --bg-elevated: #161d27;
+  --border: #1e2733;
+  --border-subtle: #151c25;
+  --text: #e6edf3;
+  --text-secondary: #b0bac5;
+  --text-muted: #6e7a87;
+  --accent: #00e5a0;
+  --accent-dim: rgba(0, 229, 160, 0.12);
+  --accent-glow: rgba(0, 229, 160, 0.25);
+  --amber: #fbbf24;
+  --amber-dim: rgba(251, 191, 36, 0.12);
+  --red: #f87171;
+  --purple: #a78bfa;
+  --blue: #60a5fa;
+  --font-display: 'Syne', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --max-w: 1200px;
+  --section-pad: clamp(80px, 12vw, 140px);
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-deep);
+  color: var(--text);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+::selection { background: var(--accent); color: var(--bg-deep); }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+a { color: var(--accent); text-decoration: none; transition: opacity 0.2s; }
+a:hover { opacity: 0.8; }
+
+/* ═══════════════════════════════════════════════
+   BACKGROUND EFFECTS
+   ═══════════════════════════════════════════════ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0, 229, 160, 0.06), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 80% 60%, rgba(96, 165, 250, 0.03), transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+.dot-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.04;
+  background-image: radial-gradient(circle, var(--text-muted) 0.5px, transparent 0.5px);
+  background-size: 32px 32px;
+}
+
+/* ═══════════════════════════════════════════════
+   LAYOUT
+   ═══════════════════════════════════════════════ */
+.container { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+.container-wide { max-width: 1400px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+section { position: relative; z-index: 1; }
+
+/* ═══════════════════════════════════════════════
+   SCROLL REVEAL
+   ═══════════════════════════════════════════════ */
+.reveal {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1), transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+.reveal-delay-4 { transition-delay: 0.4s; }
+.reveal-delay-5 { transition-delay: 0.5s; }
+.reveal-delay-6 { transition-delay: 0.6s; }
+
+/* ═══════════════════════════════════════════════
+   NAVIGATION
+   ═══════════════════════════════════════════════ */
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 16px 24px;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(4, 6, 10, 0.7);
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 0.3s;
+}
+
+.nav-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.nav-logo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent), #00b880);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--bg-deep);
+  font-family: var(--font-mono);
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  list-style: none;
+}
+
+.nav-links a {
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--text); opacity: 1; }
+
+.nav-cta {
+  padding: 8px 20px;
+  background: var(--accent);
+  color: var(--bg-deep) !important;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.nav-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px var(--accent-glow);
+  opacity: 1 !important;
+}
+
+/* ═══════════════════════════════════════════════
+   HERO
+   ═══════════════════════════════════════════════ */
+.hero {
+  padding-top: 160px;
+  padding-bottom: var(--section-pad);
+  text-align: center;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(0, 229, 160, 0.2);
+  border-radius: 100px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  margin-bottom: 32px;
+  letter-spacing: 0.02em;
+}
+
+.hero-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--accent-glow); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 6px transparent; }
+}
+
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(48px, 7vw, 88px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  margin-bottom: 24px;
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hero h1 .gradient-text {
+  background: linear-gradient(135deg, var(--accent) 0%, #00b880 40%, var(--blue) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-sub {
+  font-size: clamp(17px, 2vw, 20px);
+  color: var(--text-secondary);
+  max-width: 640px;
+  margin: 0 auto 44px;
+  line-height: 1.6;
+  font-weight: 400;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 72px;
+  flex-wrap: wrap;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 32px;
+  background: var(--accent);
+  color: var(--bg-deep);
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 15px;
+  font-family: var(--font-body);
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.3s;
+  letter-spacing: -0.01em;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px var(--accent-glow);
+  opacity: 1;
+}
+.btn-primary svg { flex-shrink: 0; }
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 32px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 15px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  letter-spacing: -0.01em;
+}
+.btn-secondary:hover {
+  border-color: var(--text-muted);
+  background: rgba(255,255,255,0.03);
+  opacity: 1;
+}
+
+/* ═══════════════════════════════════════════════
+   TERMINAL MOCKUP
+   ═══════════════════════════════════════════════ */
+.hero-mockup-wrap {
+  position: relative;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.hero-mockup-wrap::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  height: 80%;
+  background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%);
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.mockup-window {
+  background: var(--bg-surface);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.03),
+    0 24px 80px -12px rgba(0,0,0,0.6),
+    0 0 120px -40px var(--accent-glow);
+}
+
+.mockup-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+}
+
+.mockup-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.mockup-dot.red { background: #ff5f57; }
+.mockup-dot.yellow { background: #febc2e; }
+.mockup-dot.green { background: #28c840; }
+
+.mockup-title {
+  flex: 1;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-right: 44px;
+}
+
+.mockup-body {
+  display: flex;
+  height: 440px;
+}
+
+/* Sidebar */
+.mockup-sidebar {
+  width: 190px;
+  border-right: 1px solid var(--border);
+  background: var(--bg-card);
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.mockup-session {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border-left: 3px solid transparent;
+  font-size: 11px;
+}
+.mockup-session.active {
+  background: var(--bg-elevated);
+  border-left-color: var(--accent);
+}
+.mockup-session-name {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+.mockup-session-title {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mockup-session-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 9px;
+}
+.mockup-session-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.mockup-session-dot.green { background: var(--accent); animation: pulse-dot 2s ease-in-out infinite; }
+.mockup-session-dot.amber { background: var(--amber); }
+.mockup-session-dot.muted { background: var(--text-muted); opacity: 0.5; }
+
+.mockup-new-btn {
+  margin-top: auto;
+  padding: 6px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Terminal area */
+.mockup-terminal {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #010409;
+}
+
+.mockup-terminal-output {
+  flex: 1;
+  padding: 16px 20px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow: hidden;
+  color: var(--text-secondary);
+}
+
+.t-prompt { color: var(--accent); }
+.t-dim { color: var(--text-muted); opacity: 0.6; }
+.t-white { color: var(--text); }
+.t-green { color: var(--accent); }
+.t-amber { color: var(--amber); }
+.t-blue { color: var(--blue); }
+.t-purple { color: var(--purple); }
+.t-red { color: var(--red); }
+.t-bold { font-weight: 600; }
+.t-border { color: #2d333b; }
+
+.t-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  background: var(--accent);
+  margin-left: 2px;
+  animation: cursor-blink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Chat input bar */
+.mockup-chatbar {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.mockup-chatbar-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+}
+.mockup-chatbar-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.mockup-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.mockup-pill-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.mockup-ctx-bar {
+  width: 48px;
+  height: 4px;
+  background: var(--bg-elevated);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-left: auto;
+}
+.mockup-ctx-fill {
+  height: 100%;
+  width: 35%;
+  background: var(--accent);
+  border-radius: 2px;
+}
+.mockup-ctx-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ═══════════════════════════════════════════════
+   STATS STRIP
+   ═══════════════════════════════════════════════ */
+.stats {
+  padding: 60px 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  background: rgba(13, 17, 23, 0.4);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 32px;
+  text-align: center;
+}
+
+.stat-item {}
+.stat-number {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+.stat-number .accent { color: var(--accent); }
+.stat-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+/* ═══════════════════════════════════════════════
+   SECTION HEADERS
+   ═══════════════════════════════════════════════ */
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 4.5vw, 52px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-bottom: 20px;
+}
+
+.section-desc {
+  font-size: 17px;
+  color: var(--text-secondary);
+  max-width: 560px;
+  line-height: 1.65;
+}
+
+/* ═══════════════════════════════════════════════
+   FEATURE SECTIONS
+   ═══════════════════════════════════════════════ */
+.feature-section {
+  padding: var(--section-pad) 0;
+}
+
+.feature-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 64px;
+  align-items: center;
+}
+
+.feature-layout.reversed { direction: rtl; }
+.feature-layout.reversed > * { direction: ltr; }
+
+.feature-visual {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.feature-visual::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
+}
+
+.feature-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.feature-tag {
+  padding: 4px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* Pipeline visualization */
+.pipeline-stages {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.pipeline-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  position: relative;
+}
+
+.pipeline-stage-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  border: 2px solid var(--border);
+  background: var(--bg-card);
+  transition: all 0.3s;
+  position: relative;
+  z-index: 2;
+}
+
+.pipeline-stage.done .pipeline-stage-icon {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.pipeline-stage.active .pipeline-stage-icon {
+  border-color: var(--amber);
+  background: var(--amber-dim);
+  color: var(--amber);
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.15);
+}
+
+.pipeline-stage-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.pipeline-stage.done .pipeline-stage-label { color: var(--accent); }
+.pipeline-stage.active .pipeline-stage-label { color: var(--amber); }
+
+.pipeline-connector {
+  position: absolute;
+  top: 22px;
+  left: calc(50% + 22px);
+  right: calc(-50% + 22px);
+  height: 2px;
+  background: var(--border);
+  z-index: 1;
+}
+.pipeline-stage.done .pipeline-connector { background: var(--accent); }
+
+/* Context meter mockup */
+.context-meter {
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid var(--border);
+}
+
+.ctx-meter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ctx-meter-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 80px;
+}
+
+.ctx-meter-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-elevated);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.ctx-meter-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ctx-meter-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 500;
+  min-width: 60px;
+  text-align: right;
+}
+
+.ctx-model-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.ctx-model-chip {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+}
+.ctx-model-chip.active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+/* Browser commands */
+.browser-cmds {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.browser-cmd {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.browser-cmd-prompt { color: var(--text-muted); }
+.browser-cmd-name { color: var(--blue); font-weight: 500; }
+.browser-cmd-arg { color: var(--amber); }
+.browser-cmd-result {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--accent);
+  opacity: 0.7;
+}
+
+/* ═══════════════════════════════════════════════
+   FEATURE GRID (secondary features)
+   ═══════════════════════════════════════════════ */
+.features-grid-section {
+  padding: var(--section-pad) 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 56px;
+}
+
+.fgrid-card {
+  padding: 28px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: border-color 0.3s, transform 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+.fgrid-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-4px);
+}
+.fgrid-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  transition: background 0.3s;
+}
+.fgrid-card:hover::before {
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+}
+
+.fgrid-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  margin-bottom: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
+.fgrid-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+
+.fgrid-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+/* ═══════════════════════════════════════════════
+   CTA SECTION
+   ═══════════════════════════════════════════════ */
+.cta-section {
+  padding: var(--section-pad) 0;
+  text-align: center;
+  position: relative;
+}
+
+.cta-section::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  height: 400px;
+  background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%);
+  filter: blur(100px);
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+.cta-title {
+  font-family: var(--font-display);
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-bottom: 20px;
+}
+
+.cta-sub {
+  font-size: 18px;
+  color: var(--text-secondary);
+  max-width: 500px;
+  margin: 0 auto 40px;
+}
+
+.cta-code {
+  display: inline-block;
+  margin-top: 24px;
+  padding: 12px 24px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.cta-code .accent { color: var(--accent); }
+
+/* ═══════════════════════════════════════════════
+   FOOTER
+   ═══════════════════════════════════════════════ */
+footer {
+  padding: 40px 0;
+  border-top: 1px solid var(--border-subtle);
+  text-align: center;
+}
+
+.footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.footer-copy {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.footer-links {
+  display: flex;
+  gap: 24px;
+  list-style: none;
+}
+.footer-links a {
+  font-size: 13px;
+  color: var(--text-muted);
+  transition: color 0.2s;
+}
+.footer-links a:hover { color: var(--text); }
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .feature-layout { grid-template-columns: 1fr; gap: 40px; }
+  .feature-layout.reversed { direction: ltr; }
+  .features-grid { grid-template-columns: 1fr 1fr; }
+  .mockup-sidebar { display: none; }
+  .mockup-body { height: 320px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 24px; }
+}
+
+@media (max-width: 600px) {
+  .features-grid { grid-template-columns: 1fr; }
+  .nav-links { gap: 16px; }
+  .nav-links li:not(:last-child) { display: none; }
+  .hero-actions { flex-direction: column; }
+  .pipeline-stages { flex-wrap: wrap; gap: 12px; }
+  .pipeline-connector { display: none; }
+  .footer-inner { flex-direction: column; gap: 16px; }
+}
+</style>
+</head>
+
+<body>
+
+<div class="grain"></div>
+<div class="dot-grid"></div>
+
+<!-- ════════════ NAVIGATION ════════════ -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <div class="nav-logo-icon">DD</div>
+      DevDock
+    </a>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#pipeline">Pipeline</a></li>
+      <li><a href="#more">Capabilities</a></li>
+      <li><a href="https://github.com/shayko1/devdock" class="nav-cta">View on GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ════════════ HERO ════════════ -->
+<section class="hero">
+  <div class="container">
+    <div class="reveal">
+      <div class="hero-badge">
+        <span class="hero-badge-dot"></span>
+        Open source &middot; macOS native &middot; v1.0
+      </div>
+    </div>
+
+    <h1 class="reveal reveal-delay-1">
+      The AI Terminal<br><span class="gradient-text">You've Been Missing</span>
+    </h1>
+
+    <p class="hero-sub reveal reveal-delay-2">
+      DevDock gives Claude Code a real home. Multi-session terminals, autonomous pipelines, live context tracking, and browser automation — all in one native desktop app.
+    </p>
+
+    <div class="hero-actions reveal reveal-delay-3">
+      <a href="https://github.com/shayko1/devdock/releases" class="btn-primary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download for Mac
+      </a>
+      <a href="https://github.com/shayko1/devdock" class="btn-secondary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        View Source
+      </a>
+    </div>
+
+    <!-- Terminal Mockup -->
+    <div class="hero-mockup-wrap reveal reveal-delay-4">
+      <div class="mockup-window">
+        <div class="mockup-titlebar">
+          <div class="mockup-dot red"></div>
+          <div class="mockup-dot yellow"></div>
+          <div class="mockup-dot green"></div>
+          <span class="mockup-title">DevDock</span>
+        </div>
+        <div class="mockup-body">
+
+          <!-- Sidebar -->
+          <div class="mockup-sidebar">
+            <div class="mockup-session active">
+              <div class="mockup-session-name">weather-api</div>
+              <div class="mockup-session-title">Build REST endpoints</div>
+              <div class="mockup-session-status">
+                <span class="mockup-session-dot green"></span>
+                <span style="color: var(--accent); font-size: 9px;">Thinking</span>
+              </div>
+            </div>
+            <div class="mockup-session">
+              <div class="mockup-session-name">task-tracker</div>
+              <div class="mockup-session-title">Fix auth middleware</div>
+              <div class="mockup-session-status">
+                <span class="mockup-session-dot amber"></span>
+                <span style="color: var(--amber); font-size: 9px;">Waiting</span>
+              </div>
+            </div>
+            <div class="mockup-session">
+              <div class="mockup-session-name">blog-engine</div>
+              <div class="mockup-session-title">Add MDX support</div>
+              <div class="mockup-session-status">
+                <span class="mockup-session-dot muted"></span>
+                <span style="color: var(--text-muted); font-size: 9px;">Idle</span>
+              </div>
+            </div>
+            <div class="mockup-new-btn">+ New Session</div>
+          </div>
+
+          <!-- Terminal -->
+          <div class="mockup-terminal">
+            <div class="mockup-terminal-output">
+              <div><span class="t-prompt">$</span> <span class="t-white">claude</span></div>
+              <div style="margin: 6px 0;"><span class="t-border">╭──────────────────────────────────────╮</span></div>
+              <div><span class="t-border">│</span> <span class="t-bold t-white">Claude Code</span> <span class="t-dim">v1.0.38</span> <span class="t-border" style="margin-left: 80px;">│</span></div>
+              <div><span class="t-border">│</span> <span class="t-dim">Model:</span> <span class="t-purple">Claude Sonnet 4.6</span> <span class="t-border" style="margin-left: 58px;">│</span></div>
+              <div><span class="t-border">╰──────────────────────────────────────╯</span></div>
+              <div style="margin-top: 10px;"><span class="t-green">></span> <span class="t-white">Build a REST API with Express for the weather service</span></div>
+              <div style="margin-top: 8px;"><span class="t-amber">  ◉ Thinking...</span></div>
+              <div style="margin-top: 8px; color: var(--text-secondary);">  I'll create the REST API with Express.js. Let me set up the project:</div>
+              <div style="margin-top: 8px;">
+                <span class="t-blue">  Created</span> <span class="t-dim">src/routes/weather.ts</span>
+              </div>
+              <div>
+                <span class="t-blue">  Created</span> <span class="t-dim">src/services/weather-service.ts</span>
+              </div>
+              <div>
+                <span class="t-blue">  Created</span> <span class="t-dim">src/middleware/cache.ts</span>
+              </div>
+              <div>
+                <span class="t-green">  Running</span> <span class="t-dim">npm test</span> <span class="t-green">... 14 tests passed</span>
+              </div>
+              <div style="margin-top: 8px;"><span class="t-green">></span> <span class="t-cursor"></span></div>
+            </div>
+
+            <!-- Chat input bar -->
+            <div class="mockup-chatbar">
+              <div class="mockup-chatbar-input">
+                <span>Tell Claude what to do... (@ files, / commands)</span>
+              </div>
+              <div class="mockup-chatbar-pills">
+                <span class="mockup-pill"><span class="mockup-pill-dot" style="background: var(--accent);"></span> Agent</span>
+                <span class="mockup-pill">Sonnet 4.6</span>
+                <span class="mockup-pill"><span class="mockup-pill-dot" style="background: var(--amber);"></span> High</span>
+                <span class="mockup-pill" style="padding: 3px 6px;">$0.23</span>
+                <div class="mockup-ctx-bar"><div class="mockup-ctx-fill"></div></div>
+                <span class="mockup-ctx-label">70k / 200k</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ STATS ════════════ -->
+<section class="stats">
+  <div class="container">
+    <div class="stats-grid">
+      <div class="stat-item reveal">
+        <div class="stat-number"><span class="accent">&infin;</span></div>
+        <div class="stat-label">Parallel Sessions</div>
+      </div>
+      <div class="stat-item reveal reveal-delay-1">
+        <div class="stat-number">4</div>
+        <div class="stat-label">AI Models</div>
+      </div>
+      <div class="stat-item reveal reveal-delay-2">
+        <div class="stat-number">$<span class="accent">0</span></div>
+        <div class="stat-label">License Cost</div>
+      </div>
+      <div class="stat-item reveal reveal-delay-3">
+        <div class="stat-number">100<span class="accent">%</span></div>
+        <div class="stat-label">Local & Private</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ FEATURE 1: Multi-Session ════════════ -->
+<section class="feature-section" id="features">
+  <div class="container">
+    <div class="feature-layout">
+      <div class="reveal">
+        <div class="section-label">// Multi-Session Terminal</div>
+        <h2 class="section-title">Run an entire<br>fleet of Claudes</h2>
+        <p class="section-desc">
+          Each session gets its own real PTY terminal with full ANSI color, scrollback, and link detection. Switch between sessions instantly. Each one remembers its model, effort level, context usage, and cost — even across app restarts.
+        </p>
+        <div class="feature-tags">
+          <span class="feature-tag">xterm.js</span>
+          <span class="feature-tag">node-pty</span>
+          <span class="feature-tag">Session persistence</span>
+          <span class="feature-tag">Git worktrees</span>
+        </div>
+      </div>
+      <div class="feature-visual reveal reveal-delay-2">
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg-elevated); border-radius: 8px; border-left: 3px solid var(--accent);">
+            <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse-dot 2s infinite;"></span>
+            <div>
+              <div style="font-size: 12px; font-weight: 600;">weather-api</div>
+              <div style="font-size: 10px; color: var(--text-muted);">Building REST endpoints &middot; Sonnet 4.6</div>
+            </div>
+            <span style="margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--accent);">$0.23</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg-card); border-radius: 8px; border-left: 3px solid var(--amber);">
+            <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--amber);"></span>
+            <div>
+              <div style="font-size: 12px; font-weight: 600;">task-tracker</div>
+              <div style="font-size: 10px; color: var(--text-muted);">Fix auth middleware &middot; Opus 4.6</div>
+            </div>
+            <span style="margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--amber);">Waiting</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg-card); border-radius: 8px; border-left: 3px solid transparent;">
+            <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); opacity: 0.5;"></span>
+            <div>
+              <div style="font-size: 12px; font-weight: 600;">blog-engine</div>
+              <div style="font-size: 10px; color: var(--text-muted);">Add MDX support &middot; Sonnet 4.6</div>
+            </div>
+            <span style="margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);">Idle</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg-card); border-radius: 8px; border-left: 3px solid var(--accent);">
+            <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse-dot 2s infinite;"></span>
+            <div>
+              <div style="font-size: 12px; font-weight: 600;">data-pipeline</div>
+              <div style="font-size: 10px; color: var(--text-muted);">ETL refactor &middot; Haiku 3.5</div>
+            </div>
+            <span style="margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--accent);">$0.04</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ FEATURE 2: Autonomous Pipeline ════════════ -->
+<section class="feature-section" id="pipeline" style="border-top: 1px solid var(--border-subtle);">
+  <div class="container">
+    <div class="feature-layout reversed">
+      <div class="reveal">
+        <div class="section-label">// Autonomous Pipeline</div>
+        <h2 class="section-title">Describe once.<br>Ship automatically.</h2>
+        <p class="section-desc">
+          Give DevDock a task description and it handles everything: planning the approach, implementing in an isolated worktree, running tests, and reviewing the code. Automatic retries on failure. Real-time log streaming at every stage.
+        </p>
+        <div class="feature-tags">
+          <span class="feature-tag">4-stage pipeline</span>
+          <span class="feature-tag">Auto-retry</span>
+          <span class="feature-tag">Git worktree isolation</span>
+          <span class="feature-tag">Real-time logs</span>
+        </div>
+      </div>
+      <div class="feature-visual reveal reveal-delay-2">
+        <div class="pipeline-stages">
+          <div class="pipeline-stage done">
+            <div class="pipeline-stage-icon">&#10003;</div>
+            <div class="pipeline-stage-label">Plan</div>
+            <div class="pipeline-connector"></div>
+          </div>
+          <div class="pipeline-stage done">
+            <div class="pipeline-stage-icon">&#10003;</div>
+            <div class="pipeline-stage-label">Implement</div>
+            <div class="pipeline-connector"></div>
+          </div>
+          <div class="pipeline-stage active">
+            <div class="pipeline-stage-icon">&#9881;</div>
+            <div class="pipeline-stage-label">Validate</div>
+            <div class="pipeline-connector"></div>
+          </div>
+          <div class="pipeline-stage">
+            <div class="pipeline-stage-icon">&#9998;</div>
+            <div class="pipeline-stage-label">Review</div>
+          </div>
+        </div>
+        <div style="margin-top: 24px; padding: 12px; background: var(--bg-card); border-radius: 8px; font-family: var(--font-mono); font-size: 11px; line-height: 1.8;">
+          <div><span class="t-green">&#10003;</span> <span class="t-dim">Plan:</span> 3 files identified, 2 new endpoints</div>
+          <div><span class="t-green">&#10003;</span> <span class="t-dim">Implement:</span> +142 lines across 3 files</div>
+          <div><span class="t-amber">&#9881;</span> <span class="t-dim">Validate:</span> Running test suite... <span class="t-amber">12/14 passed</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ FEATURE 3: Context Intelligence ════════════ -->
+<section class="feature-section" style="border-top: 1px solid var(--border-subtle);">
+  <div class="container">
+    <div class="feature-layout">
+      <div class="reveal">
+        <div class="section-label">// Context Intelligence</div>
+        <h2 class="section-title">Never lose<br>your context</h2>
+        <p class="section-desc">
+          Real-time token usage, model detection, cost tracking, and smart compact suggestions — all powered by Claude Code's statusline data. Know exactly where you stand in every session. Get warned before context overflows.
+        </p>
+        <div class="feature-tags">
+          <span class="feature-tag">Statusline JSON</span>
+          <span class="feature-tag">Auto-compact alerts</span>
+          <span class="feature-tag">Cost tracking</span>
+          <span class="feature-tag">Per-session cache</span>
+        </div>
+      </div>
+      <div class="feature-visual reveal reveal-delay-2">
+        <div class="context-meter">
+          <div class="ctx-meter-row">
+            <span class="ctx-meter-label">Context</span>
+            <div class="ctx-meter-bar"><div class="ctx-meter-fill" style="width: 35%; background: var(--accent);"></div></div>
+            <span class="ctx-meter-value" style="color: var(--accent);">70k / 200k</span>
+          </div>
+          <div class="ctx-meter-row">
+            <span class="ctx-meter-label">Session 2</span>
+            <div class="ctx-meter-bar"><div class="ctx-meter-fill" style="width: 72%; background: var(--amber);"></div></div>
+            <span class="ctx-meter-value" style="color: var(--amber);">144k / 200k</span>
+          </div>
+          <div class="ctx-meter-row">
+            <span class="ctx-meter-label">Session 3</span>
+            <div class="ctx-meter-bar"><div class="ctx-meter-fill" style="width: 12%; background: var(--accent);"></div></div>
+            <span class="ctx-meter-value" style="color: var(--text-muted);">24k / 200k</span>
+          </div>
+          <div class="ctx-model-row">
+            <span class="ctx-model-chip active">Sonnet 4.6</span>
+            <span class="ctx-model-chip">Opus 4.6</span>
+            <span class="ctx-model-chip">Haiku 3.5</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ FEATURE 4: Browser Automation ════════════ -->
+<section class="feature-section" style="border-top: 1px solid var(--border-subtle);">
+  <div class="container">
+    <div class="feature-layout reversed">
+      <div class="reveal">
+        <div class="section-label">// Browser Automation</div>
+        <h2 class="section-title">Claude controls<br>a real browser</h2>
+        <p class="section-desc">
+          A real browser window Claude can navigate, screenshot, click, type into, and run JavaScript on. Preview your work, test interactions, scrape data — all from the terminal. No Selenium setup required.
+        </p>
+        <div class="feature-tags">
+          <span class="feature-tag">Navigate</span>
+          <span class="feature-tag">Screenshot</span>
+          <span class="feature-tag">Click & Type</span>
+          <span class="feature-tag">Evaluate JS</span>
+        </div>
+      </div>
+      <div class="feature-visual reveal reveal-delay-2">
+        <div class="browser-cmds">
+          <div class="browser-cmd">
+            <span class="browser-cmd-prompt">$</span>
+            <span class="browser-cmd-name">browser</span>
+            <span class="browser-cmd-arg">navigate http://localhost:3000</span>
+            <span class="browser-cmd-result">200 OK</span>
+          </div>
+          <div class="browser-cmd">
+            <span class="browser-cmd-prompt">$</span>
+            <span class="browser-cmd-name">browser</span>
+            <span class="browser-cmd-arg">screenshot</span>
+            <span class="browser-cmd-result">saved</span>
+          </div>
+          <div class="browser-cmd">
+            <span class="browser-cmd-prompt">$</span>
+            <span class="browser-cmd-name">browser</span>
+            <span class="browser-cmd-arg">click '#submit-btn'</span>
+            <span class="browser-cmd-result">clicked</span>
+          </div>
+          <div class="browser-cmd">
+            <span class="browser-cmd-prompt">$</span>
+            <span class="browser-cmd-name">browser</span>
+            <span class="browser-cmd-arg">text</span>
+            <span class="browser-cmd-result">1.2kb</span>
+          </div>
+          <div class="browser-cmd">
+            <span class="browser-cmd-prompt">$</span>
+            <span class="browser-cmd-name">browser</span>
+            <span class="browser-cmd-arg">eval 'document.title'</span>
+            <span class="browser-cmd-result">"My App"</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ MORE FEATURES GRID ════════════ -->
+<section class="features-grid-section" id="more">
+  <div class="container">
+    <div style="text-align: center;" class="reveal">
+      <div class="section-label">// And so much more</div>
+      <h2 class="section-title">Everything you need.<br>Nothing you don't.</h2>
+    </div>
+
+    <div class="features-grid">
+      <div class="fgrid-card reveal reveal-delay-1">
+        <div class="fgrid-icon" style="color: var(--purple);">&#9734;</div>
+        <div class="fgrid-title">Git Worktree Isolation</div>
+        <div class="fgrid-desc">Every session can run in an isolated git worktree. Main branch stays clean. Multiple Claudes work on the same repo without conflicts.</div>
+      </div>
+
+      <div class="fgrid-card reveal reveal-delay-2">
+        <div class="fgrid-icon" style="color: var(--amber);">&#9875;</div>
+        <div class="fgrid-title">Agent Monitoring</div>
+        <div class="fgrid-desc">Discover and monitor background agents. See schedules, last run results, costs, and trigger manual runs. Real-time status and log viewing.</div>
+      </div>
+
+      <div class="fgrid-card reveal reveal-delay-3">
+        <div class="fgrid-icon" style="color: var(--accent);">&#9881;</div>
+        <div class="fgrid-title">MCP Servers & Skills</div>
+        <div class="fgrid-desc">Configure MCP servers (HTTP and stdio) with a visual editor. Browse and create custom slash commands and reusable skills.</div>
+      </div>
+
+      <div class="fgrid-card reveal reveal-delay-1">
+        <div class="fgrid-icon" style="color: var(--blue);">&#128269;</div>
+        <div class="fgrid-title">Smart Autocomplete</div>
+        <div class="fgrid-desc">Type / for 25+ commands, @ to search files by name, or create custom commands. All in one searchable, keyboard-navigable interface.</div>
+      </div>
+
+      <div class="fgrid-card reveal reveal-delay-2">
+        <div class="fgrid-icon" style="color: var(--red);">&#9829;</div>
+        <div class="fgrid-title">Session History & Resume</div>
+        <div class="fgrid-desc">Browse every past Claude session. Search by title, keywords, or branch. One-click resume with full context restoration.</div>
+      </div>
+
+      <div class="fgrid-card reveal reveal-delay-3">
+        <div class="fgrid-icon" style="color: var(--accent);">&#9677;</div>
+        <div class="fgrid-title">Project Launchpad</div>
+        <div class="fgrid-desc">Scan your workspace, tag and manage projects, run them with one click. Port tracking, process management, and log streaming built in.</div>
+      </div>
+
+      <div class="fgrid-card reveal reveal-delay-1">
+        <div class="fgrid-icon" style="color: var(--amber);">&#9889;</div>
+        <div class="fgrid-title">AI Coach</div>
+        <div class="fgrid-desc">Get real-time suggestions as Claude works — tips, code rewrites, follow-up ideas, and commands. Like pair programming with a senior engineer.</div>
+      </div>
+
+      <div class="fgrid-card reveal reveal-delay-2">
+        <div class="fgrid-icon" style="color: var(--purple);">&#128196;</div>
+        <div class="fgrid-title">File Explorer & Diff</div>
+        <div class="fgrid-desc">Browse project files, view them with syntax highlighting, and see git diffs in a side panel — all without leaving the terminal view.</div>
+      </div>
+
+      <div class="fgrid-card reveal reveal-delay-3">
+        <div class="fgrid-icon" style="color: var(--blue);">&#128248;</div>
+        <div class="fgrid-title">Image Support</div>
+        <div class="fgrid-desc">Drag-drop or paste images directly into the chat. Claude sees them in the conversation. Perfect for UI bugs, screenshots, and design reviews.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ CTA ════════════ -->
+<section class="cta-section">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">// Ready to ship faster?</div>
+      <h2 class="cta-title">Stop juggling<br>terminal tabs.</h2>
+      <p class="cta-sub">DevDock is free, open source, and runs entirely on your machine. Your code never leaves your laptop.</p>
+      <div class="hero-actions">
+        <a href="https://github.com/shayko1/devdock/releases" class="btn-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download for Mac
+        </a>
+        <a href="https://github.com/shayko1/devdock" class="btn-secondary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          Star on GitHub
+        </a>
+      </div>
+      <div class="cta-code">
+        <span class="accent">git clone</span> https://github.com/shayko1/devdock.git && <span class="accent">npm i</span> && <span class="accent">npm run dev</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ FOOTER ════════════ -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-copy">
+      DevDock &middot; Built with Electron, React, and Claude
+    </div>
+    <ul class="footer-links">
+      <li><a href="https://github.com/shayko1/devdock">GitHub</a></li>
+      <li><a href="https://github.com/shayko1/devdock/releases">Releases</a></li>
+      <li><a href="https://github.com/shayko1/devdock/issues">Issues</a></li>
+    </ul>
+  </div>
+</footer>
+
+<!-- ════════════ SCRIPTS ════════════ -->
+<script>
+// Scroll reveal
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// Animate context meter fills on scroll
+const meterObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.querySelectorAll('.ctx-meter-fill').forEach(fill => {
+        const target = fill.style.width;
+        fill.style.width = '0%';
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            fill.style.width = target;
+          });
+        });
+      });
+      meterObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.3 });
+
+document.querySelectorAll('.context-meter').forEach(el => meterObserver.observe(el));
+
+// Navbar background on scroll
+const nav = document.querySelector('nav');
+window.addEventListener('scroll', () => {
+  if (window.scrollY > 80) {
+    nav.style.background = 'rgba(4, 6, 10, 0.92)';
+    nav.style.borderBottomColor = 'var(--border)';
+  } else {
+    nav.style.background = 'rgba(4, 6, 10, 0.7)';
+    nav.style.borderBottomColor = 'var(--border-subtle)';
+  }
+}, { passive: true });
+
+// Smooth anchor scrolling
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', (e) => {
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) {
+      e.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+</script>
+
+</body>
+</html>
