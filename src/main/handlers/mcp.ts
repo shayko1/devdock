@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { join } from 'path'
 import { readdirSync, statSync, mkdirSync, existsSync, writeFileSync, readFileSync, unlinkSync } from 'fs'
 import { homedir } from 'os'
+import { execFile } from 'child_process'
 
 export function registerMcpHandlers() {
   ipcMain.handle('mcp-get-config', (_event, projectPath?: string) => {
@@ -31,6 +32,86 @@ export function registerMcpHandlers() {
     }
 
     return configs
+  })
+
+  // Cache MCP status results to avoid running `claude mcp list` too frequently
+  let mcpStatusCache: { results: Record<string, 'ok' | 'error' | 'warning' | 'unknown'>; timestamp: number } | null = null
+  const MCP_CACHE_TTL = 15000 // 15 seconds
+  let mcpStatusPending: Promise<Record<string, 'ok' | 'error' | 'warning' | 'unknown'>> | null = null
+
+  function findClaudeBin(): string {
+    const candidates = [
+      join(homedir(), '.local', 'bin', 'claude'),
+      '/usr/local/bin/claude',
+      '/opt/homebrew/bin/claude',
+    ]
+    for (const p of candidates) {
+      if (existsSync(p)) return p
+    }
+    return 'claude'
+  }
+
+  // Strip ANSI escape codes from output
+  function stripAnsi(s: string): string {
+    return s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+  }
+
+  function runClaudeMcpList(): Promise<Record<string, 'ok' | 'error' | 'warning' | 'unknown'>> {
+    return new Promise((resolve) => {
+      const results: Record<string, 'ok' | 'error' | 'warning' | 'unknown'> = {}
+      const claudeBin = findClaudeBin()
+
+      const child = execFile(claudeBin, ['mcp', 'list'], {
+        timeout: 30000,
+        env: { ...process.env, NO_COLOR: '1', TERM: 'dumb' },
+      }, (err, stdout, stderr) => {
+        // Combine stdout + stderr — claude may write to either
+        const combined = stripAnsi((stdout || '') + '\n' + (stderr || ''))
+
+        for (const line of combined.split('\n')) {
+          const trimmed = line.trim()
+          // Match: "name: ... - status_icon Status text"
+          // The icon can be utf-8 checkmarks/crosses or ASCII chars after ANSI stripping
+          const match = trimmed.match(/^([^:]+):\s+.+\s+-\s+(.+)$/)
+          if (match) {
+            const name = match[1].trim()
+            const statusRaw = match[2].trim().toLowerCase()
+            // Remove leading icon chars (✓✗!⚠ or similar)
+            const statusText = statusRaw.replace(/^[^\w\s]+\s*/, '')
+            if (statusText.includes('connected')) {
+              results[name] = 'ok'
+            } else if (statusText.includes('authentication') || statusText.includes('auth')) {
+              results[name] = 'warning'
+            } else {
+              results[name] = 'error'
+            }
+          }
+        }
+
+        resolve(results)
+      })
+
+      // Safety: if child hangs, resolve with empty after timeout
+      child.on('error', () => resolve(results))
+    })
+  }
+
+  ipcMain.handle('mcp-check-status', async () => {
+    // Return cached results if fresh enough
+    if (mcpStatusCache && Date.now() - mcpStatusCache.timestamp < MCP_CACHE_TTL) {
+      return mcpStatusCache.results
+    }
+
+    // Deduplicate concurrent requests — only one `claude mcp list` at a time
+    if (!mcpStatusPending) {
+      mcpStatusPending = runClaudeMcpList().then((results) => {
+        mcpStatusCache = { results, timestamp: Date.now() }
+        mcpStatusPending = null
+        return results
+      })
+    }
+
+    return mcpStatusPending
   })
 
   ipcMain.handle('mcp-save-config', (_event, filePath: string, servers: Record<string, any>) => {

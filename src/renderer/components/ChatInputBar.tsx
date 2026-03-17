@@ -119,6 +119,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
   // Session status
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle')
   const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastStatusRef = useRef<SessionStatus>('idle')
 
   // Compact suggestion
   const [showCompactHint, setShowCompactHint] = useState(false)
@@ -278,30 +279,46 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       }
 
       // ── Session status detection ──
+      // Use a ref-guarded setter to avoid redundant React re-renders (which cause flickering)
+      let newStatus: SessionStatus | null = null
       if (clean.includes('Thinking') || clean.includes('thinking...') || clean.match(/⠋|⠙|⠹|⠸|⠼|⠴|⠦|⠧|⠇|⠏/)) {
-        setSessionStatus('thinking')
-        if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
-        statusTimerRef.current = setTimeout(() => setSessionStatus('idle'), 30000)
+        newStatus = 'thinking'
       }
       else if (clean.match(/Running|Executing|Reading|Writing|Searching|Editing/i) && clean.match(/\.\.\.|…/)) {
-        setSessionStatus('tool')
-        if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
-        statusTimerRef.current = setTimeout(() => setSessionStatus('idle'), 30000)
+        newStatus = 'tool'
       }
       else if (clean.match(/^[│┃├┌└─┐┘┤┬┴┼╔╗╚╝╠╣╦╩╬]/) || clean.match(/\s{2,}(import|export|function|const|let|var|class|def|if|for|while)\s/)) {
-        setSessionStatus('writing')
-        if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
-        statusTimerRef.current = setTimeout(() => setSessionStatus('idle'), 10000)
+        newStatus = 'writing'
       }
       else if (clean.includes('Compacting') || clean.includes('compacting') || clean.includes('Summarizing conversation')) {
-        setSessionStatus('compact')
-        if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
-        statusTimerRef.current = setTimeout(() => setSessionStatus('idle'), 60000)
+        newStatus = 'compact'
       }
 
       if (clean.match(/^[>❯]\s*$/) || clean.includes('What would you like')) {
-        setSessionStatus('idle')
-        if (statusTimerRef.current) { clearTimeout(statusTimerRef.current); statusTimerRef.current = null }
+        newStatus = 'idle'
+      }
+
+      if (newStatus !== null && newStatus !== lastStatusRef.current) {
+        lastStatusRef.current = newStatus
+        setSessionStatus(newStatus)
+        if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
+        if (newStatus !== 'idle') {
+          const timeout = newStatus === 'compact' ? 60000 : newStatus === 'writing' ? 10000 : 30000
+          statusTimerRef.current = setTimeout(() => {
+            lastStatusRef.current = 'idle'
+            setSessionStatus('idle')
+          }, timeout)
+        } else {
+          statusTimerRef.current = null
+        }
+      } else if (newStatus !== null && newStatus !== 'idle') {
+        // Same status — just reset the timer without re-rendering
+        if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
+        const timeout = newStatus === 'compact' ? 60000 : newStatus === 'writing' ? 10000 : 30000
+        statusTimerRef.current = setTimeout(() => {
+          lastStatusRef.current = 'idle'
+          setSessionStatus('idle')
+        }, timeout)
       }
 
       // Clear/compact resets

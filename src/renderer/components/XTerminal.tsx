@@ -81,7 +81,15 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
     fitAddonRef.current = fitAddon
 
     // Helper to fit terminal while preserving scroll position
+    // Skips fit if cols/rows haven't changed to prevent unnecessary redraws (flickering)
+    let lastCols = term.cols
+    let lastRows = term.rows
     const safeFit = () => {
+      const dims = fitAddon.proposeDimensions()
+      if (!dims) return
+      if (dims.cols === lastCols && dims.rows === lastRows) return
+      lastCols = dims.cols
+      lastRows = dims.rows
       const buf = term.buffer.active
       const wasAtBottom = buf.viewportY >= buf.baseY
       fitAddon.fit()
@@ -300,16 +308,21 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
     container?.addEventListener('dragleave', handleDragLeave)
     container?.addEventListener('drop', handleDrop)
 
-    // ResizeObserver to fit terminal when container changes
+    // ResizeObserver to fit terminal when container changes (debounced)
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null
     const ro = new ResizeObserver(() => {
-      if (containerRef.current && containerRef.current.clientWidth > 0) {
-        safeFit()
-      }
+      if (resizeTimer) clearTimeout(resizeTimer)
+      resizeTimer = setTimeout(() => {
+        if (containerRef.current && containerRef.current.clientWidth > 0) {
+          safeFit()
+        }
+      }, 80)
     })
     ro.observe(containerRef.current)
 
     return () => {
       ro.disconnect()
+      if (resizeTimer) clearTimeout(resizeTimer)
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
       pasteTarget.removeEventListener('paste', handlePaste, true)
       container?.removeEventListener('dragover', handleDragOver)

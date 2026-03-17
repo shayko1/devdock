@@ -189,6 +189,8 @@ const api = {
   // MCP & Skills
   mcpGetConfig: (projectPath?: string): Promise<McpConfigEntry[]> =>
     ipcRenderer.invoke('mcp-get-config', projectPath),
+  mcpCheckStatus: (): Promise<Record<string, 'ok' | 'error' | 'warning' | 'unknown'>> =>
+    ipcRenderer.invoke('mcp-check-status'),
   mcpSaveConfig: (filePath: string, servers: Record<string, any>): Promise<IpcResult> =>
     ipcRenderer.invoke('mcp-save-config', filePath, servers),
   skillsList: (projectPath?: string): Promise<SkillEntry[]> =>

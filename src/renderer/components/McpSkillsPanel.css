@@ -101,6 +101,63 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mcp-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-muted);
+}
+
+.mcp-status-dot.ok {
+  background: var(--green);
+  box-shadow: 0 0 4px var(--green);
+}
+
+.mcp-status-dot.warning {
+  background: var(--yellow);
+  box-shadow: 0 0 4px var(--yellow);
+}
+
+.mcp-status-dot.error {
+  background: var(--red);
+  box-shadow: 0 0 4px var(--red);
+}
+
+.mcp-status-dot.checking,
+.mcp-status-dot.unknown {
+  background: var(--text-muted);
+  opacity: 0.5;
+}
+
+.mcp-card-status-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.mcp-status-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.mcp-status-label.ok {
+  color: var(--green);
+}
+
+.mcp-status-label.warning {
+  color: var(--yellow);
+}
+
+.mcp-status-label.error {
+  color: var(--red);
 }
 
 .mcp-card-detail {

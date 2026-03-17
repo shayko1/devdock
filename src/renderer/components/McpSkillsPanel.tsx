@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import './McpSkillsPanel.css'
 
 interface McpServer {
@@ -51,6 +51,12 @@ export function McpSkillsPanel({ projectPath, onClose }: Props) {
   const [editing, setEditing] = useState<EditingServer | null>(null)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
   const [skillContent, setSkillContent] = useState<{ path: string; content: string } | null>(null)
+  const [statuses, setStatuses] = useState<Record<string, 'ok' | 'error' | 'warning' | 'unknown'>>({})
+
+  const refreshStatuses = useCallback(async () => {
+    const result = await window.api.mcpCheckStatus()
+    setStatuses(result)
+  }, [])
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -61,9 +67,17 @@ export function McpSkillsPanel({ projectPath, onClose }: Props) {
     setConfigs(mcpConfigs)
     setSkills(skillsList)
     setLoading(false)
-  }, [projectPath])
+    refreshStatuses()
+  }, [projectPath, refreshStatuses])
 
   useEffect(() => { refresh() }, [refresh])
+
+  // Poll MCP status every 30s while MCP tab is active
+  useEffect(() => {
+    if (tab !== 'mcp') return
+    const interval = setInterval(refreshStatuses, 30000)
+    return () => clearInterval(interval)
+  }, [tab, refreshStatuses])
 
   const allServers = configs.flatMap(cfg =>
     Object.entries(cfg.servers).map(([name, server]) => ({
@@ -300,26 +314,46 @@ export function McpSkillsPanel({ projectPath, onClose }: Props) {
                 </div>
               ) : (
                 <div className="mcp-list">
-                  {allServers.map((srv) => (
-                    <div key={srv.name + srv.scope} className="mcp-card" onClick={() => handleEdit(srv)}>
-                      <div className="mcp-card-row">
-                        <span className="mcp-card-name">{srv.name}</span>
-                        <span className={`mcp-badge ${srv.scope}`}>{srv.scope}</span>
-                      </div>
-                      <div className="mcp-card-detail">
-                        {srv.type === 'http' ? (
-                          <span className="mcp-card-type">HTTP &middot; {srv.url}</span>
-                        ) : (
-                          <span className="mcp-card-type">
-                            {srv.command} {srv.args.join(' ')}
+                  {allServers.map((srv) => {
+                    const status = statuses[srv.name]
+                    const statusLabel = status === 'ok' ? 'Connected'
+                      : status === 'warning' ? 'Auth needed'
+                      : status === 'error' ? 'Failed'
+                      : 'Checking...'
+                    return (
+                      <div key={srv.name + srv.scope} className="mcp-card" onClick={() => handleEdit(srv)}>
+                        <div className="mcp-card-row">
+                          <span className="mcp-card-name">
+                            <span
+                              className={`mcp-status-dot ${status || 'checking'}`}
+                              title={statusLabel}
+                            />
+                            {srv.name}
                           </span>
-                        )}
+                          <span className="mcp-card-status-group">
+                            <span className={`mcp-status-label ${status || 'checking'}`}>{statusLabel}</span>
+                            <span className={`mcp-badge ${srv.scope}`}>{srv.scope}</span>
+                          </span>
+                        </div>
+                        <div className="mcp-card-detail">
+                          {srv.type === 'http' ? (
+                            <span className="mcp-card-type">HTTP &middot; {srv.url}</span>
+                          ) : (
+                            <span className="mcp-card-type">
+                              {srv.command} {srv.args.join(' ')}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
               <div className="mcp-add-row">
+                <button className="btn btn-sm" onClick={refreshStatuses} title="Refresh status">
+                  Refresh
+                </button>
+                <div style={{ flex: 1 }} />
                 <button className="btn btn-sm btn-primary" onClick={() => handleAddNew('project')}>
                   + Project Server
                 </button>

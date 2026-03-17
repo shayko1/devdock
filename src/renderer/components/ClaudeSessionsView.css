@@ -377,8 +377,10 @@
 .claude-sessions-terminal {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   background: #0d1117;
+  overflow: hidden;
 }
 
 .side-resize-handle {
