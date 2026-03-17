@@ -335,19 +335,26 @@ export function App() {
           Choose the root folder that contains your projects.
           DevDock will scan it for repositories and workspaces.
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 320 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, width: '100%', maxWidth: 340 }}>
           <button
             className="btn btn-primary"
             onClick={handleChooseWorkspace}
-            style={{ padding: '10px 20px', fontSize: 14 }}
+            style={{
+              width: '100%', padding: '12px 24px', fontSize: 14, fontWeight: 600,
+              borderRadius: 8, cursor: 'pointer',
+            }}
           >
             Choose Workspace Folder
           </button>
           {state.scanPath && (
             <button
-              className="btn btn-sm"
+              className="btn"
               onClick={handleAcceptDefault}
-              style={{ fontSize: 12, color: 'var(--text-muted)' }}
+              style={{
+                width: '100%', padding: '10px 24px', fontSize: 13,
+                background: 'transparent', border: '1px solid var(--border-primary)',
+                color: 'var(--text-secondary)', borderRadius: 8, cursor: 'pointer',
+              }}
             >
               Use default: {state.scanPath}
             </button>
