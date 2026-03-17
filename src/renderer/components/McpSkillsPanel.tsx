@@ -323,21 +323,24 @@ export function McpSkillsPanel({ projectPath, onClose }: Props) {
                   {allServers.map((srv) => {
                     const status = statuses[srv.name]
                     const statusLabel = status === 'ok' ? 'Connected'
-                      : status === 'warning' ? 'Auth needed'
+                      : status === 'warning' ? 'Login required'
                       : status === 'error' ? 'Failed'
                       : 'Checking...'
+                    const statusTitle = status === 'warning'
+                      ? 'This server requires OAuth login. It works inside an active Claude session once authenticated.'
+                      : statusLabel
                     return (
                       <div key={srv.name + srv.scope} className="mcp-card" onClick={() => handleEdit(srv)}>
                         <div className="mcp-card-row">
                           <span className="mcp-card-name">
                             <span
                               className={`mcp-status-dot ${status || 'checking'}`}
-                              title={statusLabel}
+                              title={statusTitle}
                             />
                             {srv.name}
                           </span>
                           <span className="mcp-card-status-group">
-                            <span className={`mcp-status-label ${status || 'checking'}`}>{statusLabel}</span>
+                            <span className={`mcp-status-label ${status || 'checking'}`} title={statusTitle}>{statusLabel}</span>
                             <span className={`mcp-badge ${srv.scope}`}>{srv.scope}</span>
                           </span>
                         </div>

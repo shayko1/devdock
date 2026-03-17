@@ -37,7 +37,7 @@ export function registerMcpHandlers() {
 
   // Cache MCP status results to avoid running `claude mcp list` too frequently
   let mcpStatusCache: { results: Record<string, 'ok' | 'error' | 'warning' | 'unknown'>; timestamp: number } | null = null
-  const MCP_CACHE_TTL = 15000 // 15 seconds
+  const MCP_CACHE_TTL = 5000 // 5 seconds — short enough that Refresh always feels live
   let mcpStatusPending: Promise<Record<string, 'ok' | 'error' | 'warning' | 'unknown'>> | null = null
 
   function findClaudeBin(): string {
