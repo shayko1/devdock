@@ -545,7 +545,7 @@ describe('Interactive PTY behavior', () => {
     const pty = runInteractive()
     try {
       await pty.waitForOutput(/[\$%#>]/, 5000)
-      pty.write('exit\r')
+      pty.write('exit 0\r')
       const code = await pty.onExit()
       expect(code).toBe(0)
     } finally {
