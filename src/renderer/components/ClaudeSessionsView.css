@@ -554,3 +554,41 @@
   background: var(--accent);
   color: #fff;
 }
+
+/* ── Sidebar context gauge ── */
+.sidebar-card-context {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  padding-left: 13px;
+}
+
+.sidebar-ctx-bar {
+  flex: 1;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  min-width: 40px;
+}
+
+.sidebar-ctx-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease, background 0.3s ease;
+}
+
+.sidebar-ctx-label {
+  font-size: 9px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 24px;
+  text-align: right;
+}
+
+.sidebar-ctx-cost {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}

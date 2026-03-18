@@ -416,6 +416,10 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
             const isActive = activeSessionId === session.id
             const isWaiting = waitingSessions.has(session.id) && !session.exited
             const isExited = !!session.exited
+            const sl = statuslineMap.get(session.id)
+            const ctxPct = sl?.contextUsedPercent ?? 0
+            const ctxColor = ctxPct < 50 ? 'var(--green)' : ctxPct < 80 ? 'var(--orange)' : 'var(--red, #f85149)'
+            const costUsd = sl?.costUsd ?? 0
             return (
               <div
                 key={session.id}
@@ -474,6 +478,17 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
                     <span className="sidebar-badge-exited">Ended</span>
                   )}
                 </div>
+                {ctxPct > 0 && !isExited && (
+                  <div className="sidebar-card-context">
+                    <div className="sidebar-ctx-bar">
+                      <div className="sidebar-ctx-fill" style={{ width: `${Math.min(ctxPct, 100)}%`, background: ctxColor }} />
+                    </div>
+                    <span className="sidebar-ctx-label" style={{ color: ctxColor }}>{Math.round(ctxPct)}%</span>
+                    {costUsd > 0 && (
+                      <span className="sidebar-ctx-cost">${costUsd < 0.01 ? costUsd.toFixed(3) : costUsd.toFixed(2)}</span>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}
