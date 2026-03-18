@@ -543,6 +543,37 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
             onShowFiles={toggleFiles}
           />
         )}
+        {activeSession && (() => {
+          const sl = statuslineMap.get(activeSession.id)
+          const pct = sl?.contextUsedPercent ?? 0
+          if (pct < 50 || activeSession.exited) return null
+          const critical = pct >= 80
+          return (
+            <div className={`context-warning-banner ${critical ? 'critical' : 'caution'}`}>
+              <span className="ctx-warn-icon">{critical ? '!!' : '!'}</span>
+              <span className="ctx-warn-text">
+                Context {Math.round(pct)}% full
+                {critical
+                  ? ' — performance is degrading. Start a new session to continue cleanly.'
+                  : ' — Claude may start forgetting earlier context.'}
+              </span>
+              <button
+                className="btn btn-xs ctx-warn-btn"
+                onClick={() => {
+                  if (activeSession) window.api.ptyWrite(activeSession.id, '/compact\r')
+                }}
+              >
+                /compact
+              </button>
+              <button
+                className="btn btn-xs ctx-warn-btn-new"
+                onClick={onNewSession}
+              >
+                New Session
+              </button>
+            </div>
+          )
+        })()}
         <div className="claude-sessions-body" ref={bodyRef}>
           <div className="claude-sessions-terminal">
           {sessions.map((session) => (
