@@ -28,7 +28,43 @@ interface Props {
   onClose: () => void
 }
 
-type Tab = 'mcp' | 'skills'
+interface RecommendedPlugin {
+  name: string
+  description: string
+  category: 'orchestration' | 'reasoning' | 'knowledge'
+  installType: 'skill' | 'mcp'
+  installCommand: string
+  detectName: string
+}
+
+const RECOMMENDED_PLUGINS: RecommendedPlugin[] = [
+  {
+    name: 'Superpowers',
+    description: 'Sub-agent orchestration with brainstorm, plan, and execute workflows. Endorsed by Anthropic.',
+    category: 'orchestration',
+    installType: 'skill',
+    installCommand: 'claude /install-skill superpowers',
+    detectName: 'superpowers',
+  },
+  {
+    name: 'Sequential Thinking',
+    description: 'Chain-of-thought MCP server for deeper reasoning and better insights.',
+    category: 'reasoning',
+    installType: 'mcp',
+    installCommand: 'npx -y @anthropic/sequential-thinking-server',
+    detectName: 'sequential-thinking',
+  },
+  {
+    name: 'Context7',
+    description: 'Up-to-date documentation for APIs, libraries, and services. Prevents hallucinated docs.',
+    category: 'knowledge',
+    installType: 'mcp',
+    installCommand: 'npx -y @upstash/context7-mcp',
+    detectName: 'context7',
+  },
+]
+
+type Tab = 'mcp' | 'skills' | 'recommended'
 
 interface EditingServer {
   originalName: string
@@ -210,6 +246,12 @@ export function McpSkillsPanel({ projectPath, onClose }: Props) {
           >
             Skills & Commands
           </button>
+          <button
+            className={`mcp-panel-tab ${tab === 'recommended' ? 'active' : ''}`}
+            onClick={() => { setTab('recommended'); setEditing(null); setSkillContent(null) }}
+          >
+            Recommended
+          </button>
         </div>
         <button className="coach-close-btn" onClick={onClose} title="Close">×</button>
       </div>
@@ -372,6 +414,50 @@ export function McpSkillsPanel({ projectPath, onClose }: Props) {
               </div>
             </>
           )}
+        </div>
+      ) : tab === 'recommended' ? (
+        <div className="mcp-content">
+          <div className="mcp-recommended-intro">
+            Boost your Claude Code setup with these community-proven plugins.
+          </div>
+          <div className="mcp-list">
+            {RECOMMENDED_PLUGINS.map((plugin) => {
+              const isInstalled = plugin.installType === 'mcp'
+                ? allServers.some(s => s.name.toLowerCase().includes(plugin.detectName))
+                : skills.some(s => s.name.toLowerCase().includes(plugin.detectName))
+              return (
+                <div key={plugin.name} className={`mcp-card recommended-card ${isInstalled ? 'installed' : ''}`}>
+                  <div className="mcp-card-row">
+                    <span className="mcp-card-name">
+                      {plugin.name}
+                      <span className={`mcp-badge ${plugin.category}`}>{plugin.category}</span>
+                    </span>
+                    {isInstalled ? (
+                      <span className="recommended-installed">Installed</span>
+                    ) : (
+                      <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(plugin.installCommand)
+                          setSaveMsg(`Copied install command for ${plugin.name}`)
+                          setTimeout(() => setSaveMsg(null), 3000)
+                        }}
+                      >
+                        Copy Install
+                      </button>
+                    )}
+                  </div>
+                  <div className="mcp-card-detail">{plugin.description}</div>
+                  {!isInstalled && (
+                    <div className="recommended-cmd">
+                      <code>{plugin.installCommand}</code>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {saveMsg && <div className="mcp-save-msg">{saveMsg}</div>}
         </div>
       ) : (
         <div className="mcp-content">

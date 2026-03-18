@@ -329,3 +329,47 @@
   line-height: 1.5;
   margin: 0;
 }
+
+/* ── Recommended plugins ── */
+.mcp-recommended-intro {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.4;
+}
+
+.recommended-card.installed {
+  opacity: 0.6;
+}
+
+.recommended-installed {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--green);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--green-dim, rgba(63, 185, 80, 0.15));
+  flex-shrink: 0;
+}
+
+.recommended-cmd {
+  margin-top: 4px;
+  padding: 3px 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recommended-cmd code {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 10px;
+}
+
+.mcp-badge.orchestration { background: var(--accent); color: #fff; }
+.mcp-badge.reasoning { background: var(--purple, #a371f7); color: #fff; }
+.mcp-badge.knowledge { background: var(--green); color: #000; }
