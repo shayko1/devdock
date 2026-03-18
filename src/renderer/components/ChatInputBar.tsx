@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { StatuslineData } from '../../shared/ipc-types'
 import './ChatInputBar.css'
 
 interface Props {
@@ -7,6 +8,7 @@ interface Props {
   onSend: (text: string) => void
   onImageUpload: (file: File) => void
   disabled?: boolean
+  statuslineData?: StatuslineData
 }
 
 type Mode = 'agent' | 'chat' | 'plan'
@@ -99,7 +101,7 @@ function formatTokens(n: number): string {
   return String(n)
 }
 
-export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disabled }: Props) {
+export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disabled, statuslineData }: Props) {
   const [text, setText] = useState('')
   const [mode, setMode] = useState<Mode>('agent')
   const [modelIdx, setModelIdx] = useState(0)
@@ -328,52 +330,47 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       }
     })
 
-    // Statusline listener — structured context, model, and cost data from Claude Code
-    const unsubStatus = window.api.onStatuslineData((data) => {
-      if (data.sessionId !== sessionId) return
-
-      // Model
-      if (data.model || data.modelId) {
-        const id = data.modelId || data.model || ''
-        const name = data.model || ''
-        const matchedIdx = MODELS.findIndex(mod =>
-          id.toLowerCase().includes(mod.id.toLowerCase()) ||
-          name.toLowerCase().includes(mod.short.toLowerCase())
-        )
-        if (matchedIdx >= 0) {
-          setModelIdx(matchedIdx)
-          setDetectedModel('')
-        } else if (name) {
-          setDetectedModel(name)
-        }
-      }
-
-      // Context window
-      if (data.contextWindowSize != null && data.contextWindowSize >= 10_000) {
-        setContextMaxTokens(data.contextWindowSize)
-      }
-      if (data.contextUsedPercent != null) {
-        const pct = data.contextUsedPercent
-        setContextPercent(pct)
-        setContextUsedTokens(() => {
-          const maxT = data.contextWindowSize || contextMaxTokensRef.current
-          const fromPct = Math.round((pct / 100) * maxT)
-          return fromPct || 0
-        })
-      }
-
-      // Cost
-      if (data.costUsd != null && data.costUsd > 0) {
-        setSessionCost(data.costUsd)
-      }
-    })
-
     return () => {
       unsub()
-      unsubStatus()
       if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
     }
   }, [sessionId])
+
+  // Statusline data from parent — structured context, model, and cost data from Claude Code
+  useEffect(() => {
+    if (!statuslineData) return
+
+    if (statuslineData.model || statuslineData.modelId) {
+      const id = statuslineData.modelId || statuslineData.model || ''
+      const name = statuslineData.model || ''
+      const matchedIdx = MODELS.findIndex(mod =>
+        id.toLowerCase().includes(mod.id.toLowerCase()) ||
+        name.toLowerCase().includes(mod.short.toLowerCase())
+      )
+      if (matchedIdx >= 0) {
+        setModelIdx(matchedIdx)
+        setDetectedModel('')
+      } else if (name) {
+        setDetectedModel(name)
+      }
+    }
+
+    if (statuslineData.contextWindowSize != null && statuslineData.contextWindowSize >= 10_000) {
+      setContextMaxTokens(statuslineData.contextWindowSize)
+    }
+    if (statuslineData.contextUsedPercent != null) {
+      const pct = statuslineData.contextUsedPercent
+      setContextPercent(pct)
+      setContextUsedTokens(() => {
+        const maxT = statuslineData.contextWindowSize || contextMaxTokensRef.current
+        return Math.round((pct / 100) * maxT) || 0
+      })
+    }
+
+    if (statuslineData.costUsd != null && statuslineData.costUsd > 0) {
+      setSessionCost(statuslineData.costUsd)
+    }
+  }, [statuslineData])
 
   // Persist session cache to localStorage when key state changes
   useEffect(() => {

@@ -10,6 +10,7 @@ import { SessionInfoBar } from './SessionInfoBar'
 import { CoachPanel } from './CoachPanel'
 import { ChatInputBar } from './ChatInputBar'
 import { McpSkillsPanel } from './McpSkillsPanel'
+import { StatuslineData } from '../../shared/ipc-types'
 import './ClaudeSessionsView.css'
 
 function formatTimeAgo(ts: number): string {
@@ -78,8 +79,21 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
   const [coachEnabled, setCoachEnabled] = useState(false)
   const [coachBadge, setCoachBadge] = useState(0)
   const [sessionTitles, setSessionTitles] = useState<Map<string, string>>(new Map())
+  const [statuslineMap, setStatuslineMap] = useState<Map<string, StatuslineData>>(new Map())
   const dragging = useRef(false)
   const bodyRef = useRef<HTMLDivElement>(null)
+
+  // Subscribe to statusline data for all sessions and store in a map keyed by sessionId
+  useEffect(() => {
+    const unsub = window.api.onStatuslineData((data) => {
+      setStatuslineMap(prev => {
+        const next = new Map(prev)
+        next.set(data.sessionId, data)
+        return next
+      })
+    })
+    return unsub
+  }, [])
 
   useEffect(() => {
     if (!rtkEnabled) { setRtkAvailable(false); return }
@@ -541,6 +555,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
                   onSend={handleChatSend}
                   onImageUpload={handleChatImageUpload}
                   disabled={session.exited}
+                  statuslineData={statuslineMap.get(session.id)}
                 />
               )}
               {session.exited && activeSessionId === session.id && (
