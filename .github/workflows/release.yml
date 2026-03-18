@@ -51,8 +51,19 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
+      - name: Debug node_modules
+        run: |
+          echo "npm version: $(npm --version)"
+          echo "node version: $(node --version)"
+          echo "vitest in node_modules/.bin:"
+          ls -la node_modules/.bin/vitest* 2>&1 || echo "NOT FOUND"
+          echo "vitest package installed:"
+          ls node_modules/vitest/vitest.mjs 2>&1 || echo "NOT FOUND"
+          echo "PATH in npm scripts:"
+          npm run env -- | grep -i path | head -5
+
       - name: Run tests
-        run: npm test
+        run: npx vitest run
 
       - name: Rebuild native modules for packaging
         run: npx electron-rebuild -f -w node-pty
