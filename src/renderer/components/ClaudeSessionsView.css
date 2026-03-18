@@ -656,3 +656,54 @@
   from { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
   to { opacity: 1; max-height: 40px; }
 }
+
+/* ── Skill quick-launch ── */
+.claude-toolbar-skills {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+.claude-skill-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+
+.claude-skill-btn:hover:not(:disabled) {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.claude-skill-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.claude-skill-icon {
+  font-size: 11px;
+}
+
+/* ── Split view ── */
+.sidebar-badge-split {
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: #fff;
+  letter-spacing: 0.3px;
+}

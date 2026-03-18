@@ -80,6 +80,8 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
   const [coachBadge, setCoachBadge] = useState(0)
   const [sessionTitles, setSessionTitles] = useState<Map<string, string>>(new Map())
   const [statuslineMap, setStatuslineMap] = useState<Map<string, StatuslineData>>(new Map())
+  const [agentActivity, setAgentActivity] = useState<Map<string, number>>(new Map())
+  const [splitSessionId, setSplitSessionId] = useState<string | null>(null)
   const dragging = useRef(false)
   const bodyRef = useRef<HTMLDivElement>(null)
 
@@ -178,7 +180,10 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
         : null
       setActiveSessionId(preferred?.id ?? sessions[sessions.length - 1].id)
     }
-  }, [sessions, activeSessionId])
+    if (splitSessionId && !sessions.find(s => s.id === splitSessionId)) {
+      setSplitSessionId(null)
+    }
+  }, [sessions, activeSessionId, splitSessionId])
 
   // Track session titles from first user message sent via ChatInputBar
   // (terminal output parsing is unreliable — it captures escape codes and garbage)
@@ -251,6 +256,31 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
     setSidePanel(prev => prev === 'mcp' ? 'none' : 'mcp')
     setViewingFile(null)
   }, [])
+
+  const handleSplit = useCallback(() => {
+    if (splitSessionId) {
+      setSplitSessionId(null)
+      return
+    }
+    const otherSessions = sessions.filter(s => s.id !== activeSessionId)
+    if (otherSessions.length > 0) {
+      setSplitSessionId(otherSessions[0].id)
+    }
+  }, [splitSessionId, sessions, activeSessionId])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+        // Only handle if focus is not inside the terminal (xterm catches its own keys)
+        const active = document.activeElement
+        if (active && active.closest('.xterminal-container')) return
+        e.preventDefault()
+        handleSplit()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [handleSplit])
 
   // Session history panel
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([])
@@ -382,6 +412,12 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
     document.addEventListener('mouseup', onUp)
   }, [sideWidth])
 
+  const QUICK_SKILLS = [
+    { cmd: '/brainstorm', label: 'Brainstorm', icon: '\u{1F4A1}', title: 'Start brainstorming session' },
+    { cmd: '/write-plan', label: 'Plan', icon: '\u{1F4CB}', title: 'Write implementation plan' },
+    { cmd: '/execute-plan', label: 'Execute', icon: '\u25B6', title: 'Execute implementation plan' },
+  ]
+
   if (sessions.length === 0) {
     return (
       <div className="claude-sessions-empty">
@@ -477,6 +513,9 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
                   {isExited && !session.claudeSessionId && (
                     <span className="sidebar-badge-exited">Ended</span>
                   )}
+                  {splitSessionId === session.id && (
+                    <span className="sidebar-badge-split">SPLIT</span>
+                  )}
                 </div>
                 {ctxPct > 0 && !isExited && (
                   <div className="sidebar-card-context">
@@ -528,6 +567,35 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
             <button className={`claude-tb-icon ${sidePanel === 'pipeline' ? 'active' : ''}`} onClick={togglePipeline} title="CI Pipeline">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M6 2a.5.5 0 0 1 .47.33L10 11.44l1.53-3.82A.5.5 0 0 1 12 7.33h3.5a.5.5 0 0 1 0 1H12.3l-1.83 4.58a.5.5 0 0 1-.94 0L6 3.56l-1.53 3.82A.5.5 0 0 1 4 7.67H.5a.5.5 0 0 1 0-1h3.2L5.53 2.1A.5.5 0 0 1 6 2z"/></svg>
             </button>
+            <span className="claude-tb-sep" />
+            <button
+              className={`claude-tb-icon ${splitSessionId ? 'active' : ''}`}
+              onClick={handleSplit}
+              title={splitSessionId ? 'Exit split view (Cmd+D)' : 'Split view (Cmd+D)'}
+              disabled={sessions.length < 2}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M1.5 1A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v13a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5V1.5zM2.5 2v12h5V2h-5zm6 0v12h5V2h-5z"/>
+              </svg>
+            </button>
+          </div>
+          <div className="claude-toolbar-skills">
+            {QUICK_SKILLS.map((skill) => (
+              <button
+                key={skill.cmd}
+                className="claude-skill-btn"
+                onClick={() => {
+                  if (activeSessionId) {
+                    window.api.ptyWrite(activeSessionId, skill.cmd + '\r')
+                  }
+                }}
+                disabled={!activeSession || activeSession.exited}
+                title={skill.title}
+              >
+                <span className="claude-skill-icon">{skill.icon}</span>
+                {skill.label}
+              </button>
+            ))}
           </div>
         </div>
         {activeSession && (
@@ -576,13 +644,22 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
         })()}
         <div className="claude-sessions-body" ref={bodyRef}>
           <div className="claude-sessions-terminal">
-          {sessions.map((session) => (
+          {sessions.map((session) => {
+            const isVisible = activeSessionId === session.id || splitSessionId === session.id
+            const isActivePanel = activeSessionId === session.id
+            return (
             <div
               key={session.id}
               className={`claude-session-terminal-wrapper ${chatInputEnabled ? 'with-chat-input' : ''}`}
-              style={{ display: activeSessionId === session.id ? 'flex' : 'none', flex: 1, minHeight: 0 }}
+              style={{
+                display: isVisible ? 'flex' : 'none',
+                flex: 1,
+                minHeight: 0,
+                minWidth: 0,
+                borderRight: (splitSessionId && isActivePanel) ? '2px solid var(--accent, #58a6ff)' : undefined,
+              }}
             >
-              {session.dangerousMode && activeSessionId === session.id && (
+              {session.dangerousMode && isVisible && (
                 <div style={{
                   height: 3,
                   background: 'linear-gradient(90deg, #f85149, #da3633)',
@@ -591,10 +668,10 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
               )}
               <XTerminal
                 sessionId={session.id}
-                active={activeSessionId === session.id}
+                active={activeSessionId === session.id || splitSessionId === session.id}
                 onWaitingChange={(waiting) => handleWaitingChange(session.id, waiting)}
               />
-              {chatInputEnabled && activeSessionId === session.id && !session.exited && (
+              {chatInputEnabled && isActivePanel && !session.exited && (
                 <ChatInputBar
                   sessionId={session.id}
                   rootPath={session.worktreePath || session.folderPath}
@@ -604,7 +681,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
                   statuslineData={statuslineMap.get(session.id)}
                 />
               )}
-              {session.exited && activeSessionId === session.id && (
+              {session.exited && isActivePanel && (
                 <div className="claude-session-exited-overlay">
                   <div className="claude-session-exited-msg">Session ended</div>
                   {session.claudeSessionId && (
@@ -625,7 +702,8 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
                 </div>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
         {sidePanel !== 'none' && activeSession && (
           <>
