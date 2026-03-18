@@ -707,3 +707,32 @@
   color: #fff;
   letter-spacing: 0.3px;
 }
+
+/* ── Sub-agent activity ── */
+.sidebar-badge-agents {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(163, 113, 247, 0.2);
+  color: var(--purple, #a371f7);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.agent-activity-dots {
+  display: inline-flex;
+  gap: 1px;
+}
+
+.agent-activity-dots span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--purple, #a371f7);
+  animation: thinking-bounce 1.4s ease-in-out infinite;
+}
+
+.agent-activity-dots span:nth-child(2) { animation-delay: 0.2s; }
+.agent-activity-dots span:nth-child(3) { animation-delay: 0.4s; }

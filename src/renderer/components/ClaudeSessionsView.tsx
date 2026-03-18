@@ -97,6 +97,52 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
     return unsub
   }, [])
 
+  // Detect sub-agent launch/completion patterns in PTY output
+  useEffect(() => {
+    const strip = (s: string) => s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '')
+
+    const unsub = window.api.onPtyData(({ sessionId, data }: { sessionId: string; data: string }) => {
+      const clean = strip(data)
+
+      // Detect sub-agent launch patterns
+      const launchMatch = clean.match(/(?:Launching|Spawning|Starting)\s+(?:agent|subagent|sub-agent)/gi)
+        || clean.match(/Agent\s+tool.*?(?:running|started)/gi)
+
+      if (launchMatch) {
+        setAgentActivity(prev => {
+          const next = new Map(prev)
+          next.set(sessionId, (next.get(sessionId) || 0) + launchMatch.length)
+          return next
+        })
+      }
+
+      // Detect sub-agent completion
+      const completeMatch = clean.match(/(?:Agent|Subagent)\s+(?:completed|finished|done|returned)/gi)
+      if (completeMatch) {
+        setAgentActivity(prev => {
+          const next = new Map(prev)
+          const current = next.get(sessionId) || 0
+          const newCount = Math.max(0, current - completeMatch.length)
+          if (newCount === 0) next.delete(sessionId)
+          else next.set(sessionId, newCount)
+          return next
+        })
+      }
+
+      // Clear on prompt return (idle means all agents done)
+      if (clean.match(/^[>\u276F]\s*$/) || clean.includes('What would you like')) {
+        setAgentActivity(prev => {
+          if (!prev.has(sessionId)) return prev
+          const next = new Map(prev)
+          next.delete(sessionId)
+          return next
+        })
+      }
+    })
+
+    return unsub
+  }, [])
+
   useEffect(() => {
     if (!rtkEnabled) { setRtkAvailable(false); return }
     window.api.rtkDetect().then(status => setRtkAvailable(status.installed))
@@ -487,6 +533,12 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
                   </div>
                 )}
                 <div className="sidebar-card-badges">
+                  {agentActivity.has(session.id) && !isExited && (
+                    <span className="sidebar-badge-agents">
+                      {agentActivity.get(session.id)} agent{(agentActivity.get(session.id) || 0) > 1 ? 's' : ''}
+                      <span className="agent-activity-dots"><span /><span /><span /></span>
+                    </span>
+                  )}
                   {!isExited && !isWaiting && (
                     <span className="sidebar-badge-thinking">
                       Thinking
