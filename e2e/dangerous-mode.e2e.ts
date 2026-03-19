@@ -140,9 +140,10 @@ test.describe('Dangerous Mode Settings', () => {
     const { app, page } = await launchApp()
     await openSettings(page)
     await enableDangerousMode(page)
+    const modal = page.locator('.modal')
 
     // Save and close
-    await page.getByRole('button', { name: 'Save' }).click()
+    await modal.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(page.locator('.modal')).not.toBeVisible()
 
     // Reopen and verify
@@ -152,7 +153,7 @@ test.describe('Dangerous Mode Settings', () => {
 
     // Clean up — turn it off and save
     await section.getByRole('button', { name: 'Disable' }).click()
-    await page.getByRole('button', { name: 'Save' }).click()
+    await modal.getByRole('button', { name: 'Save', exact: true }).click()
 
     await app.close()
   })

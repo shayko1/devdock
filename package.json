@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npx playwright test",
+    "test:e2e:smoke": "npx playwright test --grep @smoke",
     "postinstall": "electron-rebuild -f -w node-pty"
   },
   "dependencies": {
@@ -36,7 +37,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "electron": "^33.4.11",
     "electron-vite": "^5.0.0",
-    "jsdom": "^28.1.0",
+    "jsdom": "^26.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "typescript": "^5.7.0",

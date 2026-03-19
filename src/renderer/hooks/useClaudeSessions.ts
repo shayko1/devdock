@@ -114,7 +114,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
   }, [])
 
   const startSession = useCallback(async (folder: WorkspaceFolder, useWorktree: boolean) => {
-    const sessionId = `claude-${Date.now().toString(36)}`
+    const sessionId = generateSessionId()
     const isDangerous = dangerousMode
     try {
       const result = await window.api.ptyCreate({
@@ -163,7 +163,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
     const session = sessions.find(s => s.id === sessionId)
     if (!session || !session.claudeSessionId) return
 
-    const newPtyId = `claude-${Date.now().toString(36)}`
+    const newPtyId = generateSessionId()
     try {
       const result = await window.api.ptyCreate({
         sessionId: newPtyId,
@@ -202,7 +202,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
   }, [sessions])
 
   const openPipelineSession = useCallback(async (pipelineFolderName: string, pipelineFolderPath: string, worktreePath: string) => {
-    const sessionId = `claude-${Date.now().toString(36)}`
+    const sessionId = generateSessionId()
     const isDangerous = dangerousMode
     try {
       const result = await window.api.ptyCreate({
@@ -247,7 +247,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
   const resumeFromHistory = useCallback(async (claudeSessionId: string, folderName: string, folderPath: string, worktreePath?: string | null) => {
     if (sessions.some(s => s.claudeSessionId === claudeSessionId && !s.exited)) return
 
-    const newId = `claude-${Date.now().toString(36)}`
+    const newId = generateSessionId()
     const isDangerous = dangerousMode
     try {
       const result = await window.api.ptyCreate({

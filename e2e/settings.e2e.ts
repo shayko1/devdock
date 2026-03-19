@@ -15,7 +15,7 @@ test.describe('Settings', () => {
     const { app, page } = await launchApp()
     const gearButton = page.locator('.titlebar button[title="Settings"]')
     await gearButton.click()
-    const input = page.locator('.modal .search-input')
+    const input = page.getByPlaceholder('/path/to/your/workspace')
     await expect(input).toBeVisible()
     const value = await input.inputValue()
     expect(value).toContain('Workspace')

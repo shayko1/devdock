@@ -405,11 +405,16 @@ export function ClaudeSessionsView({ sessions, lastCreatedSessionId, rtkEnabled,
 
   const handleChatSend = useCallback((text: string) => {
     if (!activeSessionId) return
-    // Only wrap in bracketed paste if multi-line; otherwise send plain text + \r
-    const escaped = text.includes('\n')
-      ? `\x1b[200~${text}\x1b[201~`
-      : text
-    window.api.ptyWrite(activeSessionId, escaped + '\r')
+    if (text.includes('\n')) {
+      // Send multiline text via bracketed paste first, then Enter as a separate write.
+      // This is more compatible with readline-style TTY consumers than single-write paste+CR.
+      window.api.ptyWrite(activeSessionId, `\x1b[200~${text}\x1b[201~`)
+      setTimeout(() => {
+        window.api.ptyWrite(activeSessionId, '\r')
+      }, 50)
+    } else {
+      window.api.ptyWrite(activeSessionId, text + '\r')
+    }
 
     // Update session title from first non-command message — extract a short summary
     if (!text.startsWith('/') && text.trim().length > 5 && !sessionTitles.has(activeSessionId)) {
