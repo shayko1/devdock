@@ -19,12 +19,13 @@ const MODELS = [
   { id: 'haiku', label: 'Claude Haiku 3.5', short: 'Haiku 3.5', desc: 'Fastest, cheapest', ctx: 200_000 },
 ]
 
-type EffortLevel = 'auto' | 'low' | 'medium' | 'high'
+type EffortLevel = 'auto' | 'low' | 'medium' | 'high' | 'max'
 const EFFORT_LEVELS: { id: EffortLevel; label: string; short: string; desc: string }[] = [
   { id: 'auto', label: 'Auto', short: 'Auto', desc: 'Claude decides effort based on task' },
   { id: 'low', label: 'Low', short: 'Low', desc: 'Quick, concise answers' },
   { id: 'medium', label: 'Medium', short: 'Med', desc: 'Balanced effort' },
   { id: 'high', label: 'High', short: 'High', desc: 'Deep thinking, thorough responses' },
+  { id: 'max', label: 'Max', short: 'Max', desc: 'Maximum effort, no shortcuts' },
 ]
 
 interface SlashCommand {
@@ -53,7 +54,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { cmd: '/export', label: '/export', desc: 'Export conversation as text', category: 'info' },
   { cmd: '/copy', label: '/copy', desc: 'Copy last response to clipboard', category: 'info' },
   { cmd: '/model', label: '/model', desc: 'Switch AI model', category: 'project' },
-  { cmd: '/effort', label: '/effort', desc: 'Set effort level (auto, low, medium, high)', category: 'project' },
+  { cmd: '/effort', label: '/effort', desc: 'Set effort level (auto, low, medium, high, max)', category: 'project' },
   { cmd: '/config', label: '/config', desc: 'Manage settings', category: 'project' },
   { cmd: '/init', label: '/init', desc: 'Initialize project with CLAUDE files', category: 'project' },
   { cmd: '/memory', label: '/memory', desc: 'Edit CLAUDE.md files', category: 'project' },
@@ -274,8 +275,8 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       const clean = strip(data)
 
       // ── Effort level detection (not in statusline JSON) ──
-      const effortMatch = clean.match(/Effort level:\s*(auto|low|medium|high)/i)
-        || clean.match(/effort[:\s]+(auto|low|medium|high)/i)
+      const effortMatch = clean.match(/Effort level:\s*(auto|low|medium|high|max)/i)
+        || clean.match(/effort[:\s]+(auto|low|medium|high|max)/i)
       if (effortMatch) {
         setEffortLevel(effortMatch[1].toLowerCase() as EffortLevel)
       }
