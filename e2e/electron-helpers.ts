@@ -1,4 +1,4 @@
-import { _electron as electron, ElectronApplication, Page } from '@playwright/test'
+import { _electron as electron, ElectronApplication, Page, expect } from '@playwright/test'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { mkdtempSync, mkdirSync, rmSync } from 'fs'
@@ -37,5 +37,15 @@ export async function launchApp(): Promise<{ app: ElectronApplication; page: Pag
 
   const page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')
+
+  const tabsBar = page.locator('.tabs-bar')
+  if (!(await tabsBar.isVisible().catch(() => false))) {
+    const useDefaultWorkspace = page.getByRole('button', { name: /Use default:/ })
+    if (await useDefaultWorkspace.count()) {
+      await useDefaultWorkspace.first().click()
+    }
+    await expect(tabsBar).toBeVisible({ timeout: 15000 })
+  }
+
   return { app, page }
 }
