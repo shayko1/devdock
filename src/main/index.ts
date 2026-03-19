@@ -36,14 +36,20 @@ async function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
+    show: false,
     title: 'DevDock',
     titleBarStyle: 'hiddenInset',
     icon: iconPng,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      backgroundThrottling: false
     }
+  })
+
+  mainWindow.on('ready-to-show', () => {
+    mainWindow?.show()
   })
 
   if (process.platform === 'darwin') {
@@ -105,6 +111,11 @@ async function createWindow() {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  // Force repaint when window regains focus to prevent stale/black screen
+  mainWindow.on('focus', () => {
+    mainWindow?.webContents.invalidate()
+  })
 
   mainWindow.on('closed', () => {
     mainWindow = null
