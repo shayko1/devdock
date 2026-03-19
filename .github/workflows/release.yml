@@ -54,6 +54,12 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Build app
+        run: npm run build
+
+      - name: Run smoke E2E tests
+        run: npm run test:e2e:smoke
+
       - name: Package macOS app
         run: npm run package
 

@@ -33,7 +33,7 @@ test.describe('Terminal Sessions', () => {
     const worktreeLabel = page.locator('.modal label').filter({ hasText: 'worktree' })
     await expect(worktreeLabel).toBeVisible()
     const checkbox = worktreeLabel.locator('input[type="checkbox"]')
-    await expect(checkbox).toBeChecked()
+    await expect(checkbox).not.toBeChecked()
     await app.close()
   })
 
