@@ -49,6 +49,7 @@ function detectClaudeId(
 
 export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActivated, onNewSessionModalClosed }: UseClaudeSessionsOptions) {
   const [sessions, setSessions] = useState<ClaudeSession[]>([])
+  const [lastCreatedSessionId, setLastCreatedSessionId] = useState<string | null>(null)
 
   // Auto-resume sessions on startup
   const autoResumeRef = useRef(false)
@@ -135,6 +136,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
           dangerousMode: isDangerous
         }
         setSessions(prev => [...prev, newSession])
+        setLastCreatedSessionId(sessionId)
         onNewSessionModalClosed?.()
         onSessionActivated?.()
 
@@ -222,6 +224,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
           dangerousMode: isDangerous
         }
         setSessions(prev => [...prev, newSession])
+        setLastCreatedSessionId(sessionId)
         onSessionActivated?.()
 
         window.api.activeSessionsSet({
@@ -268,6 +271,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
           pendingRecap: true,
         }
         setSessions(prev => [...prev, newSession])
+        setLastCreatedSessionId(newId)
         onSessionActivated?.()
 
         window.api.activeSessionsSet({
@@ -309,6 +313,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
 
   return {
     sessions,
+    lastCreatedSessionId,
     startSession,
     resumeSession,
     openPipelineSession,
