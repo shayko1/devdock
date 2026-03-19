@@ -15,6 +15,7 @@ const DARK_THEME = {
   foreground: '#e6edf3',
   cursor: '#58a6ff',
   selectionBackground: '#264f78',
+  selectionForeground: '#ffffff',
   black: '#0d1117',
   red: '#f85149',
   green: '#3fb950',
@@ -43,6 +44,32 @@ async function handleImageFile(file: File, sessionId: string): Promise<string | 
   return result.path || null
 }
 
+// Improved URL regex: matches http(s) URLs, strips trailing punctuation that's not part of the URL
+const URL_REGEX = /https?:\/\/[^\s<>"'`\x00-\x1f]+/g
+function cleanUrl(raw: string): string {
+  // Strip trailing punctuation that's unlikely to be part of the URL
+  // but preserve balanced parens (common in Wikipedia URLs)
+  let url = raw
+  // Remove trailing dots, commas, semicolons, colons, exclamation, question marks
+  url = url.replace(/[.,;:!?]+$/, '')
+  // Remove trailing single closing chars if unbalanced
+  const pairs: Record<string, string> = { ')': '(', ']': '[', '}': '{' }
+  while (url.length > 0) {
+    const last = url[url.length - 1]
+    const opener = pairs[last]
+    if (!opener) break
+    // Count openers vs closers in the URL
+    const opens = (url.match(new RegExp('\\' + opener, 'g')) || []).length
+    const closes = (url.match(new RegExp('\\' + last, 'g')) || []).length
+    if (closes > opens) {
+      url = url.slice(0, -1)
+    } else {
+      break
+    }
+  }
+  return url
+}
+
 export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -53,6 +80,8 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
   const waitingRef = useRef(false)
   const onWaitingChangeRef = useRef(onWaitingChange)
   onWaitingChangeRef.current = onWaitingChange
+  // Track saved scroll position for tab switches (viewportY is lost on display:none)
+  const savedScrollRef = useRef<{ viewportY: number; baseY: number } | null>(null)
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -70,6 +99,8 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
       allowProposedApi: true,
       rightClickSelectsWord: true,
       scrollback: 10000,
+      scrollOnUserInput: true,
+      overviewRuler: undefined,
     })
 
     const fitAddon = new FitAddon()
@@ -98,8 +129,8 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
       }
     }
 
-    // Register clickable link provider for URLs
-    const urlRegex = /https?:\/\/[^\s)\]>"'`]+/g
+    // ── Link detection ──
+    // Use registerLinkProvider for robust URL detection with proper cleanup
     term.registerLinkProvider({
       provideLinks(bufferLineNumber: number, callback: (links: any[] | undefined) => void) {
         const line = term.buffer.active.getLine(bufferLineNumber - 1)
@@ -107,16 +138,19 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
         const text = line.translateToString()
         const links: any[] = []
         let match
-        urlRegex.lastIndex = 0
-        while ((match = urlRegex.exec(text)) !== null) {
+        URL_REGEX.lastIndex = 0
+        while ((match = URL_REGEX.exec(text)) !== null) {
+          const raw = match[0]
+          const url = cleanUrl(raw)
+          if (url.length < 10) continue // skip degenerate matches like "http://x"
           links.push({
             range: {
               start: { x: match.index + 1, y: bufferLineNumber },
-              end: { x: match.index + match[0].length + 1, y: bufferLineNumber }
+              end: { x: match.index + url.length + 1, y: bufferLineNumber }
             },
-            text: match[0],
+            text: url,
             activate() {
-              window.api.openInBrowser(match![0])
+              window.api.openInBrowser(url)
             }
           })
         }
@@ -124,31 +158,33 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
       }
     })
 
-    // Custom key handler for Cmd+C (copy) and Cmd+V (paste)
-    // Only handle keydown to avoid duplicate processing on keyup
+    // ── Keyboard shortcuts ──
     term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
       if (e.type !== 'keydown') return true
       const isMeta = e.metaKey || e.ctrlKey
 
-      // Cmd+C — let the browser handle native copy, just prevent xterm from sending ^C
+      // Cmd+C — copy selection to clipboard, prevent xterm from sending ^C
       if (isMeta && e.key === 'c' && term.hasSelection()) {
+        const selection = term.getSelection()
+        if (selection) {
+          navigator.clipboard.writeText(selection)
+        }
         return false
       }
 
-      // Cmd+V — let xterm handle paste natively (flows through onData → ptyWrite)
+      // Cmd+V — let xterm handle paste natively (flows through onData -> ptyWrite)
       if (isMeta && e.key === 'v') {
         return true
       }
 
-      // Cmd+A — select all
+      // Cmd+A — select all terminal content
       if (isMeta && e.key === 'a') {
         term.selectAll()
         return false
       }
 
       // Shift+Enter — insert newline via bracketed paste so Claude treats it as
-      // a literal newline character rather than "submit", regardless of whether
-      // kitty keyboard protocol is active. This works in all terminal apps.
+      // a literal newline character rather than "submit"
       if (e.shiftKey && e.key === 'Enter') {
         window.api.ptyWrite(sessionId, '\x1b[200~\n\x1b[201~')
         return false
@@ -187,10 +223,11 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
       return true
     })
 
+    // ── PTY data flow ──
+
     // Send input to PTY
     term.onData((data) => {
       window.api.ptyWrite(sessionId, data)
-      // User sent input — clear waiting state
       if (waitingRef.current) {
         waitingRef.current = false
         onWaitingChangeRef.current?.(false)
@@ -202,8 +239,6 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
     unsubDataRef.current = window.api.onPtyData(({ sessionId: sid, data }) => {
       if (sid === sessionId) {
         term.write(data)
-
-        // Reset idle timer — output means Claude is working
         if (waitingRef.current) {
           waitingRef.current = false
           onWaitingChangeRef.current?.(false)
@@ -212,7 +247,7 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
         idleTimerRef.current = setTimeout(() => {
           waitingRef.current = true
           onWaitingChangeRef.current?.(true)
-        }, 8000) // 8s of silence = likely waiting for input
+        }, 8000)
       }
     })
 
@@ -223,20 +258,19 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
       }
     })
 
-    // Handle resize
+    // Handle resize — notify PTY of new dimensions
     term.onResize(({ cols, rows }) => {
       window.api.ptyResize(sessionId, cols, rows)
     })
 
-    // Handle paste events — intercept on xterm's internal textarea to catch images
-    // before xterm processes the paste
+    // ── Paste handling ──
+    // Intercept on xterm's internal textarea to catch images before xterm processes paste
     const xtermTextarea = containerRef.current.querySelector('textarea.xterm-helper-textarea') as HTMLTextAreaElement | null
     const pasteTarget = xtermTextarea || containerRef.current
 
     const handlePaste = async (e: ClipboardEvent) => {
       if (!e.clipboardData) return
 
-      // Check for image items in clipboard
       for (const item of Array.from(e.clipboardData.items)) {
         if (item.type.startsWith('image/')) {
           e.preventDefault()
@@ -255,10 +289,10 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
           return
         }
       }
-      // Text paste — let xterm handle natively (flows through onData → ptyWrite)
+      // Text paste — let xterm handle natively (flows through onData -> ptyWrite)
     }
 
-    // Handle drag and drop (for image files)
+    // ── Drag and drop ──
     const container = containerRef.current
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault()
@@ -292,8 +326,6 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
             term.writeln('\x1b[31m[Failed to save image]\x1b[0m')
           }
         } else {
-          // Non-image file — just type the path
-          // For dragged local files, the path is available
           const filePath = (file as any).path
           if (filePath) {
             window.api.ptyWrite(sessionId, filePath)
@@ -302,13 +334,13 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
       }
     }
 
-    // Attach to xterm's textarea directly to intercept before xterm's own handler
+    // Attach event listeners
     pasteTarget.addEventListener('paste', handlePaste, true)
     container?.addEventListener('dragover', handleDragOver)
     container?.addEventListener('dragleave', handleDragLeave)
     container?.addEventListener('drop', handleDrop)
 
-    // ResizeObserver to fit terminal when container changes (debounced)
+    // ── Resize observer ──
     let resizeTimer: ReturnType<typeof setTimeout> | null = null
     const ro = new ResizeObserver(() => {
       if (resizeTimer) clearTimeout(resizeTimer)
@@ -336,7 +368,15 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
     }
   }, [sessionId])
 
-  // Re-fit when tab becomes active
+  // Save scroll position when tab becomes inactive
+  useEffect(() => {
+    if (!active && termRef.current) {
+      const buf = termRef.current.buffer.active
+      savedScrollRef.current = { viewportY: buf.viewportY, baseY: buf.baseY }
+    }
+  }, [active])
+
+  // Re-fit and restore scroll when tab becomes active
   useEffect(() => {
     if (active && fitAddonRef.current && termRef.current) {
       setTimeout(() => {
@@ -344,19 +384,26 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
         const fitAddon = fitAddonRef.current
         if (!term || !fitAddon) return
 
-        // After display:none → display:flex, xterm loses its viewport scroll position.
-        // Capture scroll intent before fit, then always restore it.
-        const buf = term.buffer.active
-        const wasAtBottom = buf.viewportY >= buf.baseY
-
         // Re-fit if dimensions changed
         const dims = fitAddon.proposeDimensions()
         if (dims && (dims.cols !== term.cols || dims.rows !== term.rows)) {
           fitAddon.fit()
         }
 
-        // Always restore scroll position — display:none resets viewport to top
-        if (wasAtBottom || buf.viewportY === 0) {
+        // Restore scroll position saved before deactivation.
+        // display:none resets xterm viewport to 0, so we must restore it.
+        const saved = savedScrollRef.current
+        if (saved) {
+          const wasAtBottom = saved.viewportY >= saved.baseY
+          if (wasAtBottom) {
+            term.scrollToBottom()
+          } else {
+            // Restore exact scroll offset — user was scrolled up reading output
+            term.scrollToLine(saved.viewportY)
+          }
+          savedScrollRef.current = null
+        } else {
+          // No saved state (first activation) — scroll to bottom
           term.scrollToBottom()
         }
 
