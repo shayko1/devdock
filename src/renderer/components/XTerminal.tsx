@@ -343,16 +343,23 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
         const term = termRef.current
         const fitAddon = fitAddonRef.current
         if (!term || !fitAddon) return
-        // Use proposeDimensions to skip no-op fits (prevents flicker)
+
+        // After display:none → display:flex, xterm loses its viewport scroll position.
+        // Capture scroll intent before fit, then always restore it.
+        const buf = term.buffer.active
+        const wasAtBottom = buf.viewportY >= buf.baseY
+
+        // Re-fit if dimensions changed
         const dims = fitAddon.proposeDimensions()
         if (dims && (dims.cols !== term.cols || dims.rows !== term.rows)) {
-          const buf = term.buffer.active
-          const wasAtBottom = buf.viewportY >= buf.baseY
           fitAddon.fit()
-          if (wasAtBottom) {
-            term.scrollToBottom()
-          }
         }
+
+        // Always restore scroll position — display:none resets viewport to top
+        if (wasAtBottom || buf.viewportY === 0) {
+          term.scrollToBottom()
+        }
+
         term.focus()
       }, 50)
     }
