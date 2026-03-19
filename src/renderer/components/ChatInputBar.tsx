@@ -14,9 +14,9 @@ interface Props {
 type Mode = 'agent' | 'chat' | 'plan'
 
 const MODELS = [
-  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', short: 'Sonnet 4.6', desc: 'Latest Sonnet', ctx: 200_000 },
-  { id: 'claude-opus-4-6', label: 'Opus 4.6', short: 'Opus 4.6', desc: 'Latest Opus', ctx: 200_000 },
-  { id: 'haiku', label: 'Claude Haiku 3.5', short: 'Haiku 3.5', desc: 'Fastest, cheapest', ctx: 200_000 },
+  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', short: 'Sonnet 4.6', desc: 'Latest Sonnet', ctx: 200_000, supports1M: true },
+  { id: 'claude-opus-4-6', label: 'Opus 4.6', short: 'Opus 4.6', desc: 'Latest Opus', ctx: 200_000, supports1M: true },
+  { id: 'haiku', label: 'Claude Haiku 3.5', short: 'Haiku 3.5', desc: 'Fastest, cheapest', ctx: 200_000, supports1M: false },
 ]
 
 type EffortLevel = 'auto' | 'low' | 'medium' | 'high' | 'max'
@@ -580,18 +580,26 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       setModelIdx(idx)
       setDetectedModel('')
       onSend(`/model ${MODELS[idx].id}`)
-      setContextMaxTokens(MODELS[idx].ctx)
+      const model = MODELS[idx]
+      setContextMaxTokens(effortLevel === 'max' && model.supports1M ? 1_000_000 : model.ctx)
     }
     setShowModelMenu(false)
-  }, [modelIdx, onSend])
+  }, [modelIdx, effortLevel, onSend])
 
   const handleEffortChange = useCallback((level: EffortLevel) => {
     if (level !== effortLevel) {
       setEffortLevel(level)
       onSend(`/effort ${level}`)
+      // Max effort uses 1M context window on supported models
+      const model = MODELS[modelIdx]
+      if (level === 'max' && model.supports1M) {
+        setContextMaxTokens(1_000_000)
+      } else if (effortLevel === 'max' && model.supports1M) {
+        setContextMaxTokens(model.ctx)
+      }
     }
     setShowEffortMenu(false)
-  }, [effortLevel, onSend])
+  }, [effortLevel, modelIdx, onSend])
 
   const handleCompactNow = useCallback(() => {
     onSend('/compact')
@@ -930,7 +938,7 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
                   >
                     <div>
                       <div className="chat-input-menu-label">{m.label}</div>
-                      <div className="chat-input-menu-desc">{m.desc} · {formatTokens(m.ctx)} ctx</div>
+                      <div className="chat-input-menu-desc">{m.desc} · {formatTokens(effortLevel === 'max' && m.supports1M ? 1_000_000 : m.ctx)} ctx</div>
                     </div>
                   </button>
                 ))}
