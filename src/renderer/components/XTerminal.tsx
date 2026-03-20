@@ -105,8 +105,27 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
 
     const fitAddon = new FitAddon()
     term.loadAddon(fitAddon)
-    term.open(containerRef.current)
-    fitAddon.fit()
+
+    // Defer term.open() until container is visible — xterm.js crashes with
+    // "Cannot read properties of undefined (reading 'width')" when opened
+    // in a display:none container because it can't measure cell dimensions.
+    const openWhenVisible = () => {
+      const el = containerRef.current
+      if (el && el.clientWidth > 0 && el.clientHeight > 0) {
+        term.open(el)
+        try { fitAddon.fit() } catch { /* render dimensions not ready yet */ }
+        return true
+      }
+      return false
+    }
+
+    if (!openWhenVisible()) {
+      const retryInterval = setInterval(() => {
+        if (openWhenVisible()) clearInterval(retryInterval)
+      }, 50)
+      // Safety: stop retrying after 5 seconds
+      setTimeout(() => clearInterval(retryInterval), 5000)
+    }
 
     termRef.current = term
     fitAddonRef.current = fitAddon
@@ -116,16 +135,20 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
     let lastCols = term.cols
     let lastRows = term.rows
     const safeFit = () => {
-      const dims = fitAddon.proposeDimensions()
-      if (!dims) return
-      if (dims.cols === lastCols && dims.rows === lastRows) return
-      lastCols = dims.cols
-      lastRows = dims.rows
-      const buf = term.buffer.active
-      const wasAtBottom = buf.viewportY >= buf.baseY
-      fitAddon.fit()
-      if (wasAtBottom) {
-        term.scrollToBottom()
+      try {
+        const dims = fitAddon.proposeDimensions()
+        if (!dims) return
+        if (dims.cols === lastCols && dims.rows === lastRows) return
+        lastCols = dims.cols
+        lastRows = dims.rows
+        const buf = term.buffer.active
+        const wasAtBottom = buf.viewportY >= buf.baseY
+        fitAddon.fit()
+        if (wasAtBottom) {
+          term.scrollToBottom()
+        }
+      } catch {
+        // FitAddon can throw when render service dimensions aren't available yet
       }
     }
 
@@ -385,9 +408,13 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
         if (!term || !fitAddon) return
 
         // Re-fit if dimensions changed
-        const dims = fitAddon.proposeDimensions()
-        if (dims && (dims.cols !== term.cols || dims.rows !== term.rows)) {
-          fitAddon.fit()
+        try {
+          const dims = fitAddon.proposeDimensions()
+          if (dims && (dims.cols !== term.cols || dims.rows !== term.rows)) {
+            fitAddon.fit()
+          }
+        } catch {
+          // FitAddon can throw when render service dimensions aren't available yet
         }
 
         // Restore scroll position saved before deactivation.
