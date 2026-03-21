@@ -74,6 +74,7 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
+  const openedRef = useRef(false)
   const unsubDataRef = useRef<(() => void) | null>(null)
   const unsubExitRef = useRef<(() => void) | null>(null)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -100,55 +101,44 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
       rightClickSelectsWord: true,
       scrollback: 10000,
       scrollOnUserInput: true,
-      overviewRuler: undefined,
     })
 
     const fitAddon = new FitAddon()
     term.loadAddon(fitAddon)
 
-    // Defer term.open() until container is visible — xterm.js crashes with
-    // "Cannot read properties of undefined (reading 'width')" when opened
-    // in a display:none container because it can't measure cell dimensions.
-    const openWhenVisible = () => {
-      const el = containerRef.current
-      if (el && el.clientWidth > 0 && el.clientHeight > 0) {
-        term.open(el)
-        try { fitAddon.fit() } catch { /* render dimensions not ready yet */ }
-        return true
-      }
-      return false
-    }
-
-    if (!openWhenVisible()) {
-      const retryInterval = setInterval(() => {
-        if (openWhenVisible()) clearInterval(retryInterval)
-      }, 50)
-      // Safety: stop retrying after 5 seconds
-      setTimeout(() => clearInterval(retryInterval), 5000)
+    // Open the terminal if the container is visible.
+    // If the container is display:none (inactive tab), defer to the active-effect.
+    const el = containerRef.current
+    if (el && el.clientWidth > 0 && el.clientHeight > 0) {
+      term.open(el)
+      openedRef.current = true
+      requestAnimationFrame(() => {
+        try { fitAddon.fit() } catch {}
+      })
     }
 
     termRef.current = term
     fitAddonRef.current = fitAddon
 
     // Helper to fit terminal while preserving scroll position
-    // Skips fit if cols/rows haven't changed to prevent unnecessary redraws (flickering)
     let lastCols = term.cols
     let lastRows = term.rows
     const safeFit = () => {
-      try {
-        const dims = fitAddon.proposeDimensions()
-        if (!dims) return
-        if (dims.cols === lastCols && dims.rows === lastRows) return
-        lastCols = dims.cols
-        lastRows = dims.rows
-        const buf = term.buffer.active
-        const wasAtBottom = buf.viewportY >= buf.baseY
-        fitAddon.fit()
-        if (wasAtBottom) {
-          term.scrollToBottom()
-        }
-      } catch {
-        // FitAddon can throw when render service dimensions aren't available yet
+      if (!openedRef.current) return
+      // proposeDimensions() accesses _renderService.dimensions.css.cell.width
+      // which can be undefined if the browser hasn't computed CSS layout yet
+      // (e.g. ResizeObserver fires right after term.open() inserts DOM elements)
+      let dims
+      try { dims = fitAddon.proposeDimensions() } catch { return }
+      if (!dims) return
+      if (dims.cols === lastCols && dims.rows === lastRows) return
+      lastCols = dims.cols
+      lastRows = dims.rows
+      const buf = term.buffer.active
+      const wasAtBottom = buf.viewportY >= buf.baseY
+      try { fitAddon.fit() } catch { return }
+      if (wasAtBottom) {
+        term.scrollToBottom()
       }
     }
 
@@ -385,7 +375,8 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
       container?.removeEventListener('drop', handleDrop)
       unsubDataRef.current?.()
       unsubExitRef.current?.()
-      term.dispose()
+      if (openedRef.current) term.dispose()
+      openedRef.current = false
       termRef.current = null
       fitAddonRef.current = null
     }
@@ -393,19 +384,34 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
 
   // Save scroll position when tab becomes inactive
   useEffect(() => {
-    if (!active && termRef.current) {
+    if (!active && termRef.current && openedRef.current) {
       const buf = termRef.current.buffer.active
       savedScrollRef.current = { viewportY: buf.viewportY, baseY: buf.baseY }
     }
   }, [active])
 
-  // Re-fit and restore scroll when tab becomes active
+  // Open terminal (if deferred) and re-fit when tab becomes active
   useEffect(() => {
-    if (active && fitAddonRef.current && termRef.current) {
+    if (active && termRef.current) {
       setTimeout(() => {
         const term = termRef.current
         const fitAddon = fitAddonRef.current
         if (!term || !fitAddon) return
+
+        // If terminal was never opened (container was hidden on mount),
+        // open it now — the container is visible since this tab is active.
+        if (!openedRef.current) {
+          const el = containerRef.current
+          if (el && el.clientWidth > 0 && el.clientHeight > 0) {
+            term.open(el)
+            openedRef.current = true
+            requestAnimationFrame(() => {
+              try { fitAddon.fit() } catch {}
+              term.focus()
+            })
+          }
+          return
+        }
 
         // Re-fit if dimensions changed
         try {
@@ -413,9 +419,7 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
           if (dims && (dims.cols !== term.cols || dims.rows !== term.rows)) {
             fitAddon.fit()
           }
-        } catch {
-          // FitAddon can throw when render service dimensions aren't available yet
-        }
+        } catch { /* dimensions may not be ready */ }
 
         // Restore scroll position saved before deactivation.
         // display:none resets xterm viewport to 0, so we must restore it.
@@ -425,12 +429,10 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
           if (wasAtBottom) {
             term.scrollToBottom()
           } else {
-            // Restore exact scroll offset — user was scrolled up reading output
             term.scrollToLine(saved.viewportY)
           }
           savedScrollRef.current = null
         } else {
-          // No saved state (first activation) — scroll to bottom
           term.scrollToBottom()
         }
 
