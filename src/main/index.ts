@@ -23,7 +23,9 @@ import {
   registerCoachHandlers,
   loadCoachConfig,
   registerMcpHandlers,
+  registerResourceHandlers,
 } from './handlers'
+import { resourceMonitor } from './resource-monitor'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -77,6 +79,11 @@ async function createWindow() {
 
   await startBrowserBridge()
 
+  // Start resource monitor and toggle idle mode on focus/blur
+  resourceMonitor.start(3000)
+  mainWindow.on('focus', () => resourceMonitor.setIdle(false))
+  mainWindow.on('blur', () => resourceMonitor.setIdle(true))
+
   const appState = loadState()
   if (appState.rtkEnabled) {
     writeRtkWrapper()
@@ -123,6 +130,7 @@ function setupIPC() {
   registerAgentHandlers()
   registerCoachHandlers()
   registerMcpHandlers()
+  registerResourceHandlers()
 }
 
 app.whenReady().then(() => {
@@ -145,6 +153,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  resourceMonitor.stop()
   processManager.stopAll()
   ptyManager.destroyAll()
   pipelineManager.destroyAll()
