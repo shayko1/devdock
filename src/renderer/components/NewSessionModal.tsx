@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { WorkspaceFolder } from '../../shared/types'
+import { PresetEditor } from './presets'
 import './NewSessionModal.css'
 
 interface Props {
@@ -13,6 +14,8 @@ export function NewSessionModal({ scanPath, onStart, onClose }: Props) {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [useWorktree, setUseWorktree] = useState(false)
+  const [showSavePreset, setShowSavePreset] = useState(false)
+  const [selectedFolder, setSelectedFolder] = useState<WorkspaceFolder | null>(null)
 
   useEffect(() => {
     window.api.listWorkspaceFolders(scanPath).then((f) => {
@@ -30,6 +33,11 @@ export function NewSessionModal({ scanPath, onStart, onClose }: Props) {
     }
   }
 
+  const handleSaveAsPreset = (folder?: WorkspaceFolder) => {
+    if (folder) setSelectedFolder(folder)
+    setShowSavePreset(true)
+  }
+
   const filtered = folders.filter(
     (f) => !search || f.name.toLowerCase().includes(search.toLowerCase())
   )
@@ -43,7 +51,7 @@ export function NewSessionModal({ scanPath, onStart, onClose }: Props) {
             className="btn btn-sm"
             onClick={onClose}
             style={{ fontSize: 16, lineHeight: 1, padding: '2px 8px' }}
-          >×</button>
+          >x</button>
         </h2>
         <input
           className="search-input"
@@ -62,13 +70,23 @@ export function NewSessionModal({ scanPath, onStart, onClose }: Props) {
             />
             Create git worktree (recommended for isolation)
           </label>
-          <button
-            className="btn btn-sm"
-            onClick={handleBrowseFolder}
-            style={{ fontSize: 12, whiteSpace: 'nowrap' }}
-          >
-            Open Folder...
-          </button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              className="btn btn-sm"
+              onClick={() => handleSaveAsPreset()}
+              style={{ fontSize: 12, whiteSpace: 'nowrap' }}
+              title="Save current configuration as a reusable preset"
+            >
+              Save as Preset
+            </button>
+            <button
+              className="btn btn-sm"
+              onClick={handleBrowseFolder}
+              style={{ fontSize: 12, whiteSpace: 'nowrap' }}
+            >
+              Open Folder...
+            </button>
+          </div>
         </div>
         <div style={{ overflowY: 'auto', maxHeight: '50vh', margin: '0 -24px', padding: '0 24px' }}>
           {loading ? (
@@ -80,15 +98,41 @@ export function NewSessionModal({ scanPath, onStart, onClose }: Props) {
               <div
                 key={folder.path}
                 className="new-session-folder-item"
-                onClick={() => onStart(folder, useWorktree)}
               >
-                <span className="new-session-folder-name">{folder.name}</span>
-                <span className="new-session-folder-path">{folder.path}</span>
+                <div
+                  style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minWidth: 0 }}
+                  onClick={() => onStart(folder, useWorktree)}
+                >
+                  <span className="new-session-folder-name">{folder.name}</span>
+                  <span className="new-session-folder-path">{folder.path}</span>
+                </div>
+                <button
+                  className="new-session-save-preset-btn"
+                  onClick={(e) => { e.stopPropagation(); handleSaveAsPreset(folder) }}
+                  title="Save as preset"
+                >
+                  +P
+                </button>
               </div>
             ))
           )}
         </div>
       </div>
+      {showSavePreset && (
+        <PresetEditor
+          scanPath={scanPath}
+          onSave={async (input) => {
+            await window.api.presetCreate(input)
+            setShowSavePreset(false)
+          }}
+          onClose={() => setShowSavePreset(false)}
+          prefill={selectedFolder ? {
+            projectPath: selectedFolder.path,
+            projectName: selectedFolder.name,
+            useWorktree,
+          } : { useWorktree }}
+        />
+      )}
     </div>
   )
 }

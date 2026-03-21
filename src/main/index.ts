@@ -29,6 +29,7 @@ import {
   registerScrollbackHandlers,
   registerResourceHandlers,
   registerNotificationHandlers,
+  registerPresetHandlers,
 } from './handlers'
 import { resourceMonitor } from './resource-monitor'
 
@@ -172,6 +173,7 @@ function setupIPC() {
   registerScrollbackHandlers()
   registerResourceHandlers()
   registerNotificationHandlers()
+  registerPresetHandlers()
 }
 
 app.whenReady().then(() => {

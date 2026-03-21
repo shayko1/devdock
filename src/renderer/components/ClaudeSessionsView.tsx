@@ -14,6 +14,7 @@ import { ResourceBadge } from './ResourceBadge'
 import { ResourcePanel } from './ResourcePanel'
 import { useResourceMonitor } from '../hooks/useResourceMonitor'
 import { WorkspaceInitProgress } from './WorkspaceInitProgress'
+import { PresetBar, PresetList } from './presets'
 import './ClaudeSessionsView.css'
 
 function formatTimeAgo(ts: number): string {
@@ -62,16 +63,18 @@ interface Props {
   sessions: Session[]
   rtkEnabled: boolean
   chatInputEnabled: boolean
+  scanPath: string
   onNewSession: () => void
   onCloseSession: (sessionId: string) => void
   onResumeSession: (sessionId: string) => void
   onResumeFromHistory: (claudeSessionId: string, folderName: string, folderPath: string, worktreePath?: string | null) => void
   onOpenPipelineSession?: (folderName: string, folderPath: string, worktreePath: string) => void
+  onLaunchPreset?: (presetId: string) => void
 }
 
-type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'coach' | 'mcp' | 'history' | 'resources'
+type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'coach' | 'mcp' | 'history' | 'resources' | 'presets'
 
-export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onNewSession, onCloseSession, onResumeSession, onResumeFromHistory, onOpenPipelineSession }: Props) {
+export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, scanPath, onNewSession, onCloseSession, onResumeSession, onResumeFromHistory, onOpenPipelineSession, onLaunchPreset }: Props) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidePanel, setSidePanel] = useState<SidePanel>('none')
   const [viewingFile, setViewingFile] = useState<string | null>(null)
@@ -250,6 +253,15 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
     setViewingFile(null)
   }, [])
 
+  const togglePresets = useCallback(() => {
+    setSidePanel(prev => prev === 'presets' ? 'none' : 'presets')
+    setViewingFile(null)
+  }, [])
+
+  const handleLaunchPreset = useCallback((preset: import('../../shared/ipc-types').SessionPreset) => {
+    onLaunchPreset?.(preset.id)
+  }, [onLaunchPreset])
+
   // Session history panel
   const [historyRecords, setHistoryRecords] = useState<HistoryRecord[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -401,6 +413,11 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
         <button className="btn btn-primary" onClick={onNewSession}>
           New Claude Session
         </button>
+        <PresetBar
+          scanPath={scanPath}
+          onLaunchPreset={handleLaunchPreset}
+          onShowAllPresets={togglePresets}
+        />
       </div>
     )
   }
@@ -417,6 +434,11 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
             title="New Claude session"
           >+</button>
         </div>
+        <PresetBar
+          scanPath={scanPath}
+          onLaunchPreset={handleLaunchPreset}
+          onShowAllPresets={togglePresets}
+        />
         <div className="sidebar-session-list">
           {sessions.map((session) => {
             const isActive = activeSessionId === session.id
@@ -624,7 +646,19 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
             </div>
           ))}
         </div>
-        {sidePanel !== 'none' && activeSession && (
+        {sidePanel === 'presets' && (
+          <>
+            <div className="side-resize-handle" onMouseDown={onDragStart} />
+            <div className="claude-sessions-side" style={{ width: sideWidth }}>
+              <PresetList
+                scanPath={scanPath}
+                onLaunchPreset={handleLaunchPreset}
+                onClose={() => setSidePanel('none')}
+              />
+            </div>
+          </>
+        )}
+        {sidePanel !== 'none' && sidePanel !== 'presets' && activeSession && (
           <>
             <div className="side-resize-handle" onMouseDown={onDragStart} />
             <div className="claude-sessions-side" style={{ width: sideWidth }}>

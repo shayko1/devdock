@@ -85,6 +85,34 @@ const mockApi = {
   notificationSetQuietMode: vi.fn().mockResolvedValue(undefined),
   notificationGetSettings: vi.fn().mockResolvedValue({ enabled: true, quietMode: true }),
   onNotificationClicked: vi.fn().mockReturnValue(() => {}),
+
+  // MCP & Skills
+  mcpGetConfig: vi.fn().mockResolvedValue([]),
+  mcpCheckStatus: vi.fn().mockResolvedValue({}),
+  mcpSaveConfig: vi.fn().mockResolvedValue({ success: true }),
+  skillsList: vi.fn().mockResolvedValue([]),
+  createCommand: vi.fn().mockResolvedValue({ success: true }),
+  deleteCommand: vi.fn().mockResolvedValue({ success: true }),
+  // Active sessions
+  activeSessionsSet: vi.fn().mockResolvedValue(undefined),
+  activeSessionsUpdateClaudeId: vi.fn().mockResolvedValue(undefined),
+  activeSessionsRemove: vi.fn().mockResolvedValue(undefined),
+  activeSessionsGetAll: vi.fn().mockResolvedValue([]),
+  // Session history
+  sessionHistoryScan: vi.fn().mockResolvedValue([]),
+  sessionHistoryTitle: vi.fn().mockResolvedValue(null),
+  // Session presets
+  presetList: vi.fn().mockResolvedValue([]),
+  presetCreate: vi.fn().mockResolvedValue({ id: 'new-preset', name: 'Test', createdAt: Date.now(), useCount: 0 }),
+  presetUpdate: vi.fn().mockResolvedValue(null),
+  presetDelete: vi.fn().mockResolvedValue(true),
+  presetGetPinned: vi.fn().mockResolvedValue([]),
+  presetGetRecent: vi.fn().mockResolvedValue([]),
+  presetLaunch: vi.fn().mockResolvedValue({ success: true }),
+  // Branches
+  listBranches: vi.fn().mockResolvedValue({ current: null, branches: [] }),
+  checkoutBranch: vi.fn().mockResolvedValue({ success: true }),
+  findFilesByName: vi.fn().mockResolvedValue([]),
 }
 
 // Only set window.api in jsdom (renderer tests); Node main process tests have no window

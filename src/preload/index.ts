@@ -11,6 +11,7 @@ import type {
   McpConfigEntry, SkillEntry, CreateCommandOptions, SaveTempImageOptions,
   StatuslineData, RecoverableSession, ScrollbackRestoreResult, ResourceSnapshot,
   InitProgress, NotificationSettings,
+  SessionPreset, SessionPresetCreate, PresetLaunchOptions, PresetLaunchResult,
 } from '../shared/ipc-types'
 
 const api = {
@@ -261,6 +262,22 @@ const api = {
     ipcRenderer.on('notification-clicked', handler)
     return () => ipcRenderer.removeListener('notification-clicked', handler)
   },
+
+  // Session presets
+  presetList: (): Promise<SessionPreset[]> =>
+    ipcRenderer.invoke('preset-list'),
+  presetCreate: (input: SessionPresetCreate): Promise<SessionPreset> =>
+    ipcRenderer.invoke('preset-create', input),
+  presetUpdate: (id: string, partial: Partial<SessionPreset>): Promise<SessionPreset | null> =>
+    ipcRenderer.invoke('preset-update', id, partial),
+  presetDelete: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('preset-delete', id),
+  presetGetPinned: (): Promise<SessionPreset[]> =>
+    ipcRenderer.invoke('preset-get-pinned'),
+  presetGetRecent: (limit?: number): Promise<SessionPreset[]> =>
+    ipcRenderer.invoke('preset-get-recent', limit),
+  presetLaunch: (opts: PresetLaunchOptions): Promise<PresetLaunchResult> =>
+    ipcRenderer.invoke('preset-launch', opts),
 }
 
 contextBridge.exposeInMainWorld('api', api)

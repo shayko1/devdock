@@ -307,6 +307,35 @@ export interface NotificationSettings {
   quietMode: boolean
 }
 
+// ── Session presets ──
+
+export interface SessionPreset {
+  id: string
+  name: string
+  projectPath: string
+  projectName: string
+  useWorktree: boolean
+  dangerousMode: boolean
+  model?: string
+  initialCommands?: string[]
+  pinned: boolean
+  icon?: string
+  createdAt: number
+  lastUsedAt?: number
+  useCount: number
+}
+
+export type SessionPresetCreate = Omit<SessionPreset, 'id' | 'createdAt' | 'useCount'>
+
+export interface PresetLaunchOptions {
+  presetId: string
+  sessionId: string
+}
+
+export interface PresetLaunchResult extends PtyCreateResult {
+  preset?: SessionPreset
+}
+
 // ── Re-exports for convenience ──
 
 export type {

@@ -67,6 +67,7 @@ export function App() {
     openPipelineSession: handleOpenPipelineSession,
     resumeFromHistory: handleResumeFromHistory,
     closeSession: handleCloseClaudeSession,
+    launchPreset: handleLaunchPreset,
   } = useClaudeSessions({
     dangerousMode: state.dangerousMode ?? false,
     defaultModel: state.defaultModel,
@@ -428,11 +429,13 @@ export function App() {
             sessions={claudeSessions}
             rtkEnabled={state.rtkEnabled ?? false}
             chatInputEnabled={state.chatInputEnabled ?? true}
+            scanPath={state.scanPath}
             onNewSession={() => setShowNewSession(true)}
             onCloseSession={handleCloseClaudeSession}
             onResumeSession={handleResumeClaudeSession}
             onResumeFromHistory={handleResumeFromHistory}
             onOpenPipelineSession={handleOpenPipelineSession}
+            onLaunchPreset={handleLaunchPreset}
           />
         </ErrorBoundary>
       ) : activeTab === 'folders' ? (

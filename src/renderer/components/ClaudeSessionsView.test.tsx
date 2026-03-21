@@ -20,6 +20,10 @@ vi.mock('./SessionInfoBar', () => ({
   SessionInfoBar: () => <div data-testid="session-info-bar" />,
 }))
 vi.mock('./CoachPanel', () => ({ CoachPanel: () => null }))
+vi.mock('./presets', () => ({
+  PresetBar: () => <div data-testid="preset-bar" />,
+  PresetList: () => <div data-testid="preset-list" />,
+}))
 
 function makeSession(overrides: Partial<{
   id: string
@@ -44,6 +48,17 @@ function makeSession(overrides: Partial<{
   }
 }
 
+const defaultViewProps = {
+  sessions: [] as ReturnType<typeof makeSession>[],
+  rtkEnabled: false,
+  chatInputEnabled: false,
+  scanPath: '/home/user/Workspace',
+  onNewSession: vi.fn(),
+  onCloseSession: vi.fn(),
+  onResumeSession: vi.fn(),
+  onResumeFromHistory: vi.fn(),
+}
+
 describe('ClaudeSessionsView', () => {
   beforeEach(() => {
     vi.mocked(window.api.rtkDetect).mockResolvedValue({
@@ -54,22 +69,26 @@ describe('ClaudeSessionsView', () => {
     })
     vi.mocked(window.api.getGitStatus).mockResolvedValue({
       isGitRepo: false,
-    })
+    } as any)
     vi.mocked(window.api.coachGetConfig).mockResolvedValue({
       enabled: false,
       apiKey: '',
       model: 'gpt-4.1-nano',
-    })
+    } as any)
+    vi.mocked(window.api.presetGetPinned).mockResolvedValue([])
+    vi.mocked(window.api.presetGetRecent).mockResolvedValue([])
+    // Reset default mocks
+    defaultViewProps.onNewSession = vi.fn()
+    defaultViewProps.onCloseSession = vi.fn()
+    defaultViewProps.onResumeSession = vi.fn()
+    defaultViewProps.onResumeFromHistory = vi.fn()
   })
 
   it('renders "No active Claude sessions." when sessions is []', () => {
     render(
       <ClaudeSessionsView
+        {...defaultViewProps}
         sessions={[]}
-        rtkEnabled={false}
-        onNewSession={vi.fn()}
-        onCloseSession={vi.fn()}
-        onResumeSession={vi.fn()}
       />
     )
     expect(screen.getByText('No active Claude sessions.')).toBeInTheDocument()
@@ -79,11 +98,9 @@ describe('ClaudeSessionsView', () => {
     const onNewSession = vi.fn()
     render(
       <ClaudeSessionsView
+        {...defaultViewProps}
         sessions={[]}
-        rtkEnabled={false}
         onNewSession={onNewSession}
-        onCloseSession={vi.fn()}
-        onResumeSession={vi.fn()}
       />
     )
     fireEvent.click(screen.getByText('New Claude Session'))
@@ -95,11 +112,9 @@ describe('ClaudeSessionsView', () => {
     const session = makeSession({ id: 's1', folderName: 'project' })
     render(
       <ClaudeSessionsView
+        {...defaultViewProps}
         sessions={[session]}
-        rtkEnabled={false}
         onNewSession={onNewSession}
-        onCloseSession={vi.fn()}
-        onResumeSession={vi.fn()}
       />
     )
     fireEvent.click(screen.getByTitle('New Claude session'))
@@ -113,11 +128,8 @@ describe('ClaudeSessionsView', () => {
     ]
     render(
       <ClaudeSessionsView
+        {...defaultViewProps}
         sessions={sessions}
-        rtkEnabled={false}
-        onNewSession={vi.fn()}
-        onCloseSession={vi.fn()}
-        onResumeSession={vi.fn()}
       />
     )
     expect(screen.getByText('project-a')).toBeInTheDocument()
@@ -129,11 +141,9 @@ describe('ClaudeSessionsView', () => {
     const onCloseSession = vi.fn()
     render(
       <ClaudeSessionsView
+        {...defaultViewProps}
         sessions={[session]}
-        rtkEnabled={false}
-        onNewSession={vi.fn()}
         onCloseSession={onCloseSession}
-        onResumeSession={vi.fn()}
       />
     )
     const closeButtons = screen.getAllByTitle('Close session')
@@ -152,10 +162,8 @@ describe('ClaudeSessionsView', () => {
     const onResumeSession = vi.fn()
     render(
       <ClaudeSessionsView
+        {...defaultViewProps}
         sessions={[session]}
-        rtkEnabled={false}
-        onNewSession={vi.fn()}
-        onCloseSession={vi.fn()}
         onResumeSession={onResumeSession}
       />
     )
@@ -173,11 +181,8 @@ describe('ClaudeSessionsView', () => {
     })
     render(
       <ClaudeSessionsView
+        {...defaultViewProps}
         sessions={[session]}
-        rtkEnabled={false}
-        onNewSession={vi.fn()}
-        onCloseSession={vi.fn()}
-        onResumeSession={vi.fn()}
       />
     )
     const resumeButtons = screen.queryAllByRole('button', { name: /^Resume$/ })
@@ -192,11 +197,8 @@ describe('ClaudeSessionsView', () => {
     })
     render(
       <ClaudeSessionsView
+        {...defaultViewProps}
         sessions={[session]}
-        rtkEnabled={false}
-        onNewSession={vi.fn()}
-        onCloseSession={vi.fn()}
-        onResumeSession={vi.fn()}
       />
     )
     expect(screen.getByText('UNSAFE')).toBeInTheDocument()
@@ -210,11 +212,8 @@ describe('ClaudeSessionsView', () => {
     })
     render(
       <ClaudeSessionsView
+        {...defaultViewProps}
         sessions={[session]}
-        rtkEnabled={false}
-        onNewSession={vi.fn()}
-        onCloseSession={vi.fn()}
-        onResumeSession={vi.fn()}
       />
     )
     expect(screen.queryByText('UNSAFE')).not.toBeInTheDocument()
@@ -228,11 +227,8 @@ describe('ClaudeSessionsView', () => {
     })
     render(
       <ClaudeSessionsView
+        {...defaultViewProps}
         sessions={[session]}
-        rtkEnabled={false}
-        onNewSession={vi.fn()}
-        onCloseSession={vi.fn()}
-        onResumeSession={vi.fn()}
       />
     )
     const indicators = screen.getAllByTitle(/Dangerous mode/)
@@ -247,11 +243,8 @@ describe('ClaudeSessionsView', () => {
     })
     render(
       <ClaudeSessionsView
+        {...defaultViewProps}
         sessions={[session]}
-        rtkEnabled={false}
-        onNewSession={vi.fn()}
-        onCloseSession={vi.fn()}
-        onResumeSession={vi.fn()}
       />
     )
     expect(screen.getByText('Session ended')).toBeInTheDocument()
@@ -264,11 +257,8 @@ describe('ClaudeSessionsView', () => {
     ]
     render(
       <ClaudeSessionsView
+        {...defaultViewProps}
         sessions={sessions}
-        rtkEnabled={false}
-        onNewSession={vi.fn()}
-        onCloseSession={vi.fn()}
-        onResumeSession={vi.fn()}
       />
     )
     expect(screen.getByText('first-folder')).toBeInTheDocument()
