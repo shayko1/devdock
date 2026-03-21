@@ -4,7 +4,7 @@ import type {
   AgentInfo, PipelineRun, PipelineConfig,
   CoachConfig, CoachSuggestion, CoachAnalysis, CoachSessionCost,
   IpcResult, GitInfo, GitStatus, BranchList, WorktreeResult,
-  PtyCreateOptions, PtyCreateResult, PtySessionInfo,
+  PtyCreateOptions, PtyCreateResult, PtySessionInfo, PtySnapshotResult,
   DirectoryEntry, FileContent, FileSearchResult, FileSearchEntry, DiffResult,
   SystemPortInfo, RtkStatus, RtkToggleResult, RtkGainStats,
   BrowserEvent, ActiveSession, ClaudeSessionInfo, SessionTitle,
@@ -68,6 +68,8 @@ const api = {
     ipcRenderer.invoke('cleanup-worktree', worktreePath, folderPath),
   ptyListSessions: (): Promise<PtySessionInfo[]> =>
     ipcRenderer.invoke('pty-list-sessions'),
+  ptyGetSnapshot: (sessionId: string): Promise<PtySnapshotResult> =>
+    ipcRenderer.invoke('pty-get-snapshot', sessionId),
 
   // File explorer
   listDirectory: (dirPath: string): Promise<DirectoryEntry[]> =>
@@ -108,6 +110,11 @@ const api = {
     const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string; exitCode: number }) => callback(data)
     ipcRenderer.on('pty-exit', handler)
     return () => ipcRenderer.removeListener('pty-exit', handler)
+  },
+  onPtyReady: (callback: (data: { sessionId: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string }) => callback(data)
+    ipcRenderer.on('pty-ready', handler)
+    return () => ipcRenderer.removeListener('pty-ready', handler)
   },
 
   // Statusline data (structured context/model/cost from Claude Code)

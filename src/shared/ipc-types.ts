@@ -72,6 +72,12 @@ export interface PtySessionInfo {
   branchName: string | null
 }
 
+export interface PtySnapshotResult {
+  lines: string[]
+  cursorX: number
+  cursorY: number
+}
+
 // ── File types ──
 
 export interface DirectoryEntry {

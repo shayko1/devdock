@@ -231,6 +231,11 @@ export function registerSessionHandlers() {
     return ptyManager.getSessions()
   })
 
+  ipcMain.handle('pty-get-snapshot', async (_event, sessionId: string) => {
+    const data = await ptyManager.getSnapshot(sessionId)
+    return { lines: data.lines, cursorX: data.cursorX, cursorY: data.cursorY }
+  })
+
   // Active sessions (auto-resume)
   ipcMain.handle('active-sessions-set', (_event, session: any) => {
     activeSessions.set(session)

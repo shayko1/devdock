@@ -236,6 +236,13 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
       return true
     })
 
+    // ── Restore terminal state from headless emulator snapshot (survives window reload) ──
+    window.api.ptyGetSnapshot(sessionId).then(({ lines }) => {
+      if (lines && lines.length > 0) {
+        term.write(lines.join('\r\n'))
+      }
+    }).catch(() => { /* snapshot not available */ })
+
     // ── PTY data flow ──
 
     // Send input to PTY
