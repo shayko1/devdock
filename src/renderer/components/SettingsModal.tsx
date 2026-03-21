@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { CoachConfig, DEFAULT_COACH_MODEL, DEFAULT_OPENAI_BASE_URL, MODEL_PRICING } from '../../shared/coach-types'
+import { NotificationSettings } from './NotificationSettings'
 
 interface RtkStatus {
   installed: boolean
@@ -238,6 +239,9 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
             and context indicator. You can still type directly in the terminal when this is on.
           </p>
         </div>
+
+        {/* Desktop Notifications */}
+        <NotificationSettings />
 
         {/* Default Model */}
         <div style={{

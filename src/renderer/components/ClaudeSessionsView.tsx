@@ -13,6 +13,7 @@ import { McpSkillsPanel } from './McpSkillsPanel'
 import { ResourceBadge } from './ResourceBadge'
 import { ResourcePanel } from './ResourcePanel'
 import { useResourceMonitor } from '../hooks/useResourceMonitor'
+import { WorkspaceInitProgress } from './WorkspaceInitProgress'
 import './ClaudeSessionsView.css'
 
 function formatTimeAgo(ts: number): string {
@@ -39,6 +40,7 @@ interface Session {
   dangerousMode?: boolean
   pendingRecap?: boolean
   title?: string
+  initializing?: boolean
 }
 
 interface HistoryRecord {
@@ -420,6 +422,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
             const isActive = activeSessionId === session.id
             const isWaiting = waitingSessions.has(session.id) && !session.exited
             const isExited = !!session.exited
+            const isInitializing = !!session.initializing
             return (
               <div
                 key={session.id}
@@ -457,7 +460,15 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
                       isLoading={resourceLoading}
                     />
                   )}
-                  {!isExited && !isWaiting && (
+                  {isInitializing && (
+                    <span className="sidebar-badge-thinking">
+                      Setting up
+                      <span className="thinking-dots">
+                        <span /><span /><span />
+                      </span>
+                    </span>
+                  )}
+                  {!isExited && !isWaiting && !isInitializing && (
                     <span className="sidebar-badge-thinking">
                       Thinking
                       <span className="thinking-dots">
@@ -551,47 +562,64 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, onN
               className={`claude-session-terminal-wrapper ${chatInputEnabled ? 'with-chat-input' : ''}`}
               style={{ display: activeSessionId === session.id ? 'flex' : 'none', flex: 1, minHeight: 0 }}
             >
-              {session.dangerousMode && activeSessionId === session.id && (
-                <div style={{
-                  height: 3,
-                  background: 'linear-gradient(90deg, #f85149, #da3633)',
-                  flexShrink: 0
-                }} title="Dangerous mode — Claude executes commands without asking permission" />
-              )}
-              <SessionSplitPane
-                sessionId={session.id}
-                active={activeSessionId === session.id}
-                onWaitingChange={(waiting) => handleWaitingChange(session.id, waiting)}
-                toolbarRef={splitPaneToolbarRef}
-              />
-              {chatInputEnabled && activeSessionId === session.id && !session.exited && (
-                <ChatInputBar
+              {session.initializing ? (
+                <WorkspaceInitProgress
                   sessionId={session.id}
-                  rootPath={session.worktreePath || session.folderPath}
-                  onSend={handleChatSend}
-                  onImageUpload={handleChatImageUpload}
-                  disabled={session.exited}
+                  onReady={() => {
+                    // Progress will transition automatically when pty-create completes
+                  }}
+                  onCancel={() => onCloseSession(session.id)}
+                  onRetry={() => {
+                    // Close and re-trigger session creation
+                    onCloseSession(session.id)
+                    onNewSession()
+                  }}
                 />
-              )}
-              {session.exited && activeSessionId === session.id && (
-                <div className="claude-session-exited-overlay">
-                  <div className="claude-session-exited-msg">Session ended</div>
-                  {session.claudeSessionId && (
-                    <button
-                      className="btn btn-primary"
-                      onClick={() => onResumeSession(session.id)}
-                    >
-                      Resume Session
-                    </button>
+              ) : (
+                <>
+                  {session.dangerousMode && activeSessionId === session.id && (
+                    <div style={{
+                      height: 3,
+                      background: 'linear-gradient(90deg, #f85149, #da3633)',
+                      flexShrink: 0
+                    }} title="Dangerous mode — Claude executes commands without asking permission" />
                   )}
-                  <button
-                    className="btn btn-sm"
-                    onClick={() => onCloseSession(session.id)}
-                    style={{ marginTop: 8 }}
-                  >
-                    Close
-                  </button>
-                </div>
+                  <SessionSplitPane
+                    sessionId={session.id}
+                    active={activeSessionId === session.id}
+                    onWaitingChange={(waiting) => handleWaitingChange(session.id, waiting)}
+                    toolbarRef={splitPaneToolbarRef}
+                  />
+                  {chatInputEnabled && activeSessionId === session.id && !session.exited && (
+                    <ChatInputBar
+                      sessionId={session.id}
+                      rootPath={session.worktreePath || session.folderPath}
+                      onSend={handleChatSend}
+                      onImageUpload={handleChatImageUpload}
+                      disabled={session.exited}
+                    />
+                  )}
+                  {session.exited && activeSessionId === session.id && (
+                    <div className="claude-session-exited-overlay">
+                      <div className="claude-session-exited-msg">Session ended</div>
+                      {session.claudeSessionId && (
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => onResumeSession(session.id)}
+                        >
+                          Resume Session
+                        </button>
+                      )}
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => onCloseSession(session.id)}
+                        style={{ marginTop: 8 }}
+                      >
+                        Close
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ))}

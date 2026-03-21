@@ -1,0 +1,177 @@
+.workspace-init-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-primary, #0d1117);
+  padding: 24px;
+}
+
+.wip-container {
+  max-width: 480px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wip-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #e6edf3);
+}
+
+.wip-elapsed {
+  font-size: 12px;
+  color: var(--text-muted, #6e7681);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Progress bar */
+.wip-progress-bar {
+  height: 4px;
+  background: var(--bg-secondary, #161b22);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.wip-progress-fill {
+  height: 100%;
+  background: var(--blue, #58a6ff);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.wip-progress-fill.success {
+  background: var(--green, #3fb950);
+}
+
+.wip-progress-fill.error {
+  background: var(--red, #f85149);
+}
+
+.wip-progress-fill.cancelled {
+  background: var(--text-muted, #6e7681);
+}
+
+/* Stepper */
+.wip-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.wip-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  transition: opacity 0.2s ease;
+}
+
+.wip-step.pending {
+  opacity: 0.35;
+}
+
+.wip-step.current {
+  opacity: 1;
+}
+
+.wip-step.complete {
+  opacity: 0.7;
+}
+
+.wip-step-indicator {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.wip-step.complete .wip-step-indicator {
+  color: var(--green, #3fb950);
+}
+
+.wip-step.current .wip-step-indicator {
+  color: var(--blue, #58a6ff);
+}
+
+.wip-step-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted, #6e7681);
+}
+
+.wip-step-label {
+  font-size: 12px;
+  color: var(--text-secondary, #8b949e);
+}
+
+.wip-step.current .wip-step-label {
+  color: var(--text-primary, #e6edf3);
+  font-weight: 500;
+}
+
+.wip-step.complete .wip-step-label {
+  color: var(--text-secondary, #8b949e);
+}
+
+/* Spinner */
+.wip-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--bg-secondary, #161b22);
+  border-top-color: var(--blue, #58a6ff);
+  border-radius: 50%;
+  animation: wip-spin 0.7s linear infinite;
+}
+
+@keyframes wip-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Message */
+.wip-message {
+  font-size: 12px;
+  color: var(--text-secondary, #8b949e);
+  padding: 4px 0;
+  min-height: 20px;
+}
+
+.wip-message.error {
+  color: var(--red, #f85149);
+}
+
+/* Error detail */
+.wip-error-detail {
+  font-size: 11px;
+  color: var(--text-muted, #6e7681);
+  background: var(--bg-secondary, #161b22);
+  border: 1px solid var(--border, #30363d);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+/* Actions */
+.wip-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding-top: 4px;
+}

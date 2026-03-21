@@ -276,6 +276,37 @@ export interface ResourceSnapshot {
   host: HostMetrics
 }
 
+// ── Workspace init progress ──
+
+export type InitStage =
+  | 'pending'
+  | 'checking_project'
+  | 'fetching'
+  | 'creating_worktree'
+  | 'running_setup'
+  | 'spawning_pty'
+  | 'waiting_shell'
+  | 'ready'
+  | 'cancelled'
+  | 'failed'
+
+export interface InitProgress {
+  sessionId: string
+  stage: InitStage
+  stageIndex: number
+  totalStages: number
+  message: string
+  startedAt: number
+  error?: string
+}
+
+// ── Notification settings ──
+
+export interface NotificationSettings {
+  enabled: boolean
+  quietMode: boolean
+}
+
 // ── Re-exports for convenience ──
 
 export type {
