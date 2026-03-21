@@ -23,6 +23,7 @@ import {
   registerCoachHandlers,
   loadCoachConfig,
   registerMcpHandlers,
+  registerPresetHandlers,
 } from './handlers'
 
 let mainWindow: BrowserWindow | null = null
@@ -123,6 +124,7 @@ function setupIPC() {
   registerAgentHandlers()
   registerCoachHandlers()
   registerMcpHandlers()
+  registerPresetHandlers()
 }
 
 app.whenReady().then(() => {

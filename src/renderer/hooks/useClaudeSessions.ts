@@ -307,6 +307,43 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
     setSessions(prev => prev.filter(s => s.id !== sessionId))
   }, [sessions])
 
+  const launchPreset = useCallback(async (presetId: string) => {
+    const sessionId = `claude-${Date.now().toString(36)}`
+    try {
+      const result = await window.api.presetLaunch({ presetId, sessionId })
+      if (result.success && result.preset) {
+        const preset = result.preset
+        const newSession: ClaudeSession = {
+          id: sessionId,
+          folderName: result.folderName || preset.projectName,
+          folderPath: preset.projectPath,
+          worktreePath: result.worktreePath ?? null,
+          branchName: result.branchName ?? null,
+          claudeSessionId: null,
+          dangerousMode: preset.dangerousMode,
+        }
+        setSessions(prev => [...prev, newSession])
+        onSessionActivated?.()
+
+        window.api.activeSessionsSet({
+          id: sessionId,
+          claudeSessionId: null,
+          folderName: newSession.folderName,
+          folderPath: newSession.folderPath,
+          worktreePath: newSession.worktreePath,
+          branchName: newSession.branchName,
+          dangerousMode: preset.dangerousMode,
+        })
+
+        detectClaudeId(sessionId, result.worktreePath || preset.projectPath, null, setSessions)
+      } else {
+        alert(`Failed to launch preset: ${result.error}`)
+      }
+    } catch (err) {
+      alert(`Error launching preset: ${err}`)
+    }
+  }, [onSessionActivated])
+
   return {
     sessions,
     startSession,
@@ -314,5 +351,6 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
     openPipelineSession,
     resumeFromHistory,
     closeSession,
+    launchPreset,
   }
 }
