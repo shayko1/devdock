@@ -3,6 +3,7 @@ import { getBridgePort } from './browser-bridge'
 import { join } from 'path'
 import { homedir } from 'os'
 import { createReadinessGate, READINESS_COMMAND, type ReadinessGate } from './shell-readiness'
+import { ScrollbackWriter } from './scrollback-manager'
 
 // node-pty is a native module — use eval to prevent vite from bundling it
 // Tests inject mock via global __PTY_FOR_TEST__
@@ -23,6 +24,7 @@ export interface PtySession {
 class PtyManager {
   private sessions = new Map<string, PtySession>()
   private readinessGates = new Map<string, ReadinessGate>()
+  private scrollbackWriters = new Map<string, ScrollbackWriter>()
   private mainWindow: BrowserWindow | null = null
   private shellPath: string | null = null
   private dataHooks: ((sessionId: string, data: string) => void)[] = []
@@ -114,6 +116,14 @@ class PtyManager {
     const gate = createReadinessGate(sessionId, (d) => ptyProcess.write(d))
     this.readinessGates.set(sessionId, gate)
 
+    // Create scrollback writer for crash recovery
+    try {
+      const writer = new ScrollbackWriter(sessionId, cwd, 80, 24)
+      this.scrollbackWriters.set(sessionId, writer)
+    } catch (err) {
+      console.error(`[PTY] Failed to create scrollback writer for ${sessionId}:`, err)
+    }
+
     ptyProcess.onData((data: string) => {
       // Pipe data through the readiness gate to strip OSC markers
       const filtered = gate.onData(data)
@@ -124,6 +134,8 @@ class PtyManager {
           this.mainWindow.webContents.send('pty-data', { sessionId, data: filtered })
         }
       } catch { /* window destroyed */ }
+      // Persist to scrollback
+      try { this.scrollbackWriters.get(sessionId)?.append(data) } catch { /* ignore */ }
       for (const hook of this.dataHooks) {
         try { hook(sessionId, filtered) } catch { /* ignore hook errors */ }
       }
@@ -135,6 +147,11 @@ class PtyManager {
           this.mainWindow.webContents.send('pty-exit', { sessionId, exitCode })
         }
       } catch { /* window destroyed */ }
+      // Close scrollback writer (marks session as ended)
+      try {
+        this.scrollbackWriters.get(sessionId)?.close()
+        this.scrollbackWriters.delete(sessionId)
+      } catch { /* ignore */ }
       this.sessions.delete(sessionId)
       this.readinessGates.get(sessionId)?.dispose()
       this.readinessGates.delete(sessionId)
@@ -171,6 +188,7 @@ class PtyManager {
 
   resize(sessionId: string, cols: number, rows: number) {
     this.sessions.get(sessionId)?.ptyProcess.resize(cols, rows)
+    try { this.scrollbackWriters.get(sessionId)?.updateMeta({ cols, rows }) } catch { /* ignore */ }
   }
 
   destroySession(sessionId: string) {
@@ -178,6 +196,10 @@ class PtyManager {
     if (!session) return
     this.readinessGates.get(sessionId)?.dispose()
     this.readinessGates.delete(sessionId)
+    try {
+      this.scrollbackWriters.get(sessionId)?.close()
+      this.scrollbackWriters.delete(sessionId)
+    } catch { /* ignore */ }
     try {
       session.ptyProcess.kill()
     } catch { /* already dead */ }

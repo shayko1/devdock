@@ -65,6 +65,10 @@ const mockApi = {
   coachGetTotalCost: vi.fn().mockResolvedValue({ totalUsd: 0, calls: 0, promptTokens: 0, completionTokens: 0 }),
   coachDismiss: vi.fn().mockResolvedValue(undefined),
   onCoachSuggestion: vi.fn().mockReturnValue(() => {}),
+  scrollbackListRecoverable: vi.fn().mockResolvedValue([]),
+  scrollbackRestore: vi.fn().mockResolvedValue(null),
+  scrollbackDismiss: vi.fn().mockResolvedValue(undefined),
+  scrollbackCleanupOld: vi.fn().mockResolvedValue(undefined),
 }
 
 // Only set window.api in jsdom (renderer tests); Node main process tests have no window

@@ -2,6 +2,7 @@ import { app, BrowserWindow, nativeImage, shell } from 'electron'
 import { join } from 'path'
 import { processManager, getShellPath } from './process-manager'
 import { ptyManager } from './pty-manager'
+import { ScrollbackReader } from './scrollback-manager'
 import { startBrowserBridge, setBrowserBridgeWindow, stopBrowserBridge } from './browser-bridge'
 import { pipelineManager } from './pipeline-manager'
 import { loadState } from './store'
@@ -23,6 +24,7 @@ import {
   registerCoachHandlers,
   loadCoachConfig,
   registerMcpHandlers,
+  registerScrollbackHandlers,
 } from './handlers'
 
 let mainWindow: BrowserWindow | null = null
@@ -82,6 +84,9 @@ async function createWindow() {
     writeRtkWrapper()
   }
 
+  // Clean up old scrollback files (older than 7 days)
+  try { ScrollbackReader.cleanupOld(7) } catch { /* non-fatal */ }
+
   // Open external links in the system browser, not inside the Electron window
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http://') || url.startsWith('https://')) {
@@ -123,6 +128,7 @@ function setupIPC() {
   registerAgentHandlers()
   registerCoachHandlers()
   registerMcpHandlers()
+  registerScrollbackHandlers()
 }
 
 app.whenReady().then(() => {

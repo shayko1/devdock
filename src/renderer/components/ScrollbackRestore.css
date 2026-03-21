@@ -1,0 +1,82 @@
+/* ── Scrollback Restore Banner ── */
+
+.scrollback-restore-banner {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 8px 16px;
+  animation: toast-in 0.25s ease-out;
+}
+
+.scrollback-restore-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.scrollback-restore-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.scrollback-restore-dismiss-all {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.scrollback-restore-dismiss-all:hover {
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+}
+
+.scrollback-restore-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.scrollback-restore-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.scrollback-restore-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.scrollback-restore-folder {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scrollback-restore-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.scrollback-restore-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
