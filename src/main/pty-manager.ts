@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron'
 import { getBridgePort } from './browser-bridge'
 import { join } from 'path'
 import { homedir } from 'os'
+import { createReadinessGate, READINESS_COMMAND, type ReadinessGate } from './shell-readiness'
 
 // node-pty is a native module — use eval to prevent vite from bundling it
 // Tests inject mock via global __PTY_FOR_TEST__
@@ -21,6 +22,7 @@ export interface PtySession {
 
 class PtyManager {
   private sessions = new Map<string, PtySession>()
+  private readinessGates = new Map<string, ReadinessGate>()
   private mainWindow: BrowserWindow | null = null
   private shellPath: string | null = null
   private dataHooks: ((sessionId: string, data: string) => void)[] = []
@@ -108,14 +110,22 @@ class PtyManager {
       branchName
     }
 
+    // Set up readiness gate for shell init detection
+    const gate = createReadinessGate(sessionId, (d) => ptyProcess.write(d))
+    this.readinessGates.set(sessionId, gate)
+
     ptyProcess.onData((data: string) => {
+      // Pipe data through the readiness gate to strip OSC markers
+      const filtered = gate.onData(data)
+      if (filtered.length === 0) return
+
       try {
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-          this.mainWindow.webContents.send('pty-data', { sessionId, data })
+          this.mainWindow.webContents.send('pty-data', { sessionId, data: filtered })
         }
       } catch { /* window destroyed */ }
       for (const hook of this.dataHooks) {
-        try { hook(sessionId, data) } catch { /* ignore hook errors */ }
+        try { hook(sessionId, filtered) } catch { /* ignore hook errors */ }
       }
     })
 
@@ -126,6 +136,8 @@ class PtyManager {
         }
       } catch { /* window destroyed */ }
       this.sessions.delete(sessionId)
+      this.readinessGates.get(sessionId)?.dispose()
+      this.readinessGates.delete(sessionId)
       for (const hook of this.exitHooks) {
         try { hook(sessionId) } catch { /* ignore hook errors */ }
       }
@@ -133,17 +145,28 @@ class PtyManager {
 
     this.sessions.set(sessionId, session)
 
-    // Send the command after shell prompt appears
-    // Delay must be long enough for zsh + oh-my-zsh to finish init
-    setTimeout(() => {
-      ptyProcess.write(command + '\r')
-    }, 800)
+    // Inject the readiness marker command into PTY stdin.
+    // This executes after shell init (zsh, oh-my-zsh, etc.) completes naturally
+    // because the shell processes stdin only after initialization.
+    if (command) {
+      ptyProcess.write(READINESS_COMMAND)
+      gate.waitForReady().then(() => {
+        ptyProcess.write(command + '\r')
+      })
+    }
 
     return { success: true, id: sessionId, folderName, worktreePath, branchName }
   }
 
   write(sessionId: string, data: string) {
-    this.sessions.get(sessionId)?.ptyProcess.write(data)
+    const session = this.sessions.get(sessionId)
+    if (!session) return
+    const gate = this.readinessGates.get(sessionId)
+    if (gate) {
+      gate.bufferInput(data)
+    } else {
+      session.ptyProcess.write(data)
+    }
   }
 
   resize(sessionId: string, cols: number, rows: number) {
@@ -153,6 +176,8 @@ class PtyManager {
   destroySession(sessionId: string) {
     const session = this.sessions.get(sessionId)
     if (!session) return
+    this.readinessGates.get(sessionId)?.dispose()
+    this.readinessGates.delete(sessionId)
     try {
       session.ptyProcess.kill()
     } catch { /* already dead */ }
