@@ -1,7 +1,7 @@
 import { ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { readdirSync, statSync, mkdirSync, existsSync, writeFileSync, readFileSync } from 'fs'
-import { execSync } from 'child_process'
+import { execSync, exec, ChildProcess } from 'child_process'
 import { homedir } from 'os'
 import { ptyManager } from '../pty-manager'
 import { loadState } from '../store'
@@ -10,6 +10,8 @@ import { coachManager } from '../coach-manager'
 import { activeSessions, scanProjectSessions, getSessionTitle } from '../session-history'
 import { ensureDevDockClaudeMd } from '../claude-md'
 import { statuslineWatcher } from '../statusline-watcher'
+import { workspaceInitTracker } from '../workspace-init-tracker'
+import { notificationManager } from '../notification-manager'
 
 let mainWindowRef: Electron.BrowserWindow | null = null
 
@@ -80,7 +82,7 @@ export function registerSessionHandlers() {
     }
   })
 
-  ipcMain.handle('pty-create', (_event, opts: {
+  ipcMain.handle('pty-create', async (_event, opts: {
     sessionId: string
     folderName: string
     folderPath: string
@@ -90,8 +92,15 @@ export function registerSessionHandlers() {
     dangerousMode?: boolean
     model?: string
   }) => {
+    const tracker = workspaceInitTracker.create(opts.sessionId)
+    tracker.advance('pending', 'Initializing workspace...')
+
     let worktreePath: string | null = opts.existingWorktreePath || null
     let branchName: string | null = null
+
+    // Stage: checking_project
+    tracker.advance('checking_project', `Verifying ${opts.folderPath}...`)
+    if (tracker.isCancelled()) return { success: false, error: 'Cancelled' }
 
     if (worktreePath) {
       try {
@@ -111,6 +120,20 @@ export function registerSessionHandlers() {
       } catch { /* not a git repo */ }
 
       if (isGitRepo) {
+        // Stage: fetching
+        tracker.advance('fetching', 'Fetching latest changes...')
+        if (tracker.isCancelled()) return { success: false, error: 'Cancelled' }
+
+        try {
+          execSync('git fetch --quiet', {
+            cwd: opts.folderPath, encoding: 'utf-8', timeout: 15000, stdio: ['ignore', 'pipe', 'ignore']
+          })
+        } catch { /* fetch failure is non-fatal */ }
+
+        // Stage: creating_worktree
+        tracker.advance('creating_worktree', 'Creating git worktree...')
+        if (tracker.isCancelled()) return { success: false, error: 'Cancelled' }
+
         try {
           const baseBranch = execSync('git rev-parse --abbrev-ref HEAD', {
             cwd: opts.folderPath, encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore']
@@ -123,15 +146,52 @@ export function registerSessionHandlers() {
           branchName = `devdock/claude-${slug}-${timestamp}`
 
           mkdirSync(join(worktreeBase, timestamp), { recursive: true })
-          execSync(
-            `git worktree add -b "${branchName}" "${worktreePath}" "${baseBranch}"`,
-            { cwd: opts.folderPath, encoding: 'utf-8', timeout: 15000, stdio: ['ignore', 'pipe', 'pipe'] }
-          )
+
+          // Use async exec for cancellation support during worktree creation
+          const worktreeCreated = await new Promise<boolean>((resolve, reject) => {
+            // Note: the branch/path values here are internally generated, not user input
+            const child: ChildProcess = exec(
+              `git worktree add -b "${branchName}" "${worktreePath}" "${baseBranch}"`,
+              { cwd: opts.folderPath, encoding: 'utf-8', timeout: 15000 },
+              (err) => {
+                if (err) reject(err)
+                else resolve(true)
+              }
+            )
+
+            // Check cancellation while process is running
+            const cancelCheck = setInterval(() => {
+              if (tracker.isCancelled()) {
+                clearInterval(cancelCheck)
+                try { child.kill() } catch { /* already dead */ }
+                // Attempt to clean up partial worktree
+                cleanupPartialWorktree(worktreePath, opts.folderPath)
+                resolve(false)
+              }
+            }, 100)
+
+            child.on('close', () => clearInterval(cancelCheck))
+          })
+
+          if (!worktreeCreated || tracker.isCancelled()) {
+            workspaceInitTracker.remove(opts.sessionId)
+            return { success: false, error: 'Cancelled' }
+          }
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err)
+          tracker.fail(message)
+          workspaceInitTracker.remove(opts.sessionId)
           return { success: false, error: message }
         }
       }
+    }
+
+    // Stage: running_setup
+    tracker.advance('running_setup', 'Running setup scripts...')
+    if (tracker.isCancelled()) {
+      cleanupPartialWorktree(worktreePath, opts.folderPath)
+      workspaceInitTracker.remove(opts.sessionId)
+      return { success: false, error: 'Cancelled' }
     }
 
     const sessionCwd = worktreePath || opts.folderPath
@@ -140,6 +200,14 @@ export function registerSessionHandlers() {
 
     // Run workspace setup script if present
     runWorkspaceSetup(sessionCwd, opts.folderPath)
+
+    // Stage: spawning_pty
+    tracker.advance('spawning_pty', 'Spawning terminal...')
+    if (tracker.isCancelled()) {
+      cleanupPartialWorktree(worktreePath, opts.folderPath)
+      workspaceInitTracker.remove(opts.sessionId)
+      return { success: false, error: 'Cancelled' }
+    }
 
     const permFlag = opts.dangerousMode ? ' --dangerously-skip-permissions' : ''
     const modelFlag = opts.model ? ` --model ${opts.model}` : ''
@@ -158,10 +226,28 @@ export function registerSessionHandlers() {
     )
 
     if (result.success) {
+      // Stage: waiting_shell
+      tracker.advance('waiting_shell', 'Waiting for shell readiness...')
       statuslineWatcher.watchSession(opts.sessionId)
+      notificationManager.trackSession(opts.sessionId, opts.folderName)
+
+      // Stage: ready
+      tracker.advance('ready', 'Ready')
+    } else {
+      tracker.fail(result.error || 'Failed to create PTY session')
     }
 
+    workspaceInitTracker.remove(opts.sessionId)
     return result
+  })
+
+  // Workspace init cancellation
+  ipcMain.handle('workspace-init-cancel', (_event, sessionId: string) => {
+    const cancelled = workspaceInitTracker.cancel(sessionId)
+    if (!cancelled) {
+      // If tracker not found, the init may already be done — try to destroy the PTY
+      ptyManager.destroySession(sessionId)
+    }
   })
 
   ipcMain.on('pty-write', (_event, sessionId: string, data: string) => {
@@ -256,6 +342,15 @@ export function registerSessionHandlers() {
   ipcMain.handle('session-history-title', (_event, claudeSessionId: string, dirName: string) => {
     return getSessionTitle(claudeSessionId, dirName)
   })
+}
+
+function cleanupPartialWorktree(worktreePath: string | null, folderPath: string) {
+  if (!worktreePath) return
+  try {
+    execSync(`git worktree remove "${worktreePath}" --force`, {
+      cwd: folderPath, encoding: 'utf-8', timeout: 5000, stdio: 'ignore'
+    })
+  } catch { /* partial cleanup is best-effort */ }
 }
 
 function runWorkspaceSetup(sessionCwd: string, projectPath: string) {

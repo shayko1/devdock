@@ -9,7 +9,7 @@ import type {
   SystemPortInfo, RtkStatus, RtkToggleResult, RtkGainStats,
   BrowserEvent, ActiveSession, ClaudeSessionInfo, SessionTitle,
   McpConfigEntry, SkillEntry, CreateCommandOptions, SaveTempImageOptions,
-  StatuslineData,
+  StatuslineData, InitProgress, NotificationSettings,
 } from '../shared/ipc-types'
 
 const api = {
@@ -215,6 +215,28 @@ const api = {
     ipcRenderer.invoke('session-history-scan', folderPath, folderName),
   sessionHistoryTitle: (claudeSessionId: string, dirName: string): Promise<SessionTitle | null> =>
     ipcRenderer.invoke('session-history-title', claudeSessionId, dirName),
+
+  // Workspace init progress
+  onWorkspaceInitProgress: (callback: (data: InitProgress) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: InitProgress) => callback(data)
+    ipcRenderer.on('workspace-init-progress', handler)
+    return () => ipcRenderer.removeListener('workspace-init-progress', handler)
+  },
+  workspaceInitCancel: (sessionId: string): Promise<void> =>
+    ipcRenderer.invoke('workspace-init-cancel', sessionId),
+
+  // Notifications
+  notificationSetEnabled: (enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke('notification-set-enabled', enabled),
+  notificationSetQuietMode: (enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke('notification-set-quiet-mode', enabled),
+  notificationGetSettings: (): Promise<NotificationSettings> =>
+    ipcRenderer.invoke('notification-get-settings'),
+  onNotificationClicked: (callback: (data: { sessionId: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string }) => callback(data)
+    ipcRenderer.on('notification-clicked', handler)
+    return () => ipcRenderer.removeListener('notification-clicked', handler)
+  },
 }
 
 contextBridge.exposeInMainWorld('api', api)

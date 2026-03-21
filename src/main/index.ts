@@ -8,6 +8,8 @@ import { loadState } from './store'
 import { writeRtkWrapper } from './rtk-manager'
 import { coachManager } from './coach-manager'
 import { statuslineWatcher } from './statusline-watcher'
+import { workspaceInitTracker } from './workspace-init-tracker'
+import { notificationManager } from './notification-manager'
 
 import {
   registerStateHandlers,
@@ -23,6 +25,7 @@ import {
   registerCoachHandlers,
   loadCoachConfig,
   registerMcpHandlers,
+  registerNotificationHandlers,
 } from './handlers'
 
 let mainWindow: BrowserWindow | null = null
@@ -68,7 +71,38 @@ async function createWindow() {
   coachManager.setMainWindow(mainWindow)
   loadCoachConfig()
   setSessionMainWindow(mainWindow)
+  workspaceInitTracker.setMainWindow(mainWindow)
+  notificationManager.setMainWindow(mainWindow)
   ptyManager.onData((sessionId, data) => coachManager.feedData(sessionId, data))
+
+  // Idle detection for desktop notifications
+  // Mirrors the 8s idle logic in XTerminal, but runs in the main process
+  const idleTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  const sessionWaiting = new Set<string>()
+
+  ptyManager.onData((sessionId) => {
+    // Any data means the session is active — reset idle timer
+    if (sessionWaiting.has(sessionId)) {
+      sessionWaiting.delete(sessionId)
+    }
+    const existing = idleTimers.get(sessionId)
+    if (existing) clearTimeout(existing)
+
+    idleTimers.set(sessionId, setTimeout(() => {
+      if (!sessionWaiting.has(sessionId)) {
+        sessionWaiting.add(sessionId)
+        notificationManager.notifySessionComplete(sessionId)
+      }
+    }, 8000))
+  })
+
+  ptyManager.onExit((sessionId) => {
+    const timer = idleTimers.get(sessionId)
+    if (timer) clearTimeout(timer)
+    idleTimers.delete(sessionId)
+    sessionWaiting.delete(sessionId)
+    notificationManager.untrackSession(sessionId)
+  })
 
   // Statusline: deploy script, inject settings, watch sessions
   statuslineWatcher.setMainWindow(mainWindow)
@@ -123,6 +157,7 @@ function setupIPC() {
   registerAgentHandlers()
   registerCoachHandlers()
   registerMcpHandlers()
+  registerNotificationHandlers()
 }
 
 app.whenReady().then(() => {

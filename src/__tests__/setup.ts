@@ -65,6 +65,16 @@ const mockApi = {
   coachGetTotalCost: vi.fn().mockResolvedValue({ totalUsd: 0, calls: 0, promptTokens: 0, completionTokens: 0 }),
   coachDismiss: vi.fn().mockResolvedValue(undefined),
   onCoachSuggestion: vi.fn().mockReturnValue(() => {}),
+
+  // Workspace init progress
+  onWorkspaceInitProgress: vi.fn().mockReturnValue(() => {}),
+  workspaceInitCancel: vi.fn().mockResolvedValue(undefined),
+
+  // Notifications
+  notificationSetEnabled: vi.fn().mockResolvedValue(undefined),
+  notificationSetQuietMode: vi.fn().mockResolvedValue(undefined),
+  notificationGetSettings: vi.fn().mockResolvedValue({ enabled: true, quietMode: true }),
+  onNotificationClicked: vi.fn().mockReturnValue(() => {}),
 }
 
 // Only set window.api in jsdom (renderer tests); Node main process tests have no window

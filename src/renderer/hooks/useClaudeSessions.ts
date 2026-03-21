@@ -12,6 +12,7 @@ export interface ClaudeSession {
   dangerousMode?: boolean
   pendingRecap?: boolean
   title?: string
+  initializing?: boolean
 }
 
 interface UseClaudeSessionsOptions {
@@ -115,6 +116,22 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
   const startSession = useCallback(async (folder: WorkspaceFolder, useWorktree: boolean) => {
     const sessionId = `claude-${Date.now().toString(36)}`
     const isDangerous = dangerousMode
+
+    // Add session immediately in initializing state so the UI shows progress
+    const placeholderSession: ClaudeSession = {
+      id: sessionId,
+      folderName: folder.name,
+      folderPath: folder.path,
+      worktreePath: null,
+      branchName: null,
+      claudeSessionId: null,
+      dangerousMode: isDangerous,
+      initializing: true,
+    }
+    setSessions(prev => [...prev, placeholderSession])
+    onNewSessionModalClosed?.()
+    onSessionActivated?.()
+
     try {
       const result = await window.api.ptyCreate({
         sessionId,
@@ -125,34 +142,40 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
         model: defaultModel || undefined,
       })
       if (result.success) {
-        const newSession: ClaudeSession = {
-          id: sessionId,
-          folderName: result.folderName || folder.name,
-          folderPath: folder.path,
-          worktreePath: result.worktreePath ?? null,
-          branchName: result.branchName ?? null,
-          claudeSessionId: null,
-          dangerousMode: isDangerous
-        }
-        setSessions(prev => [...prev, newSession])
-        onNewSessionModalClosed?.()
-        onSessionActivated?.()
+        // Update from initializing to live session
+        setSessions(prev => prev.map(s =>
+          s.id === sessionId
+            ? {
+                ...s,
+                folderName: result.folderName || folder.name,
+                worktreePath: result.worktreePath ?? null,
+                branchName: result.branchName ?? null,
+                initializing: false,
+              }
+            : s
+        ))
 
         window.api.activeSessionsSet({
           id: sessionId,
           claudeSessionId: null,
-          folderName: newSession.folderName,
-          folderPath: newSession.folderPath,
-          worktreePath: newSession.worktreePath,
-          branchName: newSession.branchName,
+          folderName: result.folderName || folder.name,
+          folderPath: folder.path,
+          worktreePath: result.worktreePath ?? null,
+          branchName: result.branchName ?? null,
           dangerousMode: isDangerous,
         })
 
         detectClaudeId(sessionId, result.worktreePath || folder.path, null, setSessions)
       } else {
-        alert(`Failed to create session: ${result.error}`)
+        // Remove the placeholder session on failure
+        setSessions(prev => prev.filter(s => s.id !== sessionId))
+        if (result.error !== 'Cancelled') {
+          alert(`Failed to create session: ${result.error}`)
+        }
       }
     } catch (err) {
+      // Remove the placeholder session on error
+      setSessions(prev => prev.filter(s => s.id !== sessionId))
       alert(`Error creating session: ${err}`)
     }
   }, [dangerousMode, defaultModel, onSessionActivated, onNewSessionModalClosed])
