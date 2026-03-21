@@ -264,7 +264,20 @@ export function ClaudeSessionsView({ sessions, lastCreatedSessionId, rtkEnabled,
     onCloseSession(sessionId)
   }, [onCloseSession])
 
-  const activeSession = sessions.find(s => s.id === activeSessionId)
+  // Compute effective active session synchronously to ensure at least one
+  // terminal container is visible (display:flex) on the very first render.
+  // Without this, activeSessionId is null until the useEffect runs, causing
+  // all terminals to mount in display:none containers where xterm.js can't
+  // measure cell dimensions and click-to-focus doesn't work.
+  const resolvedActiveSessionId = useMemo(() => {
+    if (activeSessionId && sessions.find(s => s.id === activeSessionId)) return activeSessionId
+    if (sessions.length === 0) return null
+    const savedClaudeId = localStorage.getItem('devdock-last-active-claude-session')
+    const preferred = savedClaudeId ? sessions.find(s => s.claudeSessionId === savedClaudeId) : null
+    return preferred?.id ?? sessions[sessions.length - 1].id
+  }, [activeSessionId, sessions])
+
+  const activeSession = sessions.find(s => s.id === resolvedActiveSessionId)
   const sessionRoot = activeSession?.worktreePath || activeSession?.folderPath || ''
 
   const handleFileSelect = useCallback((filePath: string, line?: number) => {
@@ -316,11 +329,11 @@ export function ClaudeSessionsView({ sessions, lastCreatedSessionId, rtkEnabled,
       setSplitSessionId(null)
       return
     }
-    const otherSessions = sessions.filter(s => s.id !== activeSessionId)
+    const otherSessions = sessions.filter(s => s.id !== resolvedActiveSessionId)
     if (otherSessions.length > 0) {
       setSplitSessionId(otherSessions[0].id)
     }
-  }, [splitSessionId, sessions, activeSessionId])
+  }, [splitSessionId, sessions, resolvedActiveSessionId])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -350,7 +363,7 @@ export function ClaudeSessionsView({ sessions, lastCreatedSessionId, rtkEnabled,
     setViewingFile(null)
     setHistoryLoading(true)
     try {
-      const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0]
+      const activeSession = sessions.find(s => s.id === resolvedActiveSessionId) || sessions[0]
       if (activeSession) {
         const records: HistoryRecord[] = (await window.api.sessionHistoryScan(activeSession.folderPath, activeSession.folderName))
           .map((r: any) => ({
@@ -388,7 +401,7 @@ export function ClaudeSessionsView({ sessions, lastCreatedSessionId, rtkEnabled,
       }
     } catch { setHistoryRecords([]) }
     setHistoryLoading(false)
-  }, [sidePanel, sessions, activeSessionId])
+  }, [sidePanel, sessions, resolvedActiveSessionId])
 
   const filteredHistory = useMemo(() => {
     if (!historySearch.trim()) return historyRecords
@@ -404,20 +417,18 @@ export function ClaudeSessionsView({ sessions, lastCreatedSessionId, rtkEnabled,
   }, [historyRecords, historySearch])
 
   const handleChatSend = useCallback((text: string) => {
-    if (!activeSessionId) return
+    if (!resolvedActiveSessionId) return
     if (text.includes('\n')) {
-      // Send multiline text via bracketed paste first, then Enter as a separate write.
-      // This is more compatible with readline-style TTY consumers than single-write paste+CR.
-      window.api.ptyWrite(activeSessionId, `\x1b[200~${text}\x1b[201~`)
+      window.api.ptyWrite(resolvedActiveSessionId, `\x1b[200~${text}\x1b[201~`)
       setTimeout(() => {
-        window.api.ptyWrite(activeSessionId, '\r')
+        window.api.ptyWrite(resolvedActiveSessionId, '\r')
       }, 50)
     } else {
-      window.api.ptyWrite(activeSessionId, text + '\r')
+      window.api.ptyWrite(resolvedActiveSessionId, text + '\r')
     }
 
     // Update session title from first non-command message — extract a short summary
-    if (!text.startsWith('/') && text.trim().length > 5 && !sessionTitles.has(activeSessionId)) {
+    if (!text.startsWith('/') && text.trim().length > 5 && !sessionTitles.has(resolvedActiveSessionId)) {
       const raw = text.trim()
       // Take the first sentence or line, whichever is shorter
       const firstLine = raw.split('\n')[0].trim()
@@ -426,24 +437,24 @@ export function ClaudeSessionsView({ sessions, lastCreatedSessionId, rtkEnabled,
       const title = short.length > 45 ? short.slice(0, 42) + '...' : short
       setSessionTitles(prev => {
         const next = new Map(prev)
-        next.set(activeSessionId, title)
+        next.set(resolvedActiveSessionId, title)
         return next
       })
     }
-  }, [activeSessionId, sessionTitles])
+  }, [resolvedActiveSessionId, sessionTitles])
 
   const handleChatImageUpload = useCallback(async (file: File) => {
-    if (!activeSessionId) return
+    if (!resolvedActiveSessionId) return
     const buffer = await file.arrayBuffer()
     const result = await window.api.saveTempImage({
       name: file.name,
       data: Array.from(new Uint8Array(buffer)),
-      sessionId: activeSessionId,
+      sessionId: resolvedActiveSessionId,
     })
     if (result.path) {
-      window.api.ptyWrite(activeSessionId, result.path)
+      window.api.ptyWrite(resolvedActiveSessionId, result.path + ' ')
     }
-  }, [activeSessionId])
+  }, [resolvedActiveSessionId])
 
   // Drag resize logic
   const onDragStart = useCallback((e: React.MouseEvent) => {
@@ -471,11 +482,7 @@ export function ClaudeSessionsView({ sessions, lastCreatedSessionId, rtkEnabled,
     document.addEventListener('mouseup', onUp)
   }, [sideWidth])
 
-  const QUICK_SKILLS = [
-    { cmd: '/brainstorm', label: 'Brainstorm', icon: '\u{1F4A1}', title: 'Start brainstorming session' },
-    { cmd: '/write-plan', label: 'Plan', icon: '\u{1F4CB}', title: 'Write implementation plan' },
-    { cmd: '/execute-plan', label: 'Execute', icon: '\u25B6', title: 'Execute implementation plan' },
-  ]
+  const QUICK_SKILLS: { cmd: string; label: string; icon: string; title: string }[] = []
 
   if (sessions.length === 0) {
     return (
@@ -508,7 +515,7 @@ export function ClaudeSessionsView({ sessions, lastCreatedSessionId, rtkEnabled,
         </div>
         <div className="sidebar-session-list">
           {sessions.map((session) => {
-            const isActive = activeSessionId === session.id
+            const isActive = resolvedActiveSessionId === session.id
             const isWaiting = waitingSessions.has(session.id) && !session.exited
             const isExited = !!session.exited
             const sl = statuslineMap.get(session.id)
@@ -650,8 +657,8 @@ export function ClaudeSessionsView({ sessions, lastCreatedSessionId, rtkEnabled,
                 key={skill.cmd}
                 className="claude-skill-btn"
                 onClick={() => {
-                  if (activeSessionId) {
-                    window.api.ptyWrite(activeSessionId, skill.cmd + '\r')
+                  if (resolvedActiveSessionId) {
+                    window.api.ptyWrite(resolvedActiveSessionId, skill.cmd + '\r')
                   }
                 }}
                 disabled={!activeSession || activeSession.exited}
@@ -710,8 +717,8 @@ export function ClaudeSessionsView({ sessions, lastCreatedSessionId, rtkEnabled,
         <div className="claude-sessions-body" ref={bodyRef}>
           <div className="claude-sessions-terminal">
           {sessions.map((session) => {
-            const isVisible = activeSessionId === session.id || splitSessionId === session.id
-            const isActivePanel = activeSessionId === session.id
+            const isVisible = resolvedActiveSessionId === session.id || splitSessionId === session.id
+            const isActivePanel = resolvedActiveSessionId === session.id
             return (
             <div
               key={session.id}
@@ -733,7 +740,7 @@ export function ClaudeSessionsView({ sessions, lastCreatedSessionId, rtkEnabled,
               )}
               <XTerminal
                 sessionId={session.id}
-                active={activeSessionId === session.id || splitSessionId === session.id}
+                active={resolvedActiveSessionId === session.id || splitSessionId === session.id}
                 onWaitingChange={(waiting) => handleWaitingChange(session.id, waiting)}
               />
               {chatInputEnabled && isActivePanel && !session.exited && (

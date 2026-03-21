@@ -6,7 +6,7 @@ interface Props {
   sessionId: string
   rootPath: string
   onSend: (text: string) => void
-  onImageUpload: (file: File) => void
+  onImageUpload: (file: File) => void | Promise<void>
   disabled?: boolean
   statuslineData?: StatuslineData
 }
@@ -489,17 +489,17 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
 
   const acItems = acType === 'slash' ? filteredCommands : fileResults
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     const trimmed = text.trim()
     if (!trimmed && images.length === 0) return
 
+    // Upload images first — await so paths are written to PTY before the text
     for (const img of images) {
-      onImageUpload(img.file)
+      await onImageUpload(img.file)
     }
 
-    if (trimmed) {
-      onSend(trimmed)
-    }
+    // Send text (or just Enter to submit if only images were attached)
+    onSend(trimmed)
 
     setText('')
     setImages([])
