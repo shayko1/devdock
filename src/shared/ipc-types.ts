@@ -216,6 +216,33 @@ export interface StatuslineData {
   costUsd?: number
 }
 
+// ── Scrollback persistence ──
+
+export interface ScrollbackMeta {
+  sessionId: string
+  cols: number
+  rows: number
+  cwd: string
+  createdAt: string
+  lastWriteAt: string
+  endedAt?: string
+  totalBytes: number
+}
+
+export interface RecoverableSession {
+  sessionId: string
+  cwd: string
+  cols: number
+  rows: number
+  lastWriteAt: string
+  totalBytes: number
+}
+
+export interface ScrollbackRestoreResult {
+  data: string // base64-encoded binary
+  meta: ScrollbackMeta
+}
+
 // ── Image handling ──
 
 export interface SaveTempImageOptions {

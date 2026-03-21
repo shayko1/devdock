@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron'
 import { getBridgePort } from './browser-bridge'
 import { join } from 'path'
 import { homedir } from 'os'
+import { ScrollbackWriter } from './scrollback-manager'
 
 // node-pty is a native module — use eval to prevent vite from bundling it
 // Tests inject mock via global __PTY_FOR_TEST__
@@ -21,6 +22,7 @@ export interface PtySession {
 
 class PtyManager {
   private sessions = new Map<string, PtySession>()
+  private scrollbackWriters = new Map<string, ScrollbackWriter>()
   private mainWindow: BrowserWindow | null = null
   private shellPath: string | null = null
   private dataHooks: ((sessionId: string, data: string) => void)[] = []
@@ -108,12 +110,22 @@ class PtyManager {
       branchName
     }
 
+    // Create scrollback writer for crash recovery
+    try {
+      const writer = new ScrollbackWriter(sessionId, cwd, 80, 24)
+      this.scrollbackWriters.set(sessionId, writer)
+    } catch (err) {
+      console.error(`[PTY] Failed to create scrollback writer for ${sessionId}:`, err)
+    }
+
     ptyProcess.onData((data: string) => {
       try {
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
           this.mainWindow.webContents.send('pty-data', { sessionId, data })
         }
       } catch { /* window destroyed */ }
+      // Persist to scrollback
+      try { this.scrollbackWriters.get(sessionId)?.append(data) } catch { /* ignore */ }
       for (const hook of this.dataHooks) {
         try { hook(sessionId, data) } catch { /* ignore hook errors */ }
       }
@@ -125,6 +137,11 @@ class PtyManager {
           this.mainWindow.webContents.send('pty-exit', { sessionId, exitCode })
         }
       } catch { /* window destroyed */ }
+      // Close scrollback writer (marks session as ended)
+      try {
+        this.scrollbackWriters.get(sessionId)?.close()
+        this.scrollbackWriters.delete(sessionId)
+      } catch { /* ignore */ }
       this.sessions.delete(sessionId)
       for (const hook of this.exitHooks) {
         try { hook(sessionId) } catch { /* ignore hook errors */ }
@@ -148,11 +165,16 @@ class PtyManager {
 
   resize(sessionId: string, cols: number, rows: number) {
     this.sessions.get(sessionId)?.ptyProcess.resize(cols, rows)
+    try { this.scrollbackWriters.get(sessionId)?.updateMeta({ cols, rows }) } catch { /* ignore */ }
   }
 
   destroySession(sessionId: string) {
     const session = this.sessions.get(sessionId)
     if (!session) return
+    try {
+      this.scrollbackWriters.get(sessionId)?.close()
+      this.scrollbackWriters.delete(sessionId)
+    } catch { /* ignore */ }
     try {
       session.ptyProcess.kill()
     } catch { /* already dead */ }

@@ -9,7 +9,7 @@ import type {
   SystemPortInfo, RtkStatus, RtkToggleResult, RtkGainStats,
   BrowserEvent, ActiveSession, ClaudeSessionInfo, SessionTitle,
   McpConfigEntry, SkillEntry, CreateCommandOptions, SaveTempImageOptions,
-  StatuslineData,
+  StatuslineData, RecoverableSession, ScrollbackRestoreResult,
 } from '../shared/ipc-types'
 
 const api = {
@@ -199,6 +199,16 @@ const api = {
     ipcRenderer.invoke('create-command', opts),
   deleteCommand: (filePath: string): Promise<IpcResult> =>
     ipcRenderer.invoke('delete-command', filePath),
+
+  // Scrollback persistence (crash recovery)
+  scrollbackListRecoverable: (): Promise<RecoverableSession[]> =>
+    ipcRenderer.invoke('scrollback-list-recoverable'),
+  scrollbackRestore: (sessionId: string): Promise<ScrollbackRestoreResult | null> =>
+    ipcRenderer.invoke('scrollback-restore', sessionId),
+  scrollbackDismiss: (sessionId: string): Promise<void> =>
+    ipcRenderer.invoke('scrollback-dismiss', sessionId),
+  scrollbackCleanupOld: (): Promise<void> =>
+    ipcRenderer.invoke('scrollback-cleanup-old'),
 
   // Active sessions (auto-resume)
   activeSessionsSet: (session: ActiveSession): Promise<void> =>
