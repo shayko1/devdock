@@ -132,8 +132,23 @@ describe('PtyManager', () => {
   })
 
   describe('5. Write/Resize', () => {
-    it('write() forwards to ptyProcess when session exists', () => {
+    it('write() buffers input through readiness gate before shell is ready', () => {
       ptyManager.createSession('s1', 'f', '/p', null, null, 'ls')
+      mockPtyProcess.write.mockClear()
+
+      // Before the shell is ready, input is buffered (not written directly)
+      ptyManager.write('s1', 'echo hi\n')
+      expect(mockPtyProcess.write).not.toHaveBeenCalled()
+    })
+
+    it('write() forwards to ptyProcess after shell is ready', () => {
+      ptyManager.createSession('s1', 'f', '/p', null, null, 'ls')
+      const onDataCb = (mockPtyProcess as any)._onData
+
+      // Simulate the shell emitting the readiness marker
+      onDataCb('\x1b]777;devdock-shell-ready\x07')
+      mockPtyProcess.write.mockClear()
+
       ptyManager.write('s1', 'echo hi\n')
       expect(mockPtyProcess.write).toHaveBeenCalledWith('echo hi\n')
     })
@@ -145,6 +160,7 @@ describe('PtyManager', () => {
     })
 
     it('write() does nothing when session does not exist', () => {
+      mockPtyProcess.write.mockClear()
       ptyManager.write('nonexistent', 'ls\n')
       expect(mockPtyProcess.write).not.toHaveBeenCalled()
     })
@@ -175,16 +191,54 @@ describe('PtyManager', () => {
     })
   })
 
-  describe('7. Command execution', () => {
-    it('sends command after 800ms delay', () => {
-      vi.useFakeTimers()
+  describe('7. Command execution via readiness gate', () => {
+    it('injects readiness command immediately on spawn', () => {
       ptyManager.createSession('s1', 'f', '/p', null, null, 'cd /tmp')
 
-      expect(mockPtyProcess.write).not.toHaveBeenCalled()
-      vi.advanceTimersByTime(799)
-      expect(mockPtyProcess.write).not.toHaveBeenCalled()
-      vi.advanceTimersByTime(1)
+      // The readiness printf command should be written immediately
+      expect(mockPtyProcess.write).toHaveBeenCalledWith(
+        expect.stringContaining('777;devdock-shell-ready')
+      )
+    })
+
+    it('sends command after readiness marker is detected', async () => {
+      ptyManager.createSession('s1', 'f', '/p', null, null, 'cd /tmp')
+      const onDataCb = (mockPtyProcess as any)._onData
+      mockPtyProcess.write.mockClear()
+
+      // Simulate the shell emitting the readiness marker
+      onDataCb('\x1b]777;devdock-shell-ready\x07')
+
+      // Allow the waitForReady promise to resolve
+      await new Promise(resolve => setTimeout(resolve, 0))
+
       expect(mockPtyProcess.write).toHaveBeenCalledWith('cd /tmp\r')
+    })
+
+    it('does not send command before readiness marker', () => {
+      ptyManager.createSession('s1', 'f', '/p', null, null, 'cd /tmp')
+
+      // Only the readiness command was written, not the user command
+      const writes = mockPtyProcess.write.mock.calls.map((c: string[]) => c[0])
+      expect(writes).not.toContain('cd /tmp\r')
+    })
+
+    it('sends command on timeout if marker never arrives', async () => {
+      vi.useFakeTimers()
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      ptyManager.createSession('s1', 'f', '/p', null, null, 'cd /tmp')
+      mockPtyProcess.write.mockClear()
+
+      // Advance past the 15s timeout
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      expect(mockPtyProcess.write).toHaveBeenCalledWith('cd /tmp\r')
+      vi.mocked(console.warn).mockRestore()
+    })
+
+    it('does not inject readiness command when command is empty', () => {
+      ptyManager.createSession('s1', 'f', '/p', null, null, '')
+      expect(mockPtyProcess.write).not.toHaveBeenCalled()
     })
   })
 
