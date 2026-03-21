@@ -67,6 +67,7 @@ async function createWindow() {
   processManager.setMainWindow(mainWindow)
   ptyManager.setMainWindow(mainWindow)
   ptyManager.setShellPath(getShellPath())
+  ptyManager.startHost()
   setBrowserBridgeWindow(mainWindow)
   pipelineManager.setMainWindow(mainWindow)
   pipelineManager.loadConfigs()
@@ -158,6 +159,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   processManager.stopAll()
   ptyManager.destroyAll()
+  ptyManager.stopHost()
   pipelineManager.destroyAll()
   statuslineWatcher.unwatchAll()
   stopBrowserBridge()
