@@ -365,6 +365,10 @@
   background: #f85149;
 }
 
+.chat-input-effort-dot.max {
+  background: #d2a8ff;
+}
+
 .effort-pill {
   gap: 5px;
 }

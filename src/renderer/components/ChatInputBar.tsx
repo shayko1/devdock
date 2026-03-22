@@ -17,12 +17,13 @@ const MODELS = [
   { id: 'haiku', label: 'Claude Haiku 3.5', short: 'Haiku 3.5', desc: 'Fastest, cheapest', ctx: 200_000 },
 ]
 
-type EffortLevel = 'auto' | 'low' | 'medium' | 'high'
+type EffortLevel = 'auto' | 'low' | 'medium' | 'high' | 'max'
 const EFFORT_LEVELS: { id: EffortLevel; label: string; short: string; desc: string }[] = [
   { id: 'auto', label: 'Auto', short: 'Auto', desc: 'Claude decides effort based on task' },
   { id: 'low', label: 'Low', short: 'Low', desc: 'Quick, concise answers' },
   { id: 'medium', label: 'Medium', short: 'Med', desc: 'Balanced effort' },
   { id: 'high', label: 'High', short: 'High', desc: 'Deep thinking, thorough responses' },
+  { id: 'max', label: 'Max', short: 'Max', desc: 'Maximum effort, 1M context window' },
 ]
 
 interface SlashCommand {
@@ -590,7 +591,12 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
   const handleEffortChange = useCallback((level: EffortLevel) => {
     if (level !== effortLevel) {
       setEffortLevel(level)
-      onSend(`/effort ${level}`)
+      if (level === 'max') {
+        setContextMaxTokens(1_000_000)
+        onSend('/effort high')
+      } else {
+        onSend(`/effort ${level}`)
+      }
     }
     setShowEffortMenu(false)
   }, [effortLevel, onSend])
