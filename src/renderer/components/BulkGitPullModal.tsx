@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import type { BulkGitPullResult, BulkGitPullResultEntry } from '../../shared/ipc-types'
 
 interface Props {
@@ -28,6 +28,14 @@ export function BulkGitPullModal({ scanPath, onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   const extraList = useMemo(() => parseExtraSubs(extraSubs), [extraSubs])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !running) onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose, running])
 
   const run = async () => {
     setRunning(true)

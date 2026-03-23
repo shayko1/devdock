@@ -413,6 +413,34 @@ export function registerGitHandlers() {
           continue
         }
 
+        // Check for uncommitted changes before checkout to avoid silent branch switches
+        try {
+          const { stdout: porcelain } = await execAsync('git status --porcelain', {
+            cwd: fullPath,
+            encoding: 'utf-8',
+            timeout: 10_000,
+          })
+          if (porcelain.trim().length > 0) {
+            entries.push({
+              name: entry,
+              path: fullPath,
+              status: 'skipped',
+              branch,
+              detail: 'Has uncommitted changes — stash or commit before pulling',
+            })
+            continue
+          }
+        } catch (err) {
+          entries.push({
+            name: entry,
+            path: fullPath,
+            status: 'failed',
+            branch,
+            detail: `status check: ${trimExecError(err, 'failed')}`,
+          })
+          continue
+        }
+
         try {
           await execFileAsync('git', ['checkout', branch], {
             cwd: fullPath,
