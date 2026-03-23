@@ -62,6 +62,10 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
       const saved = await window.api.activeSessionsGetAll()
       if (saved.length === 0) return
       onSessionActivated?.()
+
+      // Restore all sessions first, then batch-add to state so the
+      // active-session effect can find the preferred session in one pass.
+      const restored: ClaudeSession[] = []
       for (const rec of saved) {
         const newId = generateSessionId()
         try {
@@ -75,7 +79,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
             dangerousMode: rec.dangerousMode,
           })
           if (result.success) {
-            setSessions(prev => [...prev, {
+            restored.push({
               id: newId,
               folderName: result.folderName || rec.folderName,
               folderPath: rec.folderPath,
@@ -83,7 +87,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
               branchName: result.branchName ?? rec.branchName,
               claudeSessionId: rec.claudeSessionId ?? null,
               dangerousMode: rec.dangerousMode,
-            }])
+            })
             window.api.activeSessionsRemove(rec.id)
             window.api.activeSessionsSet({
               id: newId,
@@ -100,6 +104,9 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
         } catch {
           window.api.activeSessionsRemove(rec.id)
         }
+      }
+      if (restored.length > 0) {
+        setSessions(restored)
       }
     }
     restoreSessions()

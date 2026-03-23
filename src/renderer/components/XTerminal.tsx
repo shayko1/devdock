@@ -215,7 +215,18 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
     // Receive output from PTY
     unsubDataRef.current = window.api.onPtyData(({ sessionId: sid, data }) => {
       if (sid === sessionId) {
-        term.write(data)
+        const buf = term.buffer.active
+        const wasAtBottom = buf.viewportY >= buf.baseY
+
+        if (!wasAtBottom) {
+          // User has scrolled up — preserve their viewport position
+          const savedY = buf.viewportY
+          term.write(data, () => {
+            term.scrollToLine(savedY)
+          })
+        } else {
+          term.write(data)
+        }
 
         // Reset idle timer — output means Claude is working
         if (waitingRef.current) {
