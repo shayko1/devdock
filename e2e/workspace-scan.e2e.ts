@@ -18,6 +18,15 @@ test.describe('Workspace Scan', () => {
     await app.close()
   })
 
+  test('All Folders shows name and last-changed sort controls', async () => {
+    const { app, page } = await launchApp()
+    await page.locator('.tab', { hasText: 'All Folders' }).click()
+    await expect(page.locator('.folders-view')).toBeVisible()
+    await expect(page.getByRole('button', { name: /Name/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Last changed/ })).toBeVisible()
+    await app.close()
+  })
+
   test('can switch to Claude tab', async () => {
     const { app, page } = await launchApp()
     await page.locator('.tab', { hasText: 'Claude' }).click()

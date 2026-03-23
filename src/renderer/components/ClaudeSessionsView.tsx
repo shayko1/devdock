@@ -168,7 +168,12 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
       setActiveSessionId(null)
     } else if (!activeSessionId || !sessions.find(s => s.id === activeSessionId)) {
       // Try to restore the last-active session (matched by claudeSessionId which survives restarts)
-      const savedClaudeId = localStorage.getItem('devdock-last-active-claude-session')
+      let savedClaudeId: string | null = null
+      try {
+        savedClaudeId = localStorage.getItem('devdock-last-active-claude-session')
+      } catch {
+        /* ignore */
+      }
       const preferred = savedClaudeId
         ? sessions.find(s => s.claudeSessionId === savedClaudeId)
         : null
@@ -190,7 +195,11 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
     // Persist which session is active (by claudeSessionId which survives restarts)
     const session = sessions.find(s => s.id === id)
     if (session?.claudeSessionId) {
-      localStorage.setItem('devdock-last-active-claude-session', session.claudeSessionId)
+      try {
+        localStorage.setItem('devdock-last-active-claude-session', session.claudeSessionId)
+      } catch {
+        /* ignore */
+      }
     }
     setViewingFile(null)
     if (sidePanel === 'file-view') setSidePanel('files')

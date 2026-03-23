@@ -34,6 +34,25 @@ export interface GitStatus {
   isGitRepo: boolean
 }
 
+/** Bulk pull in workspace: each repo uses its default branch (origin/HEAD → main → master), not hard-coded master. */
+export interface BulkGitPullOptions {
+  /** If true, only repos whose origin URL contains `wix` or any extraRemoteSubstrings (case-insensitive). */
+  onlyWixRelated: boolean
+  extraRemoteSubstrings: string[]
+}
+
+export interface BulkGitPullResultEntry {
+  name: string
+  path: string
+  status: 'ok' | 'failed' | 'skipped'
+  branch?: string | null
+  detail?: string
+}
+
+export interface BulkGitPullResult {
+  entries: BulkGitPullResultEntry[]
+}
+
 export interface BranchList {
   current: string | null
   branches: string[]

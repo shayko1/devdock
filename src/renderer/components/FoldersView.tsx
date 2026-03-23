@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, memo } from 'react'
 import { WorkspaceFolder } from '../../shared/types'
 import { Skeleton } from './Skeleton'
+import { BulkGitPullModal } from './BulkGitPullModal'
 import './FoldersView.css'
 
 interface Props {
@@ -126,8 +127,11 @@ export function FoldersView({ scanPath, onStartClaudeSession }: Props) {
   const [folders, setFolders] = useState<WorkspaceFolder[]>([])
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'name' | 'recent'>('name')
+  const [nameAscending, setNameAscending] = useState(true)
+  const [recentNewestFirst, setRecentNewestFirst] = useState(true)
   const [loading, setLoading] = useState(true)
   const [gitInfoMap, setGitInfoMap] = useState<Map<string, GitInfo>>(new Map(gitCache))
+  const [bulkPullOpen, setBulkPullOpen] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
   const observerRef = useRef<IntersectionObserver | null>(null)
   const loadingPaths = useRef<Set<string>>(new Set())
@@ -182,10 +186,31 @@ export function FoldersView({ scanPath, onStartClaudeSession }: Props) {
     .filter((f) => !search || f.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       if (sortBy === 'recent') {
-        return new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime()
+        const ta = new Date(a.modifiedAt).getTime()
+        const tb = new Date(b.modifiedAt).getTime()
+        let cmp = tb - ta
+        if (cmp === 0) cmp = a.name.localeCompare(b.name)
+        return recentNewestFirst ? cmp : -cmp
       }
-      return a.name.localeCompare(b.name)
+      const cmp = a.name.localeCompare(b.name)
+      return nameAscending ? cmp : -cmp
     })
+
+  const handleSortByName = () => {
+    if (sortBy === 'name') setNameAscending((v) => !v)
+    else {
+      setSortBy('name')
+      setNameAscending(true)
+    }
+  }
+
+  const handleSortByRecent = () => {
+    if (sortBy === 'recent') setRecentNewestFirst((v) => !v)
+    else {
+      setSortBy('recent')
+      setRecentNewestFirst(true)
+    }
+  }
 
   if (loading) {
     return (
@@ -228,21 +253,49 @@ export function FoldersView({ scanPath, onStartClaudeSession }: Props) {
           style={{ flex: 1 }}
         />
         <button
+          type="button"
           className={`btn btn-sm ${sortBy === 'name' ? 'btn-accent' : ''}`}
-          onClick={() => setSortBy('name')}
+          onClick={handleSortByName}
+          title={
+            sortBy === 'name'
+              ? nameAscending
+                ? 'Sorted A–Z by folder name. Click to sort Z–A.'
+                : 'Sorted Z–A by folder name. Click to sort A–Z.'
+              : 'Sort by folder name (A–Z). Click again while selected to reverse order.'
+          }
         >
-          A-Z
+          Name{sortBy === 'name' ? (nameAscending ? ' ↑' : ' ↓') : ''}
         </button>
         <button
+          type="button"
           className={`btn btn-sm ${sortBy === 'recent' ? 'btn-accent' : ''}`}
-          onClick={() => setSortBy('recent')}
+          onClick={handleSortByRecent}
+          title={
+            sortBy === 'recent'
+              ? recentNewestFirst
+                ? 'Sorted by folder modified time on disk (newest first). Click for oldest first. Does not scan files inside the folder.'
+                : 'Sorted by folder modified time on disk (oldest first). Click for newest first. Does not scan files inside the folder.'
+              : 'Sort by folder modified time on disk (newest first). Click again while selected to reverse order. Does not scan files inside the folder.'
+          }
         >
-          Recent
+          Last changed{sortBy === 'recent' ? (recentNewestFirst ? ' ↓' : ' ↑') : ''}
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm"
+          onClick={() => setBulkPullOpen(true)}
+          title="Fetch and fast-forward pull the default branch (main/master) for many repos at once"
+        >
+          Bulk git pull…
         </button>
         <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
           {filtered.length} folders
         </span>
       </div>
+
+      {bulkPullOpen && (
+        <BulkGitPullModal scanPath={scanPath} onClose={() => setBulkPullOpen(false)} />
+      )}
 
       <div className="folders-list" ref={listRef}>
         {filtered.map((folder) => (

@@ -3,7 +3,7 @@ import type {
   AppState, ProcessStatus, Project, WorkspaceFolder,
   AgentInfo, PipelineRun, PipelineConfig,
   CoachConfig, CoachSuggestion, CoachAnalysis, CoachSessionCost,
-  IpcResult, GitInfo, GitStatus, BranchList, WorktreeResult,
+  IpcResult, GitInfo, GitStatus, BranchList, WorktreeResult, BulkGitPullOptions, BulkGitPullResult,
   PtyCreateOptions, PtyCreateResult, PtySessionInfo,
   DirectoryEntry, FileContent, FileSearchResult, FileSearchEntry, DiffResult,
   SystemPortInfo, RtkStatus, RtkToggleResult, RtkGainStats,
@@ -52,6 +52,8 @@ const api = {
     ipcRenderer.invoke('list-branches', folderPath),
   checkoutBranch: (folderPath: string, branchName: string): Promise<IpcResult> =>
     ipcRenderer.invoke('checkout-branch', folderPath, branchName),
+  bulkGitPullWorkspace: (scanPath: string, options: BulkGitPullOptions): Promise<BulkGitPullResult> =>
+    ipcRenderer.invoke('bulk-git-pull-workspace', scanPath, options),
   openClaudeWorktree: (projectPath: string, projectName: string): Promise<WorktreeResult> =>
     ipcRenderer.invoke('open-claude-worktree', projectPath, projectName),
 

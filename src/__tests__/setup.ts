@@ -1,5 +1,42 @@
-import { vi } from 'vitest'
+import { vi, beforeEach } from 'vitest'
 import '@testing-library/jest-dom'
+
+// In-memory localStorage: Node may expose a broken Storage (e.g. --localstorage-file) where getItem is not a function.
+const lsStore: Record<string, string> = {}
+
+function makeLocalStorage(): Storage {
+  return {
+    get length() {
+      return Object.keys(lsStore).length
+    },
+    clear() {
+      for (const k of Object.keys(lsStore)) delete lsStore[k]
+    },
+    getItem(key: string) {
+      return Object.prototype.hasOwnProperty.call(lsStore, key) ? lsStore[key] : null
+    },
+    key(index: number) {
+      const keys = Object.keys(lsStore)
+      return index >= 0 && index < keys.length ? keys[index] : null
+    },
+    removeItem(key: string) {
+      delete lsStore[key]
+    },
+    setItem(key: string, value: string) {
+      lsStore[key] = String(value)
+    },
+  } as Storage
+}
+
+vi.stubGlobal('localStorage', makeLocalStorage())
+
+beforeEach(() => {
+  try {
+    globalThis.localStorage.clear()
+  } catch {
+    /* ignore */
+  }
+})
 
 // Mock window.api for renderer tests
 const mockApi = {
@@ -19,6 +56,7 @@ const mockApi = {
   openInTerminal: vi.fn(),
   getGitInfo: vi.fn().mockResolvedValue({ gitBranch: null, gitRemote: null }),
   getGitStatus: vi.fn(),
+  bulkGitPullWorkspace: vi.fn().mockResolvedValue({ entries: [] }),
   openClaudeWorktree: vi.fn(),
   ptyCreate: vi.fn(),
   ptyWrite: vi.fn(),
