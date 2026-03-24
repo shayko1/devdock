@@ -15,6 +15,7 @@ import { ResourcePanel } from './ResourcePanel'
 import { useResourceMonitor } from '../hooks/useResourceMonitor'
 import { WorkspaceInitProgress } from './WorkspaceInitProgress'
 import { PresetBar, PresetList } from './presets'
+import { MetricsBar } from './MetricsBar'
 import './ClaudeSessionsView.css'
 
 function formatTimeAgo(ts: number): string {
@@ -585,6 +586,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
             onShowFiles={toggleFiles}
           />
         )}
+        <MetricsBar sessionIds={sessions.map(s => s.id)} />
         <div className="claude-sessions-body" ref={bodyRef}>
           <div className="claude-sessions-terminal">
           {sessions.map((session) => (

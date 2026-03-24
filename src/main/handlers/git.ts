@@ -138,6 +138,7 @@ export function registerGitHandlers() {
       insertions: number
       deletions: number
       commitsAhead: number
+      commitsBehind: number
       uncommitted: number
       isGitRepo: boolean
     } = {
@@ -148,6 +149,7 @@ export function registerGitHandlers() {
       insertions: 0,
       deletions: 0,
       commitsAhead: 0,
+      commitsBehind: 0,
       uncommitted: 0,
       isGitRepo: false,
     }
@@ -219,6 +221,18 @@ export function registerGitHandlers() {
       } catch {
         /* ignore */
       }
+
+      try {
+        const count = execSync(`git rev-list --count HEAD..origin/${result.baseBranch}`, {
+          cwd: folderPath,
+          encoding: 'utf-8',
+          timeout: 3000,
+          stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim()
+        result.commitsBehind = parseInt(count) || 0
+      } catch {
+        /* ignore */
+      }
     }
 
     try {
@@ -234,6 +248,24 @@ export function registerGitHandlers() {
     }
 
     return result
+  })
+
+  ipcMain.handle('git-sync-with-base', async (_event, folderPath: string) => {
+    try {
+      const baseBranch = await resolveDefaultBranch(folderPath)
+      if (!baseBranch) {
+        return { success: false, error: 'Could not determine base branch' }
+      }
+      await execAsync('git fetch origin', {
+        cwd: folderPath, encoding: 'utf-8', timeout: 30000,
+      })
+      const { stdout } = await execAsync(`git merge origin/${baseBranch} --no-edit`, {
+        cwd: folderPath, encoding: 'utf-8', timeout: 60000,
+      })
+      return { success: true, stdout: stdout.trim() }
+    } catch (err: unknown) {
+      return { success: false, error: trimExecError(err, 'Sync failed') }
+    }
   })
 
   ipcMain.handle('list-branches', async (_event, folderPath: string) => {

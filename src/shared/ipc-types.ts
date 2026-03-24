@@ -30,8 +30,15 @@ export interface GitStatus {
   insertions: number
   deletions: number
   commitsAhead: number
+  commitsBehind: number
   uncommitted: number
   isGitRepo: boolean
+}
+
+export interface GitSyncResult {
+  success: boolean
+  error?: string
+  stdout?: string
 }
 
 /** Bulk pull in workspace: each repo uses its default branch (origin/HEAD → main → master), not hard-coded master. */
@@ -89,6 +96,8 @@ export interface PtyCreateOptions {
   existingWorktreePath?: string
   dangerousMode?: boolean
   model?: string
+  /** Which AI tool to launch. 'claude' (default), 'codex', or 'shell' (no tool, bare zsh) */
+  tool?: 'claude' | 'codex' | 'shell'
 }
 
 export interface PtyCreateResult extends IpcResult {

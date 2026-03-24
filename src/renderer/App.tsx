@@ -3,12 +3,15 @@ import { useAppState } from './hooks/useAppState'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useGridNavigation } from './hooks/useGridNavigation'
 import { useClaudeSessions } from './hooks/useClaudeSessions'
+import { useCodexSessions } from './hooks/useCodexSessions'
 import { Sidebar } from './components/Sidebar'
 import { ProjectCard } from './components/ProjectCard'
 import { EditProjectModal } from './components/EditProjectModal'
 import { LogPanel } from './components/LogPanel'
 import { FoldersView } from './components/FoldersView'
 import { ClaudeSessionsView } from './components/ClaudeSessionsView'
+import { CodexSessionsView } from './components/CodexSessionsView'
+import { TerminalTabView } from './components/TerminalTabView'
 import { NewSessionModal } from './components/NewSessionModal'
 import { ShortcutsHelp } from './components/ShortcutsHelp'
 import { SettingsModal } from './components/SettingsModal'
@@ -18,7 +21,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { Skeleton } from './components/Skeleton'
 import { Project } from '../shared/types'
 
-type TabId = 'launchpad' | 'folders' | 'claude' | 'agents'
+type TabId = 'launchpad' | 'folders' | 'claude' | 'codex' | 'terminal' | 'agents'
 
 export function App() {
   const {
@@ -83,6 +86,14 @@ export function App() {
     defaultModel: state.defaultModel,
     onSessionActivated: () => setActiveTab('claude'),
     onNewSessionModalClosed: () => setShowNewSession(false),
+  })
+
+  const {
+    sessions: codexSessions,
+    startSession: handleStartCodexSession,
+    closeSession: handleCloseCodexSession,
+  } = useCodexSessions({
+    onSessionActivated: () => setActiveTab('codex'),
   })
 
   const searchRef = useRef<HTMLInputElement>(null)
@@ -388,7 +399,7 @@ export function App() {
             className="theme-btn"
             onClick={() => setShowSettings(true)}
             title="Settings"
-            style={{ marginLeft: 8 }}
+            style={{ marginLeft: 8, fontSize: 18, lineHeight: 1 }}
           >
             ⚙
           </button>
@@ -422,6 +433,21 @@ export function App() {
           )}
         </div>
         <div
+          className={`tab ${activeTab === 'codex' ? 'active' : ''}`}
+          onClick={() => setActiveTab('codex')}
+        >
+          Codex
+          {codexSessions.length > 0 && (
+            <span style={{ marginLeft: 6, color: 'var(--green)', fontSize: 11 }}>{codexSessions.length}</span>
+          )}
+        </div>
+        <div
+          className={`tab ${activeTab === 'terminal' ? 'active' : ''}`}
+          onClick={() => setActiveTab('terminal')}
+        >
+          Terminal
+        </div>
+        <div
           className={`tab ${activeTab === 'agents' ? 'active' : ''}`}
           onClick={() => setActiveTab('agents')}
         >
@@ -432,6 +458,21 @@ export function App() {
       {activeTab === 'agents' ? (
         <ErrorBoundary name="Agents">
           <AgentsView />
+        </ErrorBoundary>
+      ) : activeTab === 'codex' ? (
+        <ErrorBoundary name="Codex Sessions">
+          <CodexSessionsView
+            sessions={codexSessions}
+            onNewSession={() => {
+              // Open a generic "pick folder" dialog — for now open folders tab
+              setActiveTab('folders')
+            }}
+            onCloseSession={handleCloseCodexSession}
+          />
+        </ErrorBoundary>
+      ) : activeTab === 'terminal' ? (
+        <ErrorBoundary name="Terminal">
+          <TerminalTabView scanPath={state.scanPath} />
         </ErrorBoundary>
       ) : activeTab === 'claude' ? (
         <ErrorBoundary name="Claude Sessions">
@@ -454,6 +495,9 @@ export function App() {
             scanPath={state.scanPath}
             onStartClaudeSession={(folder, useWorktree) => {
               handleStartClaudeSession(folder, useWorktree)
+            }}
+            onStartCodexSession={(folder, useWorktree) => {
+              handleStartCodexSession(folder, useWorktree)
             }}
           />
         </ErrorBoundary>

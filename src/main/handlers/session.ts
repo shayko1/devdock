@@ -91,6 +91,7 @@ export function registerSessionHandlers() {
     existingWorktreePath?: string
     dangerousMode?: boolean
     model?: string
+    tool?: 'claude' | 'codex' | 'shell'
   }) => {
     const tracker = workspaceInitTracker.create(opts.sessionId)
     tracker.advance('pending', 'Initializing workspace...')
@@ -209,11 +210,19 @@ export function registerSessionHandlers() {
       return { success: false, error: 'Cancelled' }
     }
 
-    const permFlag = opts.dangerousMode ? ' --dangerously-skip-permissions' : ''
-    const modelFlag = opts.model ? ` --model ${opts.model}` : ''
-    let command = `claude${modelFlag}${permFlag}`
-    if (opts.resumeClaudeId) {
-      command = `claude --resume ${opts.resumeClaudeId}${modelFlag}${permFlag}`
+    const tool = opts.tool || 'claude'
+    let command: string
+    if (tool === 'shell') {
+      command = ''
+    } else if (tool === 'codex') {
+      command = 'codex'
+    } else {
+      const permFlag = opts.dangerousMode ? ' --dangerously-skip-permissions' : ''
+      const modelFlag = opts.model ? ` --model ${opts.model}` : ''
+      command = `claude${modelFlag}${permFlag}`
+      if (opts.resumeClaudeId) {
+        command = `claude --resume ${opts.resumeClaudeId}${modelFlag}${permFlag}`
+      }
     }
 
     const result = ptyManager.createSession(

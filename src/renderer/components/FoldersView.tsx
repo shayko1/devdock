@@ -7,6 +7,7 @@ import './FoldersView.css'
 interface Props {
   scanPath: string
   onStartClaudeSession?: (folder: WorkspaceFolder, useWorktree: boolean) => void
+  onStartCodexSession?: (folder: WorkspaceFolder, useWorktree: boolean) => void
 }
 
 function timeAgo(dateStr: string): string {
@@ -33,10 +34,12 @@ const gitCache = new Map<string, GitInfo>()
 const FolderRow = memo(function FolderRow({
   folder,
   onStartClaudeSession,
+  onStartCodexSession,
   gitInfo,
 }: {
   folder: WorkspaceFolder
   onStartClaudeSession?: (folder: WorkspaceFolder, useWorktree: boolean) => void
+  onStartCodexSession?: (folder: WorkspaceFolder, useWorktree: boolean) => void
   gitInfo: GitInfo | null | undefined // null = loaded but no git, undefined = not loaded
 }) {
   const handleOpenIde = (ide: 'cursor' | 'zed') => {
@@ -47,6 +50,13 @@ const FolderRow = memo(function FolderRow({
     if (onStartClaudeSession) {
       const isGit = gitInfo != null && gitInfo.gitBranch !== null
       onStartClaudeSession(folder, isGit)
+    }
+  }
+
+  const handleCodexSession = () => {
+    if (onStartCodexSession) {
+      const isGit = gitInfo != null && gitInfo.gitBranch !== null
+      onStartCodexSession(folder, isGit)
     }
   }
 
@@ -90,6 +100,15 @@ const FolderRow = memo(function FolderRow({
         >
           Claude
         </button>
+        {onStartCodexSession && (
+          <button
+            className="btn btn-sm btn-ide codex-btn"
+            onClick={handleCodexSession}
+            title={isGitRepo ? 'Open Codex in embedded terminal (with worktree)' : 'Open Codex in embedded terminal'}
+          >
+            Codex
+          </button>
+        )}
         <button
           className="btn btn-sm btn-ide cursor-btn"
           onClick={() => handleOpenIde('cursor')}
@@ -123,7 +142,7 @@ const FolderRow = memo(function FolderRow({
   )
 })
 
-export function FoldersView({ scanPath, onStartClaudeSession }: Props) {
+export function FoldersView({ scanPath, onStartClaudeSession, onStartCodexSession }: Props) {
   const [folders, setFolders] = useState<WorkspaceFolder[]>([])
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'name' | 'recent'>('name')
@@ -303,6 +322,7 @@ export function FoldersView({ scanPath, onStartClaudeSession }: Props) {
             <FolderRow
               folder={folder}
               onStartClaudeSession={onStartClaudeSession}
+              onStartCodexSession={onStartCodexSession}
               gitInfo={gitInfoMap.has(folder.path) ? gitInfoMap.get(folder.path)! : undefined}
             />
           </div>

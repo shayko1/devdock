@@ -10,6 +10,7 @@ interface GitStatus {
   insertions: number
   deletions: number
   commitsAhead: number
+  commitsBehind: number
   uncommitted: number
   isGitRepo: boolean
 }
@@ -30,6 +31,8 @@ export function SessionInfoBar({ folderName, folderPath, worktreePath, branchNam
   const [git, setGit] = useState<GitStatus | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
   const [showActions, setShowActions] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null)
   const [branchOpen, setBranchOpen] = useState(false)
   const [branches, setBranches] = useState<string[]>([])
   const [branchFilter, setBranchFilter] = useState('')
@@ -102,6 +105,22 @@ export function SessionInfoBar({ folderName, folderPath, worktreePath, branchNam
     setTimeout(() => setCopied(null), 1500)
   }, [])
 
+  const handleSync = useCallback(async () => {
+    if (syncing) return
+    setSyncing(true)
+    setSyncResult(null)
+    try {
+      const result = await window.api.gitSyncWithBase(cwd)
+      setSyncResult({ success: result.success, message: result.success ? '✓ Synced' : (result.error || 'Sync failed') })
+      if (result.success) refresh()
+    } catch (e: unknown) {
+      setSyncResult({ success: false, message: 'Sync failed' })
+    } finally {
+      setSyncing(false)
+      setTimeout(() => setSyncResult(null), 3000)
+    }
+  }, [cwd, syncing, refresh])
+
   if (!git || !git.isGitRepo) return null
 
   const branch = branchName || git.branch
@@ -161,6 +180,11 @@ export function SessionInfoBar({ folderName, folderPath, worktreePath, branchNam
       </div>
 
       <div className="sib-stats">
+        {git.commitsBehind > 0 && (
+          <span className="sib-stat sib-behind" title={`${git.commitsBehind} commits behind origin/${git.baseBranch}`}>
+            ⬇ {git.commitsBehind} behind
+          </span>
+        )}
         {git.commitsAhead > 0 && (
           <span className="sib-stat" title={`${git.commitsAhead} commits ahead of origin/${git.baseBranch}`}>
             {git.commitsAhead} ahead
@@ -219,6 +243,16 @@ export function SessionInfoBar({ folderName, folderPath, worktreePath, branchNam
               </div>
             )}
           </div>
+        )}
+        {git.commitsBehind > 0 && git.baseBranch && (
+          <button
+            className={`btn btn-sm sib-btn-sync ${syncing ? 'sib-btn-syncing' : ''}`}
+            onClick={handleSync}
+            disabled={syncing}
+            title={`Merge origin/${git.baseBranch} into current branch`}
+          >
+            {syncing ? '⟳ Syncing…' : syncResult ? syncResult.message : `⬇ Sync`}
+          </button>
         )}
         <button className="btn btn-sm sib-btn-refresh" onClick={refresh} title="Refresh">&#8635;</button>
       </div>

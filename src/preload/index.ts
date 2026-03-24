@@ -3,7 +3,7 @@ import type {
   AppState, ProcessStatus, Project, WorkspaceFolder,
   AgentInfo, PipelineRun, PipelineConfig,
   CoachConfig, CoachSuggestion, CoachAnalysis, CoachSessionCost,
-  IpcResult, GitInfo, GitStatus, BranchList, WorktreeResult, BulkGitPullOptions, BulkGitPullResult, BulkGitPullProgressEvent,
+  IpcResult, GitInfo, GitStatus, GitSyncResult, BranchList, WorktreeResult, BulkGitPullOptions, BulkGitPullResult, BulkGitPullProgressEvent,
   PtyCreateOptions, PtyCreateResult, PtySessionInfo,
   DirectoryEntry, FileContent, FileSearchResult, FileSearchEntry, DiffResult,
   SystemPortInfo, RtkStatus, RtkToggleResult, RtkGainStats,
@@ -61,6 +61,8 @@ const api = {
   },
   openClaudeWorktree: (projectPath: string, projectName: string): Promise<WorktreeResult> =>
     ipcRenderer.invoke('open-claude-worktree', projectPath, projectName),
+  gitSyncWithBase: (folderPath: string): Promise<GitSyncResult> =>
+    ipcRenderer.invoke('git-sync-with-base', folderPath),
 
   // PTY (embedded terminal)
   ptyCreate: (opts: PtyCreateOptions): Promise<PtyCreateResult> =>

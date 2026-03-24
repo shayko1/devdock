@@ -55,6 +55,53 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
   const [coachTotalCost, setCoachTotalCost] = useState<{ totalUsd: number; calls: number } | null>(null)
   const [coachSaved, setCoachSaved] = useState(false)
 
+  const [mcpJson, setMcpJson] = useState('')
+  const [mcpFilePath, setMcpFilePath] = useState('')
+  const [mcpJsonError, setMcpJsonError] = useState<string | null>(null)
+  const [mcpSaveMsg, setMcpSaveMsg] = useState<string | null>(null)
+  const [mcpStatus, setMcpStatus] = useState<Record<string, 'ok' | 'error' | 'warning' | 'unknown'> | null>(null)
+  const [mcpStatusLoading, setMcpStatusLoading] = useState(false)
+
+  useEffect(() => {
+    window.api.mcpGetConfig?.().then((configs) => {
+      const user = configs.find(c => c.scope === 'user')
+      if (user) {
+        setMcpFilePath(user.path)
+        setMcpJson(JSON.stringify(user.servers, null, 2))
+      } else {
+        setMcpJson('{}')
+        setMcpFilePath('~/.claude.json')
+      }
+    }).catch(() => { setMcpJson('{}') })
+  }, [])
+
+  const handleMcpSave = useCallback(async () => {
+    setMcpJsonError(null)
+    let servers: Record<string, unknown>
+    try {
+      servers = JSON.parse(mcpJson)
+    } catch (e: unknown) {
+      setMcpJsonError(e instanceof Error ? e.message : 'Invalid JSON')
+      return
+    }
+    const result = await window.api.mcpSaveConfig?.(mcpFilePath, servers)
+    if (result?.success) {
+      setMcpSaveMsg('Saved to ~/.claude.json')
+      setTimeout(() => setMcpSaveMsg(null), 2500)
+    } else {
+      setMcpJsonError(result?.error || 'Save failed')
+    }
+  }, [mcpJson, mcpFilePath])
+
+  const handleMcpCheckStatus = useCallback(async () => {
+    setMcpStatusLoading(true)
+    try {
+      const status = await window.api.mcpCheckStatus?.()
+      setMcpStatus(status || {})
+    } catch { setMcpStatus({}) }
+    setMcpStatusLoading(false)
+  }, [])
+
   const refreshRtkStatus = useCallback(async () => {
     const status = await window.api.rtkDetect()
     setRtkStatus(status)
@@ -596,6 +643,56 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
               </div>
             </div>
           )}
+        </div>
+
+        {/* MCP Servers */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <label style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
+              MCP Servers
+            </label>
+            <button
+              className="btn btn-sm"
+              onClick={handleMcpCheckStatus}
+              disabled={mcpStatusLoading}
+              style={{ fontSize: 10 }}
+            >
+              {mcpStatusLoading ? 'Checking…' : 'Check Status'}
+            </button>
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+            Edit your MCP server config (saved to <code>~/.claude.json</code>). Use standard Claude MCP JSON format.
+          </p>
+          <textarea
+            value={mcpJson}
+            onChange={(e) => { setMcpJson(e.target.value); setMcpJsonError(null) }}
+            spellCheck={false}
+            style={{
+              width: '100%', height: 160, fontFamily: 'monospace', fontSize: 11,
+              background: 'var(--bg-primary)', color: 'var(--text-primary)',
+              border: `1px solid ${mcpJsonError ? '#f85149' : 'var(--border)'}`,
+              borderRadius: 6, padding: 8, resize: 'vertical', boxSizing: 'border-box'
+            }}
+          />
+          {mcpJsonError && (
+            <p style={{ fontSize: 11, color: '#f85149', margin: '4px 0 0' }}>{mcpJsonError}</p>
+          )}
+          {mcpStatus && Object.keys(mcpStatus).length > 0 && (
+            <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {Object.entries(mcpStatus).map(([name, status]) => (
+                <span key={name} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4,
+                  background: status === 'ok' ? 'rgba(63,185,80,0.15)' : status === 'warning' ? 'rgba(240,136,62,0.15)' : 'rgba(248,81,73,0.15)',
+                  color: status === 'ok' ? 'var(--green)' : status === 'warning' ? 'var(--orange)' : '#f85149'
+                }}>
+                  {status === 'ok' ? '✓' : status === 'warning' ? '⚠' : '✗'} {name}
+                </span>
+              ))}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+            <button className="btn btn-sm btn-primary" onClick={handleMcpSave}>Save MCP Config</button>
+            {mcpSaveMsg && <span style={{ fontSize: 11, color: 'var(--green)' }}>{mcpSaveMsg}</span>}
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>

@@ -131,3 +131,6 @@
 .sib-btn-push { color: var(--blue, #58a6ff); border-color: var(--blue, #58a6ff); }
 .sib-btn-pr { color: var(--green, #3fb950); border-color: var(--green, #3fb950); }
 .sib-btn-refresh { font-size: 12px !important; padding: 0 4px !important; }
+.sib-behind { color: var(--orange, #f0883e); font-weight: 500; }
+.sib-btn-sync { color: var(--orange, #f0883e); border-color: var(--orange, #f0883e); }
+.sib-btn-sync:disabled { opacity: 0.6; cursor: not-allowed; }

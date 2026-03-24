@@ -89,7 +89,7 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
     const fitAddon = new FitAddon()
     term.loadAddon(fitAddon)
     term.open(containerRef.current)
-    fitAddon.fit()
+    try { fitAddon.fit() } catch { /* container may have zero size on hidden tab */ }
 
     termRef.current = term
     fitAddonRef.current = fitAddon
@@ -99,17 +99,19 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
     let lastCols = term.cols
     let lastRows = term.rows
     const safeFit = () => {
-      const dims = fitAddon.proposeDimensions()
-      if (!dims) return
-      if (dims.cols === lastCols && dims.rows === lastRows) return
-      lastCols = dims.cols
-      lastRows = dims.rows
-      const buf = term.buffer.active
-      const wasAtBottom = buf.viewportY >= buf.baseY
-      fitAddon.fit()
-      if (wasAtBottom) {
-        term.scrollToBottom()
-      }
+      try {
+        const dims = fitAddon.proposeDimensions()
+        if (!dims) return
+        if (dims.cols === lastCols && dims.rows === lastRows) return
+        lastCols = dims.cols
+        lastRows = dims.rows
+        const buf = term.buffer.active
+        const wasAtBottom = buf.viewportY >= buf.baseY
+        fitAddon.fit()
+        if (wasAtBottom) {
+          term.scrollToBottom()
+        }
+      } catch { /* container may have zero size — skip fit */ }
     }
 
     // Register clickable link provider for URLs
@@ -387,15 +389,17 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
         const fitAddon = fitAddonRef.current
         if (!term || !fitAddon) return
         // Use proposeDimensions to skip no-op fits (prevents flicker)
-        const dims = fitAddon.proposeDimensions()
-        if (dims && (dims.cols !== term.cols || dims.rows !== term.rows)) {
-          const buf = term.buffer.active
-          const wasAtBottom = buf.viewportY >= buf.baseY
-          fitAddon.fit()
-          if (wasAtBottom) {
-            term.scrollToBottom()
+        try {
+          const dims = fitAddon.proposeDimensions()
+          if (dims && (dims.cols !== term.cols || dims.rows !== term.rows)) {
+            const buf = term.buffer.active
+            const wasAtBottom = buf.viewportY >= buf.baseY
+            fitAddon.fit()
+            if (wasAtBottom) {
+              term.scrollToBottom()
+            }
           }
-        }
+        } catch { /* container not yet sized — skip fit */ }
         term.focus()
       }, 50)
     }

@@ -162,3 +162,13 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.codex-btn {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+
+.codex-btn:hover {
+  background: rgba(16, 185, 129, 0.2);
+}
