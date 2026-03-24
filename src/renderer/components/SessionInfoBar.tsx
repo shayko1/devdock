@@ -1,19 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import type { GitStatus } from '../../shared/ipc-types'
 import './SessionInfoBar.css'
-
-interface GitStatus {
-  branch: string | null
-  baseBranch: string | null
-  remote: string | null
-  filesChanged: number
-  insertions: number
-  deletions: number
-  commitsAhead: number
-  commitsBehind: number
-  uncommitted: number
-  isGitRepo: boolean
-}
 
 interface Props {
   folderName: string

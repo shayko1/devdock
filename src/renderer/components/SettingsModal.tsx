@@ -84,6 +84,10 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
       setMcpJsonError(e instanceof Error ? e.message : 'Invalid JSON')
       return
     }
+    if (typeof servers !== 'object' || servers === null || Array.isArray(servers)) {
+      setMcpJsonError('Must be a JSON object { "serverName": { ... } }')
+      return
+    }
     const result = await window.api.mcpSaveConfig?.(mcpFilePath, servers)
     if (result?.success) {
       setMcpSaveMsg('Saved to ~/.claude.json')

@@ -256,13 +256,20 @@ export function registerGitHandlers() {
       if (!baseBranch) {
         return { success: false, error: 'Could not determine base branch' }
       }
-      await execAsync('git fetch origin', {
+      await execFileAsync('git', ['fetch', 'origin'], {
         cwd: folderPath, encoding: 'utf-8', timeout: 30000,
       })
-      const { stdout } = await execAsync(`git merge origin/${baseBranch} --no-edit`, {
-        cwd: folderPath, encoding: 'utf-8', timeout: 60000,
-      })
-      return { success: true, stdout: stdout.trim() }
+      try {
+        const { stdout } = await execFileAsync('git', ['merge', '--ff-only', `origin/${baseBranch}`], {
+          cwd: folderPath, encoding: 'utf-8', timeout: 60000,
+        })
+        return { success: true, stdout: stdout.trim() }
+      } catch {
+        return {
+          success: false,
+          error: `Cannot fast-forward: your branch has diverged from origin/${baseBranch}. Merge or rebase manually.`,
+        }
+      }
     } catch (err: unknown) {
       return { success: false, error: trimExecError(err, 'Sync failed') }
     }

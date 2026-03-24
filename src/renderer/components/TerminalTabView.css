@@ -1,0 +1,113 @@
+/* ── Terminal Tab View ── */
+
+.terminal-tab-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Tab bar */
+
+.terminal-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.terminal-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+}
+
+.terminal-tab.active {
+  background: var(--bg-card-hover);
+  border-color: var(--border);
+}
+
+.terminal-tab-title {
+  color: var(--text-primary);
+}
+
+.terminal-tab.exited .terminal-tab-title {
+  color: var(--text-muted);
+}
+
+.terminal-tab-exited-badge {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.terminal-tab-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 0 1px;
+  line-height: 1;
+}
+
+.terminal-tab-new-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 14px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* Content area */
+
+.terminal-content {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.terminal-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-secondary);
+}
+
+.terminal-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.terminal-wrapper {
+  position: absolute;
+  inset: 0;
+  flex-direction: column;
+}
+
+.terminal-wrapper.active {
+  display: flex;
+}
+
+.terminal-wrapper.inactive {
+  display: none;
+}

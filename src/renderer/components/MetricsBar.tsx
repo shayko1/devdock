@@ -16,8 +16,17 @@ export function MetricsBar({ sessionIds, label }: Props) {
   const dataRef = useRef<Map<string, StatuslineData>>(new Map())
   const [totals, setTotals] = useState({ cost: 0, input: 0, output: 0, cache: 0, model: '' })
 
+  // Keep a ref to the current sessionIds set so the subscription doesn't
+  // need to re-register every time the list changes
+  const sessionIdsRef = useRef(new Set(sessionIds))
+  useEffect(() => {
+    sessionIdsRef.current = new Set(sessionIds)
+  }, [sessionIds])
+
+  // Single subscription for the component lifetime — filters by sessionIds ref
   useEffect(() => {
     const unsub = window.api.onStatuslineData((data: StatuslineData) => {
+      if (!sessionIdsRef.current.has(data.sessionId)) return
       dataRef.current.set(data.sessionId, data)
       // Recompute totals over all known sessions
       let cost = 0, input = 0, output = 0, cache = 0
@@ -34,7 +43,7 @@ export function MetricsBar({ sessionIds, label }: Props) {
     return unsub
   }, [])
 
-  // Clear stale sessions when sessionIds changes
+  // Clear stale sessions when sessionIds shrinks
   useEffect(() => {
     const activeSet = new Set(sessionIds)
     dataRef.current.forEach((_, id) => {

@@ -94,6 +94,7 @@ export function App() {
     closeSession: handleCloseCodexSession,
   } = useCodexSessions({
     onSessionActivated: () => setActiveTab('codex'),
+    onError: (msg) => showToast(msg, 'error'),
   })
 
   const searchRef = useRef<HTMLInputElement>(null)

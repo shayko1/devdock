@@ -1,0 +1,169 @@
+/* ── Codex Sessions View ── */
+
+.codex-sessions {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.codex-sessions-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-secondary);
+}
+
+.codex-sessions-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.codex-sessions-empty-hint {
+  font-size: 12px;
+}
+
+/* Sidebar */
+
+.codex-sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+}
+
+.codex-sidebar-header {
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+
+.codex-sidebar-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.codex-sidebar-new-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.codex-sidebar-list {
+  flex: 1;
+  overflow: auto;
+}
+
+.codex-session-card {
+  padding: 8px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.codex-session-card.active {
+  background: var(--bg-card-hover);
+}
+
+.codex-session-card-info {
+  min-width: 0;
+}
+
+.codex-session-card-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codex-session-card-branch {
+  font-size: 10px;
+  color: var(--blue, #58a6ff);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codex-session-card-exited {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.codex-session-card-starting {
+  font-size: 10px;
+  color: var(--yellow, #e8a838);
+}
+
+.codex-session-card-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+  padding: 2px;
+}
+
+/* Main area */
+
+.codex-main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.codex-terminals {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.codex-terminal-wrapper {
+  position: absolute;
+  inset: 0;
+  flex-direction: column;
+}
+
+.codex-terminal-wrapper.active {
+  display: flex;
+}
+
+.codex-terminal-wrapper.inactive {
+  display: none;
+}
+
+.codex-initializing {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.codex-no-selection {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}

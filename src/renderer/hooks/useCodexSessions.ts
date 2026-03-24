@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { WorkspaceFolder } from '../../shared/types'
 
 export interface CodexSession {
@@ -13,10 +13,13 @@ export interface CodexSession {
 
 interface UseCodexSessionsOptions {
   onSessionActivated?: () => void
+  onError?: (message: string) => void
 }
 
-export function useCodexSessions({ onSessionActivated }: UseCodexSessionsOptions = {}) {
+export function useCodexSessions({ onSessionActivated, onError }: UseCodexSessionsOptions = {}) {
   const [sessions, setSessions] = useState<CodexSession[]>([])
+  const sessionsRef = useRef(sessions)
+  sessionsRef.current = sessions
 
   // Listen for PTY exits
   useEffect(() => {
@@ -56,16 +59,16 @@ export function useCodexSessions({ onSessionActivated }: UseCodexSessionsOptions
         ))
       } else {
         setSessions(prev => prev.filter(s => s.id !== sessionId))
-        if (result.error !== 'Cancelled') alert(`Failed to create Codex session: ${result.error}`)
+        if (result.error !== 'Cancelled') onError?.(`Failed to create Codex session: ${result.error}`)
       }
     } catch (err) {
       setSessions(prev => prev.filter(s => s.id !== sessionId))
-      alert(`Error creating Codex session: ${err}`)
+      onError?.(`Error creating Codex session: ${err}`)
     }
-  }, [onSessionActivated])
+  }, [onSessionActivated, onError])
 
   const closeSession = useCallback(async (sessionId: string) => {
-    const session = sessions.find(s => s.id === sessionId)
+    const session = sessionsRef.current.find(s => s.id === sessionId)
     await window.api.ptyDestroy(sessionId)
 
     if (session?.worktreePath) {
@@ -78,7 +81,7 @@ export function useCodexSessions({ onSessionActivated }: UseCodexSessionsOptions
     }
 
     setSessions(prev => prev.filter(s => s.id !== sessionId))
-  }, [sessions])
+  }, []) // stable — reads sessions via ref, no stale closure
 
   return { sessions, startSession, closeSession }
 }

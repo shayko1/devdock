@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { XTerminal } from './XTerminal'
+import './TerminalTabView.css'
 
 interface TerminalSession {
   id: string
@@ -12,12 +13,11 @@ interface Props {
   scanPath: string
 }
 
-let terminalCounter = 0
-
 export function TerminalTabView({ scanPath }: Props) {
   const [sessions, setSessions] = useState<TerminalSession[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const creatingRef = useRef(false)
+  const counterRef = useRef(0)
 
   // Listen for PTY exits
   useEffect(() => {
@@ -30,10 +30,10 @@ export function TerminalTabView({ scanPath }: Props) {
   const createTerminal = useCallback(async () => {
     if (creatingRef.current) return
     creatingRef.current = true
-    terminalCounter++
-    const sessionId = `terminal-${Date.now().toString(36)}-${terminalCounter}`
-    const cwd = scanPath || (typeof process !== 'undefined' ? process.env.HOME || '~' : '~')
-    const title = `Terminal ${terminalCounter}`
+    counterRef.current++
+    const sessionId = `terminal-${Date.now().toString(36)}-${counterRef.current}`
+    const cwd = scanPath
+    const title = `Terminal ${counterRef.current}`
 
     try {
       const result = await window.api.ptyCreate({
@@ -70,69 +70,43 @@ export function TerminalTabView({ scanPath }: Props) {
   }, [activeId])
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="terminal-tab-view">
       {/* Terminal tab bar */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 2, padding: '4px 8px',
-        background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)',
-        flexShrink: 0, overflowX: 'auto',
-      }}>
+      <div className="terminal-tab-bar">
         {sessions.map(session => (
           <div
             key={session.id}
             onClick={() => setActiveId(session.id)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '3px 10px', borderRadius: 4, cursor: 'pointer',
-              background: session.id === activeId ? 'var(--bg-card-hover)' : 'transparent',
-              border: session.id === activeId ? '1px solid var(--border)' : '1px solid transparent',
-              fontSize: 11, color: session.exited ? 'var(--text-muted)' : 'var(--text-primary)',
-              whiteSpace: 'nowrap', flexShrink: 0,
-            }}
+            className={`terminal-tab${session.id === activeId ? ' active' : ''}${session.exited ? ' exited' : ''}`}
           >
-            <span>{session.title}</span>
-            {session.exited && <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>exited</span>}
+            <span className="terminal-tab-title">{session.title}</span>
+            {session.exited && <span className="terminal-tab-exited-badge">exited</span>}
             <button
               onClick={(e) => { e.stopPropagation(); closeTerminal(session.id) }}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'var(--text-muted)', fontSize: 11, padding: '0 1px', lineHeight: 1,
-              }}
+              className="terminal-tab-close"
               title="Close terminal"
             >✕</button>
           </div>
         ))}
         <button
           onClick={createTerminal}
-          style={{
-            background: 'none', border: '1px solid var(--border)', borderRadius: 4,
-            cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 14,
-            padding: '2px 8px', flexShrink: 0, lineHeight: 1,
-          }}
+          className="terminal-tab-new-btn"
           title="New terminal"
         >+</button>
       </div>
 
       {/* Terminal content */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+      <div className="terminal-content">
         {sessions.length === 0 && (
-          <div style={{
-            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: 12,
-            color: 'var(--text-secondary)',
-          }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>No terminals open</div>
+          <div className="terminal-empty">
+            <div className="terminal-empty-title">No terminals open</div>
             <button className="btn btn-sm btn-primary" onClick={createTerminal}>+ New Terminal</button>
           </div>
         )}
         {sessions.map(session => (
           <div
             key={session.id}
-            style={{
-              position: 'absolute', inset: 0,
-              display: session.id === activeId ? 'flex' : 'none',
-              flexDirection: 'column',
-            }}
+            className={`terminal-wrapper ${session.id === activeId ? 'active' : 'inactive'}`}
           >
             <XTerminal sessionId={session.id} active={session.id === activeId} />
           </div>
