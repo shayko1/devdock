@@ -57,6 +57,7 @@ const mockApi = {
   getGitInfo: vi.fn().mockResolvedValue({ gitBranch: null, gitRemote: null }),
   getGitStatus: vi.fn(),
   bulkGitPullWorkspace: vi.fn().mockResolvedValue({ entries: [] }),
+  onBulkGitPullProgress: vi.fn().mockReturnValue(() => {}),
   openClaudeWorktree: vi.fn(),
   ptyCreate: vi.fn(),
   ptyWrite: vi.fn(),

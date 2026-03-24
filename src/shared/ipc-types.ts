@@ -53,6 +53,20 @@ export interface BulkGitPullResult {
   entries: BulkGitPullResultEntry[]
 }
 
+/** Long-running step for the repo currently being processed (bulk pull). */
+export type BulkGitPullPhase = 'fetch' | 'checkout' | 'pull'
+
+export type BulkGitPullProgressEvent =
+  | {
+      kind: 'active'
+      name: string
+      path: string
+      phase: BulkGitPullPhase
+      index: number
+      total: number
+    }
+  | { kind: 'result'; entry: BulkGitPullResultEntry }
+
 export interface BranchList {
   current: string | null
   branches: string[]

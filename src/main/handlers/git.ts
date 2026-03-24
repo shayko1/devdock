@@ -1,13 +1,22 @@
-import { ipcMain, shell } from 'electron'
+import { BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { readdirSync, statSync } from 'fs'
+import { readdir, stat } from 'fs/promises'
 import { execSync, exec, execFile } from 'child_process'
 import { promisify } from 'util'
 import { WorkspaceFolder } from '../../shared/types'
-import type { BulkGitPullOptions, BulkGitPullResult, BulkGitPullResultEntry } from '../../shared/ipc-types'
+import type {
+  BulkGitPullOptions,
+  BulkGitPullResult,
+  BulkGitPullResultEntry,
+  BulkGitPullProgressEvent,
+  BulkGitPullPhase,
+} from '../../shared/ipc-types'
 
 const execAsync = promisify(exec)
 const execFileAsync = promisify(execFile)
+
+let bulkPullRunning = false
 
 function trimExecError(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && err !== null) {
@@ -24,6 +33,43 @@ function isSafeGitBranchName(branch: string): boolean {
   return branch.length > 0 && branch.length < 256 && /^[\w./-]+$/.test(branch)
 }
 
+function notifyBulkProgress(win: BrowserWindow | null, payload: BulkGitPullProgressEvent): void {
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('bulk-git-pull-progress', payload)
+  }
+}
+
+/** Resolve default branch: origin/HEAD → main → master → null */
+async function resolveDefaultBranch(cwd: string): Promise<string | null> {
+  try {
+    const { stdout } = await execAsync('git symbolic-ref refs/remotes/origin/HEAD', {
+      cwd,
+      encoding: 'utf-8',
+      timeout: 8000,
+    })
+    const sym = stdout.trim()
+    if (sym.startsWith('refs/remotes/origin/')) {
+      const b = sym.replace('refs/remotes/origin/', '')
+      if (isSafeGitBranchName(b)) return b
+    }
+  } catch {
+    /* fallback */
+  }
+  for (const candidate of ['main', 'master'] as const) {
+    try {
+      await execAsync(`git rev-parse --verify origin/${candidate}`, {
+        cwd,
+        encoding: 'utf-8',
+        timeout: 5000,
+      })
+      return candidate
+    } catch {
+      /* try next */
+    }
+  }
+  return null
+}
+
 export function registerGitHandlers() {
   ipcMain.handle('list-workspace-folders', (_event, scanPath: string) => {
     const folders: WorkspaceFolder[] = []
@@ -33,18 +79,22 @@ export function registerGitHandlers() {
         if (entry.startsWith('.') || entry === 'node_modules') continue
         const fullPath = join(scanPath, entry)
         try {
-          const stat = statSync(fullPath)
-          if (!stat.isDirectory()) continue
+          const st = statSync(fullPath)
+          if (!st.isDirectory()) continue
           folders.push({
             name: entry,
             path: fullPath,
-            modifiedAt: stat.mtime.toISOString(),
+            modifiedAt: st.mtime.toISOString(),
             gitBranch: null,
-            gitRemote: null
+            gitRemote: null,
           })
-        } catch { continue }
+        } catch {
+          continue
+        }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return folders.sort((a, b) => a.name.localeCompare(b.name))
   })
 
@@ -53,12 +103,16 @@ export function registerGitHandlers() {
     let gitRemote: string | null = null
     try {
       const { stdout: branch } = await execAsync('git rev-parse --abbrev-ref HEAD', {
-        cwd: folderPath, encoding: 'utf-8', timeout: 3000
+        cwd: folderPath,
+        encoding: 'utf-8',
+        timeout: 3000,
       })
       gitBranch = branch.trim()
       try {
         const { stdout: remote } = await execAsync('git remote get-url origin', {
-          cwd: folderPath, encoding: 'utf-8', timeout: 3000
+          cwd: folderPath,
+          encoding: 'utf-8',
+          timeout: 3000,
         })
         const r = remote.trim()
         if (r.includes('github.com')) {
@@ -66,91 +120,118 @@ export function registerGitHandlers() {
         } else {
           gitRemote = r
         }
-      } catch { /* no remote */ }
-    } catch { /* not a git repo */ }
+      } catch {
+        /* no remote */
+      }
+    } catch {
+      /* not a git repo */
+    }
     return { gitBranch, gitRemote }
   })
 
   ipcMain.handle('get-git-status', async (_event, folderPath: string) => {
     const result: {
-      branch: string | null; baseBranch: string | null; remote: string | null
-      filesChanged: number; insertions: number; deletions: number
-      commitsAhead: number; uncommitted: number; isGitRepo: boolean
+      branch: string | null
+      baseBranch: string | null
+      remote: string | null
+      filesChanged: number
+      insertions: number
+      deletions: number
+      commitsAhead: number
+      uncommitted: number
+      isGitRepo: boolean
     } = {
-      branch: null, baseBranch: null, remote: null,
-      filesChanged: 0, insertions: 0, deletions: 0,
-      commitsAhead: 0, uncommitted: 0, isGitRepo: false
+      branch: null,
+      baseBranch: null,
+      remote: null,
+      filesChanged: 0,
+      insertions: 0,
+      deletions: 0,
+      commitsAhead: 0,
+      uncommitted: 0,
+      isGitRepo: false,
     }
     try {
       execSync('git rev-parse --is-inside-work-tree', {
-        cwd: folderPath, encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore']
+        cwd: folderPath,
+        encoding: 'utf-8',
+        timeout: 3000,
+        stdio: ['ignore', 'pipe', 'ignore'],
       })
       result.isGitRepo = true
-    } catch { return result }
+    } catch {
+      return result
+    }
 
     try {
       result.branch = execSync('git rev-parse --abbrev-ref HEAD', {
-        cwd: folderPath, encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore']
+        cwd: folderPath,
+        encoding: 'utf-8',
+        timeout: 3000,
+        stdio: ['ignore', 'pipe', 'ignore'],
       }).trim()
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     try {
       const remote = execSync('git remote get-url origin', {
-        cwd: folderPath, encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore']
+        cwd: folderPath,
+        encoding: 'utf-8',
+        timeout: 3000,
+        stdio: ['ignore', 'pipe', 'ignore'],
       }).trim()
       result.remote = remote.includes('github.com')
         ? remote.replace(/^git@github\.com:/, 'https://github.com/').replace(/\.git$/, '')
         : remote
-    } catch { /* no remote */ }
-
-    try {
-      const remoteHead = execSync('git symbolic-ref refs/remotes/origin/HEAD', {
-        cwd: folderPath, encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore']
-      }).trim()
-      result.baseBranch = remoteHead.replace('refs/remotes/origin/', '')
     } catch {
-      try {
-        execSync('git rev-parse --verify origin/main', {
-          cwd: folderPath, encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore']
-        })
-        result.baseBranch = 'main'
-      } catch {
-        try {
-          execSync('git rev-parse --verify origin/master', {
-            cwd: folderPath, encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore']
-          })
-          result.baseBranch = 'master'
-        } catch { /* no remote base */ }
-      }
+      /* no remote */
     }
+
+    result.baseBranch = await resolveDefaultBranch(folderPath)
 
     if (result.baseBranch) {
       try {
-        const stat = execSync(`git diff --shortstat origin/${result.baseBranch}...HEAD`, {
-          cwd: folderPath, encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore']
+        const statOut = execSync(`git diff --shortstat origin/${result.baseBranch}...HEAD`, {
+          cwd: folderPath,
+          encoding: 'utf-8',
+          timeout: 5000,
+          stdio: ['ignore', 'pipe', 'ignore'],
         }).trim()
-        const filesMatch = stat.match(/(\d+) files? changed/)
-        const insMatch = stat.match(/(\d+) insertions?/)
-        const delMatch = stat.match(/(\d+) deletions?/)
+        const filesMatch = statOut.match(/(\d+) files? changed/)
+        const insMatch = statOut.match(/(\d+) insertions?/)
+        const delMatch = statOut.match(/(\d+) deletions?/)
         if (filesMatch) result.filesChanged = parseInt(filesMatch[1])
         if (insMatch) result.insertions = parseInt(insMatch[1])
         if (delMatch) result.deletions = parseInt(delMatch[1])
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
 
       try {
         const count = execSync(`git rev-list --count origin/${result.baseBranch}..HEAD`, {
-          cwd: folderPath, encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore']
+          cwd: folderPath,
+          encoding: 'utf-8',
+          timeout: 3000,
+          stdio: ['ignore', 'pipe', 'ignore'],
         }).trim()
         result.commitsAhead = parseInt(count) || 0
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     try {
       const status = execSync('git status --porcelain', {
-        cwd: folderPath, encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore']
+        cwd: folderPath,
+        encoding: 'utf-8',
+        timeout: 3000,
+        stdio: ['ignore', 'pipe', 'ignore'],
       }).trim()
       result.uncommitted = status ? status.split('\n').length : 0
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     return result
   })
@@ -158,7 +239,10 @@ export function registerGitHandlers() {
   ipcMain.handle('list-branches', async (_event, folderPath: string) => {
     try {
       execSync('git rev-parse --is-inside-work-tree', {
-        cwd: folderPath, encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore']
+        cwd: folderPath,
+        encoding: 'utf-8',
+        timeout: 3000,
+        stdio: ['ignore', 'pipe', 'ignore'],
       })
     } catch {
       return { current: null, branches: [] }
@@ -167,14 +251,22 @@ export function registerGitHandlers() {
     let current: string | null = null
     try {
       current = execSync('git rev-parse --abbrev-ref HEAD', {
-        cwd: folderPath, encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore']
+        cwd: folderPath,
+        encoding: 'utf-8',
+        timeout: 3000,
+        stdio: ['ignore', 'pipe', 'ignore'],
       }).trim()
-    } catch { /* detached HEAD */ }
+    } catch {
+      /* detached HEAD */
+    }
 
     const branches: string[] = []
     try {
       const raw = execSync('git branch --format="%(refname:short)"', {
-        cwd: folderPath, encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore']
+        cwd: folderPath,
+        encoding: 'utf-8',
+        timeout: 5000,
+        stdio: ['ignore', 'pipe', 'ignore'],
       }).trim()
       if (raw) {
         for (const b of raw.split('\n')) {
@@ -182,7 +274,9 @@ export function registerGitHandlers() {
           if (name) branches.push(name)
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     return { current, branches }
   })
@@ -190,15 +284,24 @@ export function registerGitHandlers() {
   ipcMain.handle('checkout-branch', async (_event, folderPath: string, branchName: string) => {
     try {
       execSync('git rev-parse --is-inside-work-tree', {
-        cwd: folderPath, encoding: 'utf-8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore']
+        cwd: folderPath,
+        encoding: 'utf-8',
+        timeout: 3000,
+        stdio: ['ignore', 'pipe', 'ignore'],
       })
     } catch {
       return { success: false, error: 'Not a git repository' }
     }
 
+    if (!isSafeGitBranchName(branchName)) {
+      return { success: false, error: 'Invalid branch name' }
+    }
+
     try {
-      execSync(`git checkout "${branchName}"`, {
-        cwd: folderPath, encoding: 'utf-8', timeout: 10000, stdio: ['ignore', 'pipe', 'pipe']
+      await execFileAsync('git', ['checkout', branchName], {
+        cwd: folderPath,
+        encoding: 'utf-8',
+        timeout: 10000,
       })
       return { success: true }
     } catch (err: unknown) {
@@ -267,224 +370,227 @@ export function registerGitHandlers() {
 
   ipcMain.handle(
     'bulk-git-pull-workspace',
-    async (_event, scanPath: string, options: BulkGitPullOptions): Promise<BulkGitPullResult> => {
-      const entries: BulkGitPullResultEntry[] = []
-      const extras = options.extraRemoteSubstrings
-        .map((s) => s.trim().toLowerCase())
-        .filter(Boolean)
-      const patterns =
-        options.onlyWixRelated ? [...new Set(['wix', ...extras])] : []
-
-      let dirNames: string[] = []
-      try {
-        dirNames = readdirSync(scanPath)
-      } catch {
+    async (event, scanPath: string, options: BulkGitPullOptions): Promise<BulkGitPullResult> => {
+      if (bulkPullRunning) {
         return {
           entries: [
             {
               name: '(workspace)',
               path: scanPath,
               status: 'failed',
-              detail: 'Cannot read workspace path',
+              detail: 'A bulk pull is already running — please wait for it to finish',
             },
           ],
         }
       }
+      bulkPullRunning = true
+      const win = BrowserWindow.fromWebContents(event.sender)
 
-      for (const entry of dirNames) {
-        if (entry.startsWith('.') || entry === 'node_modules') continue
-        const fullPath = join(scanPath, entry)
-        let isDir = false
+      const entries: BulkGitPullResultEntry[] = []
+
+      const pushResult = (entry: BulkGitPullResultEntry) => {
+        entries.push(entry)
+        notifyBulkProgress(win, { kind: 'result', entry })
+      }
+
+      const sendActive = (name: string, path: string, phase: BulkGitPullPhase, index: number, total: number) => {
+        notifyBulkProgress(win, { kind: 'active', name, path, phase, index, total })
+      }
+
+      try {
+        const extras = options.extraRemoteSubstrings
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean)
+        const patterns = options.onlyWixRelated ? [...new Set(['wix', ...extras])] : []
+
+        let dirNames: string[]
         try {
-          isDir = statSync(fullPath).isDirectory()
+          dirNames = await readdir(scanPath)
         } catch {
-          continue
-        }
-        if (!isDir) continue
-
-        try {
-          await execAsync('git rev-parse --is-inside-work-tree', {
-            cwd: fullPath,
-            encoding: 'utf-8',
-            timeout: 3000,
-          })
-        } catch {
-          entries.push({
-            name: entry,
-            path: fullPath,
-            status: 'skipped',
-            detail: 'Not a git repository',
-          })
-          continue
+          return {
+            entries: [
+              {
+                name: '(workspace)',
+                path: scanPath,
+                status: 'failed',
+                detail: 'Cannot read workspace path',
+              },
+            ],
+          }
         }
 
-        let originRaw = ''
-        try {
-          const { stdout } = await execAsync('git remote get-url origin', {
-            cwd: fullPath,
-            encoding: 'utf-8',
-            timeout: 5000,
-          })
-          originRaw = stdout.trim()
-        } catch {
-          entries.push({
-            name: entry,
-            path: fullPath,
-            status: 'skipped',
-            detail: 'No origin remote',
-          })
-          continue
-        }
-        const originLower = originRaw.toLowerCase()
-
-        if (options.onlyWixRelated) {
-          const match = patterns.some((p) => originLower.includes(p))
-          if (!match) {
-            entries.push({
-              name: entry,
-              path: fullPath,
-              status: 'skipped',
-              detail: 'Origin does not match filter (Wix / extra substrings)',
-            })
+        const candidates: { name: string; path: string }[] = []
+        for (const entry of dirNames) {
+          if (entry.startsWith('.') || entry === 'node_modules') continue
+          const fullPath = join(scanPath, entry)
+          try {
+            const st = await stat(fullPath)
+            if (!st.isDirectory()) continue
+            candidates.push({ name: entry, path: fullPath })
+          } catch {
             continue
           }
         }
 
-        try {
-          await execAsync('git fetch origin', {
-            cwd: fullPath,
-            encoding: 'utf-8',
-            timeout: 180_000,
-            maxBuffer: 20 * 1024 * 1024,
-          })
-        } catch (err) {
-          entries.push({
-            name: entry,
-            path: fullPath,
-            status: 'failed',
-            detail: `fetch: ${trimExecError(err, 'failed')}`,
-          })
-          continue
-        }
+        const total = candidates.length
 
-        let branch: string | null = null
-        try {
-          const { stdout } = await execAsync('git symbolic-ref refs/remotes/origin/HEAD', {
-            cwd: fullPath,
-            encoding: 'utf-8',
-            timeout: 8000,
-          })
-          const sym = stdout.trim()
-          if (sym.startsWith('refs/remotes/origin/')) {
-            branch = sym.replace('refs/remotes/origin/', '')
-          }
-        } catch {
-          /* use main/master fallback */
-        }
-        if (!branch) {
+        for (let i = 0; i < candidates.length; i++) {
+          const { name: entry, path: fullPath } = candidates[i]
+          const index = i + 1
+
           try {
-            await execAsync('git rev-parse --verify origin/main', {
+            await execAsync('git rev-parse --is-inside-work-tree', {
+              cwd: fullPath,
+              encoding: 'utf-8',
+              timeout: 3000,
+            })
+          } catch {
+            pushResult({
+              name: entry,
+              path: fullPath,
+              status: 'skipped',
+              detail: 'Not a git repository',
+            })
+            continue
+          }
+
+          let originRaw = ''
+          try {
+            const { stdout } = await execAsync('git remote get-url origin', {
               cwd: fullPath,
               encoding: 'utf-8',
               timeout: 5000,
             })
-            branch = 'main'
+            originRaw = stdout.trim()
           } catch {
-            try {
-              await execAsync('git rev-parse --verify origin/master', {
-                cwd: fullPath,
-                encoding: 'utf-8',
-                timeout: 5000,
-              })
-              branch = 'master'
-            } catch {
-              branch = null
-            }
-          }
-        }
-
-        if (!branch || !isSafeGitBranchName(branch)) {
-          entries.push({
-            name: entry,
-            path: fullPath,
-            status: 'failed',
-            detail: 'Could not determine a safe default branch (main/master)',
-          })
-          continue
-        }
-
-        // Check for uncommitted changes before checkout to avoid silent branch switches
-        try {
-          const { stdout: porcelain } = await execAsync('git status --porcelain', {
-            cwd: fullPath,
-            encoding: 'utf-8',
-            timeout: 10_000,
-          })
-          if (porcelain.trim().length > 0) {
-            entries.push({
+            pushResult({
               name: entry,
               path: fullPath,
               status: 'skipped',
-              branch,
-              detail: 'Has uncommitted changes — stash or commit before pulling',
+              detail: 'No origin remote',
             })
             continue
           }
-        } catch (err) {
-          entries.push({
-            name: entry,
-            path: fullPath,
-            status: 'failed',
-            branch,
-            detail: `status check: ${trimExecError(err, 'failed')}`,
-          })
-          continue
+          const originLower = originRaw.toLowerCase()
+
+          if (options.onlyWixRelated) {
+            const match = patterns.some((p) => originLower.includes(p))
+            if (!match) {
+              pushResult({
+                name: entry,
+                path: fullPath,
+                status: 'skipped',
+                detail: 'Origin does not match filter (Wix / extra substrings)',
+              })
+              continue
+            }
+          }
+
+          sendActive(entry, fullPath, 'fetch', index, total)
+          try {
+            await execAsync('git fetch origin', {
+              cwd: fullPath,
+              encoding: 'utf-8',
+              timeout: 180_000,
+              maxBuffer: 20 * 1024 * 1024,
+            })
+          } catch (err) {
+            pushResult({
+              name: entry,
+              path: fullPath,
+              status: 'failed',
+              detail: `fetch: ${trimExecError(err, 'failed')}`,
+            })
+            continue
+          }
+
+          const branch = await resolveDefaultBranch(fullPath)
+          if (!branch) {
+            pushResult({
+              name: entry,
+              path: fullPath,
+              status: 'failed',
+              detail: 'Could not determine a safe default branch (main/master)',
+            })
+            continue
+          }
+
+          try {
+            const { stdout: porcelain } = await execAsync('git status --porcelain', {
+              cwd: fullPath,
+              encoding: 'utf-8',
+              timeout: 8000,
+            })
+            if (porcelain.trim()) {
+              pushResult({
+                name: entry,
+                path: fullPath,
+                status: 'skipped',
+                branch,
+                detail: 'Uncommitted changes — checkout skipped. Stash or commit first.',
+              })
+              continue
+            }
+          } catch (err) {
+            pushResult({
+              name: entry,
+              path: fullPath,
+              status: 'failed',
+              branch,
+              detail: `status: ${trimExecError(err, 'failed')}`,
+            })
+            continue
+          }
+
+          sendActive(entry, fullPath, 'checkout', index, total)
+          try {
+            await execFileAsync('git', ['checkout', branch], {
+              cwd: fullPath,
+              timeout: 60_000,
+              encoding: 'utf-8',
+            })
+          } catch (err) {
+            pushResult({
+              name: entry,
+              path: fullPath,
+              status: 'failed',
+              branch,
+              detail: `checkout: ${trimExecError(err, 'failed')}`,
+            })
+            continue
+          }
+
+          sendActive(entry, fullPath, 'pull', index, total)
+          try {
+            await execFileAsync('git', ['pull', '--ff-only', 'origin', branch], {
+              cwd: fullPath,
+              timeout: 120_000,
+              maxBuffer: 20 * 1024 * 1024,
+              encoding: 'utf-8',
+            })
+            pushResult({
+              name: entry,
+              path: fullPath,
+              status: 'ok',
+              branch,
+              detail: `Up to date with origin/${branch} (ff-only)`,
+            })
+          } catch (err) {
+            pushResult({
+              name: entry,
+              path: fullPath,
+              status: 'failed',
+              branch,
+              detail: `pull: ${trimExecError(err, 'failed')}`,
+            })
+          }
         }
 
-        try {
-          await execFileAsync('git', ['checkout', branch], {
-            cwd: fullPath,
-            timeout: 60_000,
-            encoding: 'utf-8',
-          })
-        } catch (err) {
-          entries.push({
-            name: entry,
-            path: fullPath,
-            status: 'failed',
-            branch,
-            detail: `checkout: ${trimExecError(err, 'failed')}`,
-          })
-          continue
-        }
-
-        try {
-          await execFileAsync('git', ['pull', '--ff-only', 'origin', branch], {
-            cwd: fullPath,
-            timeout: 120_000,
-            maxBuffer: 20 * 1024 * 1024,
-            encoding: 'utf-8',
-          })
-          entries.push({
-            name: entry,
-            path: fullPath,
-            status: 'ok',
-            branch,
-            detail: `Up to date with origin/${branch} (ff-only)`,
-          })
-        } catch (err) {
-          entries.push({
-            name: entry,
-            path: fullPath,
-            status: 'failed',
-            branch,
-            detail: `pull: ${trimExecError(err, 'failed')}`,
-          })
-        }
+        entries.sort((a, b) => a.name.localeCompare(b.name))
+        return { entries }
+      } finally {
+        bulkPullRunning = false
       }
-
-      entries.sort((a, b) => a.name.localeCompare(b.name))
-      return { entries }
     }
   )
 }

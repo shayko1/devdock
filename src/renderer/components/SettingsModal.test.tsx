@@ -86,21 +86,17 @@ describe('SettingsModal', () => {
     expect(onBadges.length).toBeGreaterThanOrEqual(1)
   })
 
-  /** Coach section has first Enable, Dangerous Mode has second - use last one */
-  const getDangerousModeEnableButton = () => {
-    const buttons = screen.getAllByRole('button', { name: 'Enable' })
-    return buttons[buttons.length - 1]
-  }
+  const getDangerousModeToggleButton = () => screen.getByTestId('dangerous-mode-toggle')
 
   it('clicking Enable shows confirmation dialog', () => {
     render(<SettingsModal {...defaultProps} dangerousMode={false} />)
-    fireEvent.click(getDangerousModeEnableButton())
+    fireEvent.click(getDangerousModeToggleButton())
     expect(screen.getByTestId('dangerous-confirm-input')).toBeInTheDocument()
   })
 
   it('confirmation input must match exactly to enable Confirm button', () => {
     render(<SettingsModal {...defaultProps} dangerousMode={false} />)
-    fireEvent.click(getDangerousModeEnableButton())
+    fireEvent.click(getDangerousModeToggleButton())
     const input = screen.getByTestId('dangerous-confirm-input')
     fireEvent.change(input, { target: { value: 'wrong text' } })
     const confirmBtn = screen.getByText('Confirm')
@@ -109,16 +105,16 @@ describe('SettingsModal', () => {
 
   it('typing correct confirmation and clicking Confirm enables dangerous mode', () => {
     render(<SettingsModal {...defaultProps} dangerousMode={false} />)
-    fireEvent.click(getDangerousModeEnableButton())
+    fireEvent.click(getDangerousModeToggleButton())
     const input = screen.getByTestId('dangerous-confirm-input')
     fireEvent.change(input, { target: { value: 'I understand the risks' } })
     fireEvent.click(screen.getByText('Confirm'))
-    expect(screen.getByText('ON')).toBeInTheDocument()
+    expect(screen.getByTestId('dangerous-mode-badge')).toHaveTextContent('ON')
   })
 
   it('clicking Cancel in confirmation dialog hides it', () => {
     render(<SettingsModal {...defaultProps} dangerousMode={false} />)
-    fireEvent.click(getDangerousModeEnableButton())
+    fireEvent.click(getDangerousModeToggleButton())
     expect(screen.getByTestId('dangerous-confirm-input')).toBeInTheDocument()
     const cancelButtons = screen.getAllByText('Cancel')
     fireEvent.click(cancelButtons[0])
@@ -128,7 +124,7 @@ describe('SettingsModal', () => {
   it('clicking Disable when dangerous mode is on disables it immediately', () => {
     render(<SettingsModal {...defaultProps} dangerousMode={true} />)
     expect(screen.getAllByText('ON').length).toBeGreaterThanOrEqual(1)
-    fireEvent.click(screen.getByText('Disable'))
+    fireEvent.click(screen.getByTestId('dangerous-mode-toggle'))
     const offBadges = screen.getAllByText('OFF')
     expect(offBadges.length).toBeGreaterThanOrEqual(2)
   })
@@ -136,7 +132,7 @@ describe('SettingsModal', () => {
   it('save passes dangerousMode=true after enabling', () => {
     const onSave = vi.fn()
     render(<SettingsModal {...defaultProps} onSave={onSave} dangerousMode={false} />)
-    fireEvent.click(getDangerousModeEnableButton())
+    fireEvent.click(getDangerousModeToggleButton())
     const input = screen.getByTestId('dangerous-confirm-input')
     fireEvent.change(input, { target: { value: 'I understand the risks' } })
     fireEvent.click(screen.getByText('Confirm'))
@@ -146,7 +142,7 @@ describe('SettingsModal', () => {
 
   it('confirmation text is case-sensitive', () => {
     render(<SettingsModal {...defaultProps} dangerousMode={false} />)
-    fireEvent.click(getDangerousModeEnableButton())
+    fireEvent.click(getDangerousModeToggleButton())
     const input = screen.getByTestId('dangerous-confirm-input')
     fireEvent.change(input, { target: { value: 'i understand the risks' } })
     const confirmBtn = screen.getByText('Confirm')

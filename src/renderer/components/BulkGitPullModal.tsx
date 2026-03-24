@@ -1,5 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import type { BulkGitPullResult, BulkGitPullResultEntry } from '../../shared/ipc-types'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import type {
+  BulkGitPullPhase,
+  BulkGitPullResult,
+  BulkGitPullResultEntry,
+} from '../../shared/ipc-types'
+import './BulkGitPullModal.css'
 
 interface Props {
   scanPath: string
@@ -20,14 +25,44 @@ function summarize(entries: BulkGitPullResultEntry[]): string {
   return `${ok} pulled · ${failed} failed · ${skipped} skipped`
 }
 
+function phaseLabel(phase: BulkGitPullPhase): string {
+  switch (phase) {
+    case 'fetch':
+      return 'Fetching from origin…'
+    case 'checkout':
+      return 'Checking out default branch…'
+    case 'pull':
+      return 'Pulling (fast-forward only)…'
+    default:
+      return phase
+  }
+}
+
 export function BulkGitPullModal({ scanPath, onClose }: Props) {
   const [onlyWixRelated, setOnlyWixRelated] = useState(true)
   const [extraSubs, setExtraSubs] = useState('')
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<BulkGitPullResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [progressEntries, setProgressEntries] = useState<BulkGitPullResultEntry[]>([])
+  const [active, setActive] = useState<{
+    name: string
+    phase: BulkGitPullPhase
+    index: number
+    total: number
+  } | null>(null)
+
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const extraList = useMemo(() => parseExtraSubs(extraSubs), [extraSubs])
+
+  const displayEntries = !running && result ? result.entries : progressEntries
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -37,143 +72,169 @@ export function BulkGitPullModal({ scanPath, onClose }: Props) {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onClose, running])
 
+  useEffect(() => {
+    if (!running) return
+    const unsub = window.api.onBulkGitPullProgress((data) => {
+      if (!mountedRef.current) return
+      if (data.kind === 'active') {
+        setActive({
+          name: data.name,
+          phase: data.phase,
+          index: data.index,
+          total: data.total,
+        })
+      } else {
+        setProgressEntries((prev) => [...prev, data.entry])
+      }
+    })
+    return unsub
+  }, [running])
+
   const run = async () => {
     setRunning(true)
     setError(null)
     setResult(null)
+    setProgressEntries([])
+    setActive(null)
     try {
       const res = await window.api.bulkGitPullWorkspace(scanPath, {
         onlyWixRelated,
         extraRemoteSubstrings: extraList,
       })
-      setResult(res)
+      if (!mountedRef.current) return
+      const concurrentMsg = 'A bulk pull is already running'
+      if (
+        res.entries.length === 1 &&
+        res.entries[0].status === 'failed' &&
+        res.entries[0].detail?.includes(concurrentMsg)
+      ) {
+        setError(res.entries[0].detail ?? null)
+        setResult(null)
+      } else {
+        setResult(res)
+      }
     } catch (e) {
+      if (!mountedRef.current) return
       setError(e instanceof Error ? e.message : String(e))
     } finally {
-      setRunning(false)
+      if (mountedRef.current) {
+        setRunning(false)
+        setActive(null)
+      }
     }
   }
 
+  const showSummary =
+    (result && !running) || (running && progressEntries.length > 0)
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={running ? undefined : onClose}>
       <div
-        className="modal"
+        className="modal bulk-pull-modal"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: 560, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}
+        aria-busy={running}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bulk-pull-title"
       >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexShrink: 0,
-            gap: 12,
-            marginBottom: 4,
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>Bulk git pull</h2>
+        <div className="bulk-pull-header">
+          <h2 id="bulk-pull-title" className="bulk-pull-title">
+            Bulk git pull
+          </h2>
           <button
             type="button"
-            className="btn btn-sm"
+            className="btn btn-sm bulk-pull-close-x"
             onClick={onClose}
+            disabled={running}
             aria-label="Close"
-            style={{ fontSize: 16, lineHeight: 1, padding: '2px 8px' }}
           >
             ×
           </button>
         </div>
 
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
-          Runs <code style={{ fontSize: 12 }}>git fetch origin</code>, checks out each repo’s default branch
-          (<code style={{ fontSize: 12 }}>origin/HEAD</code>, else <code style={{ fontSize: 12 }}>main</code> or{' '}
-          <code style={{ fontSize: 12 }}>master</code>), then <code style={{ fontSize: 12 }}>git pull --ff-only</code>.
-          Repos with local changes that block checkout will fail until you stash or commit.
+        <p className="bulk-pull-description">
+          Runs <code>git fetch origin</code>, checks out each repo’s default branch (
+          <code>origin/HEAD</code>, else <code>main</code> or <code>master</code>), then{' '}
+          <code>git pull --ff-only</code>. Repos with uncommitted changes are skipped for checkout until you stash or
+          commit.
         </p>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
+        <label className="bulk-pull-filter-label">
           <input
             type="checkbox"
             checked={onlyWixRelated}
             onChange={(e) => setOnlyWixRelated(e.target.checked)}
+            disabled={running}
           />
-          Only repos whose <strong>origin</strong> URL contains <code style={{ fontSize: 12 }}>wix</code> (case-insensitive)
+          Only repos whose <strong>origin</strong> URL contains <code>wix</code> (case-insensitive)
         </label>
 
-        <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
+        <label className="bulk-pull-extra-hint">
           Additional origin substrings (optional, comma-separated; OR-matched with “wix” when filter is on)
         </label>
         <input
-          className="search-input"
+          className="search-input bulk-pull-extra-input"
           placeholder="e.g. wixpress, my-org"
           value={extraSubs}
           onChange={(e) => setExtraSubs(e.target.value)}
-          disabled={!onlyWixRelated}
-          style={{ marginBottom: 12 }}
+          disabled={!onlyWixRelated || running}
         />
 
         {!onlyWixRelated && (
-          <p style={{ fontSize: 12, color: 'var(--orange)', margin: '0 0 12px' }}>
-            All git folders under this workspace with an <code style={{ fontSize: 11 }}>origin</code> remote will be
-            included.
+          <p className="bulk-pull-warning">
+            All git folders under this workspace with an <code>origin</code> remote will be included.
           </p>
         )}
 
-        {error && (
-          <p style={{ fontSize: 13, color: 'var(--red)', marginBottom: 8 }}>{error}</p>
+        {error && <p className="bulk-pull-error">{error}</p>}
+
+        {showSummary && (
+          <p className="bulk-pull-summary">
+            {summarize(!running && result ? result.entries : progressEntries)}
+          </p>
         )}
 
-        {result && (
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{summarize(result.entries)}</p>
+        {running && active && (
+          <div className="bulk-pull-current" role="status" aria-live="polite">
+            <div className="bulk-pull-spinner" aria-hidden />
+            <div className="bulk-pull-current-text">
+              <div className="bulk-pull-current-repo">{active.name}</div>
+              <div className="bulk-pull-current-meta">
+                {phaseLabel(active.phase)}
+                {active.total > 0 && (
+                  <>
+                    {' '}
+                    · {active.index} / {active.total}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
-        <div
-          style={{
-            flex: 1,
-            minHeight: 120,
-            maxHeight: 320,
-            overflow: 'auto',
-            border: '1px solid var(--border)',
-            borderRadius: 6,
-            marginBottom: 12,
-            fontSize: 12,
-          }}
-        >
-          {result?.entries.map((e) => (
-            <div
-              key={e.path}
-              style={{
-                padding: '6px 10px',
-                borderBottom: '1px solid var(--border)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 2,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="bulk-pull-results">
+          {displayEntries.length === 0 && !running && (
+            <div className="bulk-pull-empty-hint">Results appear here after you run a pull.</div>
+          )}
+          {displayEntries.map((e) => (
+            <div key={e.path} className="bulk-pull-entry">
+              <div className="bulk-pull-entry-row">
                 <span
-                  style={{
-                    fontWeight: 600,
-                    color:
-                      e.status === 'ok'
-                        ? 'var(--green)'
-                        : e.status === 'failed'
-                          ? 'var(--red)'
-                          : 'var(--text-muted)',
-                  }}
+                  className={`bulk-pull-entry-status bulk-pull-entry-status--${e.status === 'ok' ? 'ok' : e.status === 'failed' ? 'failed' : 'skipped'}`}
                 >
                   {e.status}
                 </span>
-                <span style={{ fontWeight: 500 }}>{e.name}</span>
+                <span className="bulk-pull-entry-name">{e.name}</span>
                 {e.branch != null && e.branch !== '' && (
-                  <span style={{ color: 'var(--text-muted)' }}>({e.branch})</span>
+                  <span className="bulk-pull-entry-branch">({e.branch})</span>
                 )}
               </div>
-              {e.detail && <span style={{ color: 'var(--text-secondary)', wordBreak: 'break-word' }}>{e.detail}</span>}
+              {e.detail && <span className="bulk-pull-entry-detail">{e.detail}</span>}
             </div>
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexShrink: 0 }}>
+        <div className="bulk-pull-actions">
           <button type="button" className="btn btn-sm" onClick={onClose} disabled={running}>
             Close
           </button>
