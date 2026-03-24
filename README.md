@@ -59,7 +59,7 @@ Scan any directory and instantly see every project as a card. Each card shows th
 
 ### All Folders
 
-Browse every folder in your workspace with git branch info, remote status, and modification time. Hover any row to reveal quick-launch buttons for Claude, Cursor, Zed, Terminal, and Finder.
+Browse every folder in your workspace with git branch info, remote status, and modification time. Hover any row to reveal quick-launch buttons for Claude, Codex, Cursor, Zed, Terminal, and Finder.
 
 <details>
 <summary><strong>Screenshot — All Folders with quick actions</strong></summary>
@@ -83,12 +83,31 @@ Embedded terminal sessions running the Claude CLI inside a real shell. Each sess
 | **Session history** | Browse, search, and resume past conversations with auto-generated titles and keyword tags — keeps 6 months of history |
 | **Auto-recap on resume** | Resuming a session automatically asks Claude to summarize what happened so you can pick up where you left off |
 | **Git worktrees** | Every session gets an isolated branch — no conflicts with your main work. Worktree sessions resume into the correct directory |
+| **Git sync** | One-click sync button in the info bar: fetches origin and merges the base branch into your current branch. Shows ⬇ N behind when you're behind |
+| **Metrics bar** | Aggregate token usage and cost across all open sessions, updated live from Claude Code's statusline |
 | **File explorer & search** | Browse project files and search content in a unified side panel |
 | **Diff viewer** | Review all changes Claude made before committing |
 | **MCP & Skills panel** | View and manage MCP servers, skills, and custom commands |
 | **Browser panel** | View web pages inline without switching windows |
 | **Pipeline** | Autonomous task execution: plan → implement → validate → review |
 | **Prompt Coach** | Context-aware suggestions to get better results from Claude (uses OpenAI, configurable) |
+
+---
+
+### Codex Sessions
+
+Embedded terminal sessions running the [OpenAI Codex CLI](https://github.com/openai/codex) (`codex`) inside a real shell. Works exactly like Claude Sessions — each session gets its own git worktree if launched from the All Folders tab.
+
+**Requirements:** `codex` must be installed and on your PATH:
+```bash
+npm install -g @openai/codex
+```
+
+---
+
+### Terminal
+
+Standalone bare `zsh` sessions with no AI tool attached. Open as many terminals as you need, each in its own tab. Useful for running servers, watching logs, or any task where you want a clean shell in your workspace.
 
 ---
 
@@ -133,6 +152,7 @@ The browser window persists across commands and works with any local or remote U
 | **Node.js** | 18+ |
 | **git** | any recent version |
 | **Claude CLI** | `npm i -g @anthropic-ai/claude-code` |
+| **Codex CLI** *(optional)* | `npm i -g @openai/codex` (for Codex tab) |
 | **Xcode CLI Tools** | `xcode-select --install` (for native `node-pty` build) |
 
 ### Install & Run
@@ -192,6 +212,8 @@ cp -R dist/DevDock.app /Applications/
 | `?` | Show shortcuts help |
 | `Cmd++ / Cmd+-` | Zoom terminal font |
 | Drag & drop images | Paste image paths into terminal |
+
+> Codex and Terminal tabs are accessible via the tab bar; keyboard shortcuts for them are not yet assigned.
 
 ---
 
