@@ -522,22 +522,27 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
               <label style={{ fontSize: 13, fontWeight: 600, color: dangerous ? '#f85149' : 'var(--text-primary)' }}>
                 Dangerous Mode
               </label>
-              <span style={{
-                marginLeft: 8,
-                fontSize: 10,
-                padding: '1px 6px',
-                borderRadius: 4,
-                background: dangerous ? '#f85149' : 'var(--text-muted)',
-                color: dangerous ? '#fff' : '#000',
-                fontWeight: 600
-              }}>
+              <span
+                data-testid="dangerous-mode-badge"
+                style={{
+                  marginLeft: 8,
+                  fontSize: 10,
+                  padding: '1px 6px',
+                  borderRadius: 4,
+                  background: dangerous ? '#f85149' : 'var(--text-muted)',
+                  color: dangerous ? '#fff' : '#000',
+                  fontWeight: 600,
+                }}
+              >
                 {dangerous ? 'ON' : 'OFF'}
               </span>
             </div>
             <button
+              type="button"
               className={`btn btn-sm ${dangerous ? 'btn-danger' : ''}`}
               onClick={handleToggleDangerous}
               style={{ minWidth: 80 }}
+              data-testid="dangerous-mode-toggle"
             >
               {dangerous ? 'Disable' : 'Enable'}
             </button>

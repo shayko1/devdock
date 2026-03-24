@@ -33,6 +33,35 @@ import {
 } from './handlers'
 import { resourceMonitor } from './resource-monitor'
 
+// Chromium may log (stderr):
+//   [ERROR:...network_service_instance_impl.cc(...)] Network service crashed, restarting service.
+// That is the *network utility process* restarting; Chromium usually recovers. It is a known intermittent
+// on some macOS + Electron/Chromium builds. It is unrelated to "[MCP] registerMcpHandlers" or BrowserBridge
+// — those are normal DevDock startup lines.
+//
+// If the UI or embedded browser keeps failing to load (not just a one-off log line), try one at a time:
+//   DEVDOCK_SKIP_GPU_MITIGATIONS=1 npm run dev     — native GPU (undo dev mitigation below)
+//   DEVDOCK_GPU_COMPOSITING_ONLY=1 npm run dev     — lighter than full --disable-gpu
+//   DEVDOCK_FORCE_LOW_POWER_GPU=1 npm run dev      — macOS dual-GPU: prefer integrated GPU
+//   DEVDOCK_NETWORK_SERVICE_IN_PROCESS=1 npm run dev — experimental; may be ignored on newer Chromium
+//
+// In dev, full GPU disable often reduces that log on macOS; compositing-only is not always enough.
+if (!app.isPackaged && process.env.DEVDOCK_NETWORK_SERVICE_IN_PROCESS === '1') {
+  app.commandLine.appendSwitch('enable-features', 'NetworkServiceInProcess')
+}
+
+if (process.platform === 'darwin' && process.env.DEVDOCK_FORCE_LOW_POWER_GPU === '1') {
+  app.commandLine.appendSwitch('force_low_power_gpu')
+}
+
+if (!app.isPackaged && process.env.DEVDOCK_SKIP_GPU_MITIGATIONS !== '1') {
+  if (process.env.DEVDOCK_GPU_COMPOSITING_ONLY === '1') {
+    app.commandLine.appendSwitch('disable-gpu-compositing')
+  } else {
+    app.commandLine.appendSwitch('disable-gpu')
+  }
+}
+
 let mainWindow: BrowserWindow | null = null
 
 async function createWindow() {

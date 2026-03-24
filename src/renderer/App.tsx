@@ -52,12 +52,22 @@ export function App() {
   const [showNewSession, setShowNewSession] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light' | 'system'>(() => {
-    return (localStorage.getItem('devdock-theme') as 'dark' | 'light' | 'system') || 'dark'
+    try {
+      const t = localStorage.getItem('devdock-theme')
+      if (t === 'light' || t === 'dark' || t === 'system') return t
+    } catch {
+      /* broken or missing Storage (e.g. some test / privacy contexts) */
+    }
+    return 'dark'
   })
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('devdock-theme', theme)
+    try {
+      localStorage.setItem('devdock-theme', theme)
+    } catch {
+      /* ignore */
+    }
   }, [theme])
 
   const {

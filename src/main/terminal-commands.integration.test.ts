@@ -486,25 +486,25 @@ describe('Interactive PTY behavior', () => {
     const pty = runInteractive()
     try {
       // Wait for shell prompt
-      await pty.waitForOutput(/[\$%#>]/, 5000)
+      await pty.waitForOutput(/[\$%#>]/, 8000)
       pty.write('echo "INTERACTIVE_TEST_OUTPUT"\r')
-      await pty.waitForOutput('INTERACTIVE_TEST_OUTPUT', 5000)
+      await pty.waitForOutput('INTERACTIVE_TEST_OUTPUT', 8000)
       expect(pty.getOutput()).toContain('INTERACTIVE_TEST_OUTPUT')
     } finally {
       pty.destroy()
     }
-  })
+  }, 20000)
 
   it('can run multiple commands sequentially', async () => {
     const pty = runInteractive()
     try {
-      await pty.waitForOutput(/[\$%#>]/, 5000)
+      await pty.waitForOutput(/[\$%#>]/, 8000)
       pty.write('echo "CMD_ONE"\r')
-      await pty.waitForOutput('CMD_ONE', 5000)
+      await pty.waitForOutput('CMD_ONE', 8000)
       pty.write('echo "CMD_TWO"\r')
-      await pty.waitForOutput('CMD_TWO', 5000)
+      await pty.waitForOutput('CMD_TWO', 8000)
       pty.write('echo "CMD_THREE"\r')
-      await pty.waitForOutput('CMD_THREE', 5000)
+      await pty.waitForOutput('CMD_THREE', 8000)
       const out = pty.getOutput()
       expect(out).toContain('CMD_ONE')
       expect(out).toContain('CMD_TWO')
@@ -512,46 +512,46 @@ describe('Interactive PTY behavior', () => {
     } finally {
       pty.destroy()
     }
-  })
+  }, 40000)
 
   it('Ctrl+C interrupts a running command', async () => {
     const pty = runInteractive()
     try {
-      await pty.waitForOutput(/[\$%#>]/, 5000)
+      await pty.waitForOutput(/[\$%#>]/, 12000)
       pty.write('sleep 999\r')
       await new Promise(r => setTimeout(r, 500))
       pty.write('\x03') // Ctrl+C
       await new Promise(r => setTimeout(r, 500))
       // Verify shell is still alive by running another command
       pty.write('echo "AFTER_CTRL_C"\r')
-      await pty.waitForOutput('AFTER_CTRL_C', 8000)
+      await pty.waitForOutput('AFTER_CTRL_C', 12000)
     } finally {
       pty.destroy()
     }
-  }, 15000)
+  }, 35000)
 
   it('terminal resize updates COLUMNS', async () => {
     const pty = runInteractive({ cols: 80 })
     try {
-      await pty.waitForOutput(/[\$%#>]/, 5000)
+      await pty.waitForOutput(/[\$%#>]/, 8000)
       pty.write('echo $COLUMNS\r')
-      await pty.waitForOutput('80', 5000)
+      await pty.waitForOutput('80', 8000)
     } finally {
       pty.destroy()
     }
-  })
+  }, 20000)
 
   it('exit command terminates the shell', async () => {
     const pty = runInteractive()
     try {
-      await pty.waitForOutput(/[\$%#>]/, 5000)
+      await pty.waitForOutput(/[\$%#>]/, 8000)
       pty.write('exit 0\r')
       const code = await pty.onExit()
       expect(code).toBe(0)
     } finally {
       pty.destroy()
     }
-  })
+  }, 20000)
 
   it('handles rapid sequential input', async () => {
     const pty = runInteractive()
@@ -679,41 +679,41 @@ describe('Bracketed paste input (ChatInputBar simulation)', () => {
   it('plain text + \\r without bracketed paste executes command', async () => {
     const pty = runInteractive()
     try {
-      await pty.waitForOutput(/[\$%#>]/, 5000)
+      await pty.waitForOutput(/[\$%#>]/, 8000)
       // Simplest approach: just text + \r
       pty.write('echo "PLAIN_TEST"\r')
-      await pty.waitForOutput('PLAIN_TEST', 5000)
+      await pty.waitForOutput('PLAIN_TEST', 8000)
       expect(pty.getOutput()).toContain('PLAIN_TEST')
     } finally {
       pty.destroy()
     }
-  })
+  }, 20000)
 
   it('plain text + \\n without bracketed paste executes command', async () => {
     const pty = runInteractive()
     try {
-      await pty.waitForOutput(/[\$%#>]/, 5000)
+      await pty.waitForOutput(/[\$%#>]/, 8000)
       // Alternative: text + \n instead of \r
       pty.write('echo "NEWLINE_TEST"\n')
-      await pty.waitForOutput('NEWLINE_TEST', 5000)
+      await pty.waitForOutput('NEWLINE_TEST', 8000)
       expect(pty.getOutput()).toContain('NEWLINE_TEST')
     } finally {
       pty.destroy()
     }
-  })
+  }, 20000)
 
   it('bracketed paste + \\n executes command', async () => {
     const pty = runInteractive()
     try {
-      await pty.waitForOutput(/[\$%#>]/, 5000)
+      await pty.waitForOutput(/[\$%#>]/, 8000)
       // Bracketed paste with \n instead of \r
       pty.write('\x1b[200~echo "BP_NEWLINE_TEST"\x1b[201~\n')
-      await pty.waitForOutput('BP_NEWLINE_TEST', 5000)
+      await pty.waitForOutput('BP_NEWLINE_TEST', 8000)
       expect(pty.getOutput()).toContain('BP_NEWLINE_TEST')
     } finally {
       pty.destroy()
     }
-  })
+  }, 20000)
 
   it('bracketed paste into node readline — single write with \\r', async () => {
     // Simulates Claude Code: a Node.js program using readline

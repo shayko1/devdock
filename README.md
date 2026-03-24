@@ -312,6 +312,30 @@ The `browser` command is only available inside Claude sessions started from the 
 Active sessions are tracked in `~/.devdock/active-sessions.json` and auto-resume on restart. Session history is read from Claude Code's own files in `~/.claude/projects/`. Ensure both paths are writable and not being cleared by cleanup tools.
 </details>
 
+<details>
+<summary><strong>Blank UI, broken loads, or <code>Network service crashed</code> (dev, macOS)</strong></summary>
+
+Chromium may log `Network service crashed, restarting service` to the terminal during `npm run dev`. That is usually a one-off utility-process restart and the app recovers.
+
+If you see **real** problems (blank window, pages never load, embedded browser stuck), run these from the **repository root** (not your home directory), one at a time:
+
+```bash
+# Prefer native GPU (turns off dev’s default --disable-gpu; helps on some Macs)
+DEVDOCK_SKIP_GPU_MITIGATIONS=1 npm run dev
+
+# Dual-GPU Mac: prefer integrated GPU
+DEVDOCK_FORCE_LOW_POWER_GPU=1 npm run dev
+
+# Lighter GPU mitigation than full --disable-gpu
+DEVDOCK_GPU_COMPOSITING_ONLY=1 npm run dev
+
+# Experimental; may do nothing on newer Chromium
+DEVDOCK_NETWORK_SERVICE_IN_PROCESS=1 npm run dev
+```
+
+More detail lives in the comment block at the top of `src/main/index.ts`.
+</details>
+
 ---
 
 ## Contributing
