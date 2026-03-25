@@ -30,6 +30,8 @@ import {
   registerResourceHandlers,
   registerNotificationHandlers,
   registerPresetHandlers,
+  registerAkeylessHandlers,
+  registerDbWorkbenchHandlers,
 } from './handlers'
 import { resourceMonitor } from './resource-monitor'
 
@@ -174,6 +176,8 @@ function setupIPC() {
   registerResourceHandlers()
   registerNotificationHandlers()
   registerPresetHandlers()
+  registerAkeylessHandlers()
+  registerDbWorkbenchHandlers()
 }
 
 app.whenReady().then(() => {
@@ -202,4 +206,11 @@ app.on('before-quit', () => {
   pipelineManager.destroyAll()
   statuslineWatcher.unwatchAll()
   stopBrowserBridge()
+  // Clean up DB workbench connections and tunnels
+  try {
+    const { mysqlClient } = require('./mysql-client')
+    const { akeylessDb } = require('./akeyless-db')
+    mysqlClient.disconnectAll().catch(() => {})
+    akeylessDb.closeAllTunnels()
+  } catch { /* modules may not be loaded yet */ }
 })

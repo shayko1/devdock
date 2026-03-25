@@ -14,11 +14,12 @@ import { ShortcutsHelp } from './components/ShortcutsHelp'
 import { SettingsModal } from './components/SettingsModal'
 import { Toast } from './components/Toast'
 import { AgentsView } from './components/AgentsView'
+import { DbWorkbenchView } from './components/DbWorkbenchView'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Skeleton } from './components/Skeleton'
 import { Project } from '../shared/types'
 
-type TabId = 'launchpad' | 'folders' | 'claude' | 'agents'
+type TabId = 'launchpad' | 'folders' | 'claude' | 'agents' | 'db-access'
 
 export function App() {
   const {
@@ -417,9 +418,19 @@ export function App() {
         >
           Agents
         </div>
+        <div
+          className={`tab ${activeTab === 'db-access' ? 'active' : ''}`}
+          onClick={() => setActiveTab('db-access')}
+        >
+          DB Access
+        </div>
       </div>
 
-      {activeTab === 'agents' ? (
+      {activeTab === 'db-access' ? (
+        <ErrorBoundary name="DB Access">
+          <DbWorkbenchView />
+        </ErrorBoundary>
+      ) : activeTab === 'agents' ? (
         <ErrorBoundary name="Agents">
           <AgentsView />
         </ErrorBoundary>

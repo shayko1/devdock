@@ -278,6 +278,43 @@ const api = {
     ipcRenderer.invoke('preset-get-recent', limit),
   presetLaunch: (opts: PresetLaunchOptions): Promise<PresetLaunchResult> =>
     ipcRenderer.invoke('preset-launch', opts),
+
+  // Akeyless DB Access
+  akeylessCheckStatus: (): Promise<{
+    cliInstalled: boolean; cliVersion: string | null;
+    profileConfigured: boolean; connectRcConfigured: boolean;
+    scriptExists: boolean; scriptPath: string;
+  }> => ipcRenderer.invoke('akeyless-check-status'),
+  akeylessInstallCli: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('akeyless-install-cli'),
+  akeylessConfigure: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('akeyless-configure'),
+  akeylessUpdateCli: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('akeyless-update-cli'),
+
+  // DB Workbench
+  dbListProducers: (type?: 'mysql' | 'mongo'): Promise<{
+    success: boolean; producers: any[]; error?: string;
+  }> => ipcRenderer.invoke('db-list-producers', type),
+  dbConnect: (producerName: string): Promise<{
+    success: boolean; connectionId?: string; tunnelId?: string;
+    cluster?: string; database?: string; type?: string; error?: string;
+  }> => ipcRenderer.invoke('db-connect', producerName),
+  dbDisconnect: (connectionId: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('db-disconnect', connectionId),
+  dbExecuteQuery: (connectionId: string, sql: string): Promise<{
+    columns: any[]; rows: any[][]; rowCount: number;
+    affectedRows: number; executionTimeMs: number; error?: string;
+  }> => ipcRenderer.invoke('db-execute-query', connectionId, sql),
+  dbListTables: (connectionId: string): Promise<{
+    success: boolean; tables: any[]; error?: string;
+  }> => ipcRenderer.invoke('db-list-tables', connectionId),
+  dbDescribeTable: (connectionId: string, tableName: string): Promise<{
+    success: boolean; columns: any[]; error?: string;
+  }> => ipcRenderer.invoke('db-describe-table', connectionId, tableName),
+  dbListDatabases: (connectionId: string): Promise<{
+    success: boolean; databases: string[]; error?: string;
+  }> => ipcRenderer.invoke('db-list-databases', connectionId),
 }
 
 contextBridge.exposeInMainWorld('api', api)
