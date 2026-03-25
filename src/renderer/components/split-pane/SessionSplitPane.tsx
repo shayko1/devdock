@@ -14,6 +14,8 @@ interface Props {
   onWaitingChange: (waiting: boolean) => void
   /** Render slot for toolbar — returns a portal target for the toolbar buttons */
   toolbarRef?: React.RefObject<HTMLDivElement | null>
+  /** Called when user wants to start a new Claude session in an empty split pane */
+  onNewSession?: () => void
 }
 
 /**
@@ -21,7 +23,7 @@ interface Props {
  * independent split-pane state. By default, it's a single pane
  * (same as the old behavior). Users can split via toolbar or shortcuts.
  */
-export function SessionSplitPane({ sessionId, active, onWaitingChange, toolbarRef }: Props) {
+export function SessionSplitPane({ sessionId, active, onWaitingChange, toolbarRef, onNewSession }: Props) {
   const {
     layout,
     activePaneId,
@@ -115,6 +117,21 @@ export function SessionSplitPane({ sessionId, active, onWaitingChange, toolbarRe
   const renderPane = useCallback((paneId: PaneId) => {
     const pane = panes.get(paneId)
     if (!pane) return null
+
+    // Empty pane — show black screen with option to start a new session
+    if (!pane.sessionId) {
+      return (
+        <div className="split-pane-empty">
+          <button className="btn btn-primary" onClick={onNewSession}>
+            New Claude Session
+          </button>
+          <span className="split-pane-empty-hint">
+            Or press <kbd>Cmd+W</kbd> to close this pane
+          </span>
+        </div>
+      )
+    }
+
     return (
       <XTerminal
         sessionId={pane.sessionId}
@@ -122,7 +139,7 @@ export function SessionSplitPane({ sessionId, active, onWaitingChange, toolbarRe
         onWaitingChange={onWaitingChange}
       />
     )
-  }, [panes, active, activePaneId, onWaitingChange])
+  }, [panes, active, activePaneId, onWaitingChange, onNewSession])
 
   return (
     <>

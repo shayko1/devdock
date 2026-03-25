@@ -113,6 +113,7 @@ export interface SplitPaneState {
   setActivePane: (paneId: PaneId) => void
   updateRatio: (paneId: PaneId, ratio: number) => void
   resetLayout: () => void
+  assignSession: (paneId: PaneId, sessionId: string) => void
 }
 
 export function useSplitPane(initialSessionId: string): SplitPaneState {
@@ -153,12 +154,11 @@ export function useSplitPane(initialSessionId: string): SplitPaneState {
     })
 
     setPanes(prev => {
-      const existingPane = prev.get(paneId)
       const next = new Map(prev)
-      // New pane shares the same sessionId (the caller can override later)
+      // New pane starts empty (black screen with option to connect a new session)
       next.set(newPaneId, {
         paneId: newPaneId,
-        sessionId: existingPane?.sessionId ?? initialSessionId,
+        sessionId: '',
         isActive: false,
       })
       return next
@@ -233,6 +233,16 @@ export function useSplitPane(initialSessionId: string): SplitPaneState {
     setActivePaneId(rootPaneId)
   }, [initialSessionId])
 
+  const assignSession = useCallback((paneId: PaneId, sessionId: string) => {
+    setPanes(prev => {
+      const pane = prev.get(paneId)
+      if (!pane) return prev
+      const next = new Map(prev)
+      next.set(paneId, { ...pane, sessionId })
+      return next
+    })
+  }, [])
+
   return {
     layout,
     activePaneId,
@@ -242,6 +252,7 @@ export function useSplitPane(initialSessionId: string): SplitPaneState {
     setActivePane,
     updateRatio,
     resetLayout,
+    assignSession,
   }
 }
 

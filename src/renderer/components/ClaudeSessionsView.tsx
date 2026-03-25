@@ -611,6 +611,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
                     active={activeSessionId === session.id}
                     onWaitingChange={(waiting) => handleWaitingChange(session.id, waiting)}
                     toolbarRef={splitPaneToolbarRef}
+                    onNewSession={onNewSession}
                   />
                   {chatInputEnabled && activeSessionId === session.id && !session.exited && (
                     <ChatInputBar
