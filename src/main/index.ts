@@ -11,7 +11,7 @@ import { startBrowserBridge, setBrowserBridgeWindow, stopBrowserBridge } from '.
 import { pipelineManager } from './pipeline-manager'
 import { loadState } from './store'
 import { writeRtkWrapper } from './rtk-manager'
-import { coachManager } from './coach-manager'
+import { promptEnhancer } from './prompt-enhancer'
 import { statuslineWatcher } from './statusline-watcher'
 import { workspaceInitTracker } from './workspace-init-tracker'
 import { notificationManager } from './notification-manager'
@@ -27,8 +27,8 @@ import {
   registerPipelineHandlers,
   registerRtkHandlers,
   registerAgentHandlers,
-  registerCoachHandlers,
-  loadCoachConfig,
+  registerEnhancerHandlers,
+  loadEnhancerConfig,
   registerMcpHandlers,
   registerScrollbackHandlers,
   registerResourceHandlers,
@@ -79,12 +79,11 @@ async function createWindow() {
   pipelineManager.setMainWindow(mainWindow)
   pipelineManager.loadConfigs()
   pipelineManager.loadRuns()
-  coachManager.setMainWindow(mainWindow)
-  loadCoachConfig()
+  loadEnhancerConfig()
   setSessionMainWindow(mainWindow)
   workspaceInitTracker.setMainWindow(mainWindow)
   notificationManager.setMainWindow(mainWindow)
-  ptyManager.onData((sessionId, data) => coachManager.feedData(sessionId, data))
+  ptyManager.onData((sessionId, data) => promptEnhancer.feedContext(sessionId, data))
 
   // Idle detection for desktop notifications
   // Mirrors the 8s idle logic in XTerminal, but runs in the main process
@@ -174,7 +173,7 @@ function setupIPC() {
   registerPipelineHandlers()
   registerRtkHandlers()
   registerAgentHandlers()
-  registerCoachHandlers()
+  registerEnhancerHandlers()
   registerMcpHandlers()
   registerScrollbackHandlers()
   registerResourceHandlers()

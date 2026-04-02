@@ -110,6 +110,11 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
   const [effortLevel, setEffortLevel] = useState<EffortLevel>('auto')
   const [showEffortMenu, setShowEffortMenu] = useState(false)
 
+  // Prompt Enhancer state
+  const [enhancerOn, setEnhancerOn] = useState(false)
+  const [enhancing, setEnhancing] = useState(false)
+  const [enhanceResult, setEnhanceResult] = useState<{ original: string; enhanced: string; explanation: string } | null>(null)
+
   // Context tracking (from Claude Code statusline JSON data)
   const [contextUsedTokens, setContextUsedTokens] = useState(0)
   const [contextMaxTokens, setContextMaxTokens] = useState(200_000)
@@ -241,6 +246,13 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
     setAcType('none')
     skillsLoadedRef.current = false
   }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load enhancer config to get toggle state
+  useEffect(() => {
+    window.api.enhancerGetConfig?.()
+      .then(cfg => setEnhancerOn(cfg.enabled && cfg.apiKey.length > 0))
+      .catch(() => {})
+  }, [])
 
   // Load custom skills, commands, and MCP server names
   useEffect(() => {
@@ -494,23 +506,40 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
 
   const acItems = acType === 'slash' ? filteredCommands : fileResults
 
-  const handleSend = useCallback(() => {
-    const trimmed = text.trim()
-    if (!trimmed && images.length === 0) return
-
+  const doSend = useCallback((finalText: string) => {
     for (const img of images) {
       onImageUpload(img.file)
     }
-
-    if (trimmed) {
-      onSend(trimmed)
+    if (finalText) {
+      onSend(finalText)
     }
-
     setText('')
     setImages([])
     setAcType('none')
+    setEnhanceResult(null)
     textareaRef.current?.focus()
-  }, [text, images, onSend, onImageUpload])
+  }, [images, onSend, onImageUpload])
+
+  const handleSend = useCallback(async () => {
+    const trimmed = text.trim()
+    if (!trimmed && images.length === 0) return
+
+    // If enhancer is on, not a slash command, and long enough — intercept
+    if (enhancerOn && !trimmed.startsWith('/') && trimmed.length >= 10) {
+      setEnhancing(true)
+      try {
+        const result = await window.api.enhancePrompt(sessionId, trimmed)
+        if (result && result.enhanced !== trimmed) {
+          setEnhanceResult({ original: trimmed, enhanced: result.enhanced, explanation: result.explanation })
+          setEnhancing(false)
+          return // Wait for user choice in the popup
+        }
+      } catch { /* fall through to send as-is */ }
+      setEnhancing(false)
+    }
+
+    doSend(trimmed)
+  }, [text, images, enhancerOn, sessionId, doSend])
 
   const insertAutocomplete = useCallback((value: string, isDir: boolean) => {
     const cursor = textareaRef.current?.selectionStart ?? text.length
@@ -774,6 +803,41 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
             /compact summary
           </button>
           <button className="chat-compact-hint-dismiss" onClick={dismissCompactHint}>×</button>
+        </div>
+      )}
+
+      {/* Prompt enhancement popup */}
+      {enhanceResult && (
+        <div className="chat-enhance-popup">
+          <div className="chat-enhance-header">
+            <span className="chat-enhance-title">Enhanced Prompt</span>
+            <span className="chat-enhance-explanation">{enhanceResult.explanation}</span>
+          </div>
+          <div className="chat-enhance-comparison">
+            <div className="chat-enhance-section">
+              <div className="chat-enhance-label">Original</div>
+              <pre className="chat-enhance-text">{enhanceResult.original}</pre>
+              <button className="btn btn-sm" onClick={() => { doSend(enhanceResult.original); }}>
+                Use Original
+              </button>
+            </div>
+            <div className="chat-enhance-section enhanced">
+              <div className="chat-enhance-label">Enhanced</div>
+              <pre className="chat-enhance-text">{enhanceResult.enhanced}</pre>
+              <button className="btn btn-sm btn-primary" onClick={() => { doSend(enhanceResult.enhanced); }}>
+                Use Enhanced
+              </button>
+            </div>
+          </div>
+          <button className="chat-enhance-dismiss" onClick={() => setEnhanceResult(null)}>Cancel</button>
+        </div>
+      )}
+
+      {/* Enhancing spinner */}
+      {enhancing && (
+        <div className="chat-enhance-loading">
+          <span className="chat-enhance-spinner" />
+          <span>Enhancing prompt...</span>
         </div>
       )}
 
@@ -1083,6 +1147,18 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
             <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
               <path d="M5.56 14a.5.5 0 0 1-.46-.3l-.03-.1L3.1 6.97a.5.5 0 0 1 .87-.49l.04.06L5.56 12 10.44 2a.5.5 0 0 1 .87.49l-.04.06-5.25 11.14a.5.5 0 0 1-.46.31z"/>
             </svg>
+          </button>
+
+          {/* Prompt Enhancer toggle */}
+          <button
+            className={`chat-input-icon-btn ${enhancerOn ? 'enhancer-active' : ''}`}
+            onClick={() => setEnhancerOn(prev => !prev)}
+            title={enhancerOn ? 'Prompt Enhancer ON — click to disable' : 'Prompt Enhancer OFF — click to enable'}
+          >
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M5.05.31c.81 2.17.41 3.38-.52 4.31C3.55 5.67 1.98 6.45.9 7.98c-1.45 2.05-1.7 6.53 3.53 7.7-2.2-1.16-2.67-4.52-.3-6.61-.61 2.03.53 3.33 1.94 2.86 1.39-.47 2.26-1.3 4.83-1.14 2.45.15 5.47 1.2 5.47-1.28 0-2.15-2.29-2.56-4.2-2.26 1.07-.61 2.01-1.68 1.96-3.47C14.08 1.5 12.07.2 10.1.1 8.05 0 6.29.13 5.05.31z"/>
+            </svg>
+            {enhancerOn && <span className="enhancer-dot" />}
           </button>
         </div>
 

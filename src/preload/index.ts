@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppState, ProcessStatus, Project, WorkspaceFolder,
   AgentInfo, PipelineRun, PipelineConfig,
-  CoachConfig, CoachSuggestion, CoachAnalysis, CoachSessionCost,
+  EnhancerConfig, EnhanceResult, EnhancerSessionCost,
   IpcResult, GitInfo, GitStatus, BranchList, WorktreeResult,
   PtyCreateOptions, PtyCreateResult, PtySessionInfo,
   DirectoryEntry, FileContent, FileSearchResult, FileSearchEntry, DiffResult,
@@ -169,24 +169,17 @@ const api = {
   triggerAgent: (agentId: string): Promise<IpcResult> =>
     ipcRenderer.invoke('trigger-agent', agentId),
 
-  // Coach
-  coachGetConfig: (): Promise<CoachConfig> =>
-    ipcRenderer.invoke('coach-get-config'),
-  coachSetConfig: (config: CoachConfig): Promise<void> =>
-    ipcRenderer.invoke('coach-set-config', config),
-  coachGetSuggestions: (sessionId: string): Promise<CoachSuggestion[]> =>
-    ipcRenderer.invoke('coach-get-suggestions', sessionId),
-  coachGetCost: (sessionId: string): Promise<CoachSessionCost> =>
-    ipcRenderer.invoke('coach-get-cost', sessionId),
-  coachGetTotalCost: (): Promise<CoachSessionCost> =>
-    ipcRenderer.invoke('coach-get-total-cost'),
-  coachDismiss: (sessionId: string, suggestionId: string): Promise<void> =>
-    ipcRenderer.invoke('coach-dismiss', sessionId, suggestionId),
-  onCoachSuggestion: (callback: (data: CoachAnalysis) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: CoachAnalysis) => callback(data)
-    ipcRenderer.on('coach-suggestion', handler)
-    return () => ipcRenderer.removeListener('coach-suggestion', handler)
-  },
+  // Prompt Enhancer
+  enhancerGetConfig: (): Promise<EnhancerConfig> =>
+    ipcRenderer.invoke('enhancer-get-config'),
+  enhancerSetConfig: (config: EnhancerConfig): Promise<void> =>
+    ipcRenderer.invoke('enhancer-set-config', config),
+  enhancePrompt: (sessionId: string, prompt: string): Promise<EnhanceResult | null> =>
+    ipcRenderer.invoke('enhancer-enhance-prompt', sessionId, prompt),
+  enhancerGetCost: (sessionId: string): Promise<EnhancerSessionCost> =>
+    ipcRenderer.invoke('enhancer-get-cost', sessionId),
+  enhancerGetTotalCost: (): Promise<EnhancerSessionCost> =>
+    ipcRenderer.invoke('enhancer-get-total-cost'),
 
   // MCP & Skills
   mcpGetConfig: (projectPath?: string): Promise<McpConfigEntry[]> =>

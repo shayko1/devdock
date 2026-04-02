@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { CoachConfig, DEFAULT_COACH_MODEL, DEFAULT_OPENAI_BASE_URL, MODEL_PRICING } from '../../shared/coach-types'
+import { EnhancerConfig, DEFAULT_ENHANCER_MODEL, DEFAULT_OPENAI_BASE_URL, MODEL_PRICING } from '../../shared/enhancer-types'
 import { NotificationSettings } from './NotificationSettings'
 
 interface RtkStatus {
@@ -50,10 +50,10 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
   const [rtkLoading, setRtkLoading] = useState(false)
   const [rtkMessage, setRtkMessage] = useState<string | null>(null)
 
-  const [coachConfig, setCoachConfig] = useState<CoachConfig>({ enabled: false, apiKey: '', model: DEFAULT_COACH_MODEL, baseUrl: '' })
-  const [coachKeyVisible, setCoachKeyVisible] = useState(false)
-  const [coachTotalCost, setCoachTotalCost] = useState<{ totalUsd: number; calls: number } | null>(null)
-  const [coachSaved, setCoachSaved] = useState(false)
+  const [enhancerConfig, setEnhancerConfig] = useState<EnhancerConfig>({ enabled: false, apiKey: '', model: DEFAULT_ENHANCER_MODEL, baseUrl: '' })
+  const [enhancerKeyVisible, setEnhancerKeyVisible] = useState(false)
+  const [enhancerTotalCost, setEnhancerTotalCost] = useState<{ totalUsd: number; calls: number } | null>(null)
+  const [enhancerSaved, setEnhancerSaved] = useState(false)
 
   const refreshRtkStatus = useCallback(async () => {
     const status = await window.api.rtkDetect()
@@ -69,19 +69,19 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
   }, [refreshRtkStatus])
 
   useEffect(() => {
-    window.api.coachGetConfig?.()
-      .then(setCoachConfig)
-      .catch(() => { /* coach not available yet */ })
-    window.api.coachGetTotalCost?.()
-      .then(c => setCoachTotalCost({ totalUsd: c.totalUsd, calls: c.calls }))
-      .catch(() => { /* coach not available yet */ })
+    window.api.enhancerGetConfig?.()
+      .then(setEnhancerConfig)
+      .catch(() => {})
+    window.api.enhancerGetTotalCost?.()
+      .then(c => setEnhancerTotalCost({ totalUsd: c.totalUsd, calls: c.calls }))
+      .catch(() => {})
   }, [])
 
-  const handleSaveCoach = useCallback(async () => {
-    await window.api.coachSetConfig?.(coachConfig)
-    setCoachSaved(true)
-    setTimeout(() => setCoachSaved(false), 2000)
-  }, [coachConfig])
+  const handleSaveEnhancer = useCallback(async () => {
+    await window.api.enhancerSetConfig?.(enhancerConfig)
+    setEnhancerSaved(true)
+    setTimeout(() => setEnhancerSaved(false), 2000)
+  }, [enhancerConfig])
 
   const handleBrowse = async () => {
     const selected = await window.api.selectFolder()
@@ -390,7 +390,7 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
           )}
         </div>
 
-        {/* Coach section */}
+        {/* Prompt Enhancer section */}
         <div style={{
           marginBottom: 20,
           padding: 14,
@@ -401,35 +401,35 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <div>
               <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                Prompt Coach
+                Prompt Enhancer
               </label>
               <span style={{
                 marginLeft: 8, fontSize: 10, padding: '1px 6px', borderRadius: 4,
-                background: coachConfig.enabled && coachConfig.apiKey ? 'var(--green)' : 'var(--text-muted)',
+                background: enhancerConfig.enabled && enhancerConfig.apiKey ? 'var(--green)' : 'var(--text-muted)',
                 color: '#000', fontWeight: 600
               }}>
-                {coachConfig.enabled && coachConfig.apiKey ? 'Active' : 'Off'}
+                {enhancerConfig.enabled && enhancerConfig.apiKey ? 'Active' : 'Off'}
               </span>
             </div>
             <button
-              className={`btn btn-sm ${coachConfig.enabled ? 'btn-accent' : 'btn-primary'}`}
+              className={`btn btn-sm ${enhancerConfig.enabled ? 'btn-accent' : 'btn-primary'}`}
               onClick={() => {
-                const next = { ...coachConfig, enabled: !coachConfig.enabled }
-                setCoachConfig(next)
-                window.api.coachSetConfig?.(next)
+                const next = { ...enhancerConfig, enabled: !enhancerConfig.enabled }
+                setEnhancerConfig(next)
+                window.api.enhancerSetConfig?.(next)
               }}
               style={{ minWidth: 80 }}
             >
-              {coachConfig.enabled ? 'Disable' : 'Enable'}
+              {enhancerConfig.enabled ? 'Disable' : 'Enable'}
             </button>
           </div>
 
           <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 10px' }}>
-            A lightweight AI co-pilot that analyzes your Claude interactions and suggests prompt improvements,
-            follow-ups, and relevant commands. Uses an OpenAI model (very cheap — typically &lt;$0.01/session).
+            Improves your prompts before sending to Claude. Uses OpenAI to analyze your prompt with current context
+            and suggests a better version. Toggle on/off in the chat input bar. Very cheap — typically &lt;$0.01/session.
           </p>
 
-          {coachConfig.enabled && (
+          {enhancerConfig.enabled && (
             <>
               <div style={{ marginBottom: 10 }}>
                 <label style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>
@@ -438,18 +438,18 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
                 <div style={{ display: 'flex', gap: 6 }}>
                   <input
                     className="search-input"
-                    type={coachKeyVisible ? 'text' : 'password'}
-                    value={coachConfig.apiKey}
-                    onChange={(e) => setCoachConfig(prev => ({ ...prev, apiKey: e.target.value }))}
+                    type={enhancerKeyVisible ? 'text' : 'password'}
+                    value={enhancerConfig.apiKey}
+                    onChange={(e) => setEnhancerConfig(prev => ({ ...prev, apiKey: e.target.value }))}
                     placeholder="sk-..."
                     style={{ flex: 1, fontSize: 12, fontFamily: 'monospace' }}
                   />
                   <button
                     className="btn btn-sm"
-                    onClick={() => setCoachKeyVisible(!coachKeyVisible)}
+                    onClick={() => setEnhancerKeyVisible(!enhancerKeyVisible)}
                     style={{ minWidth: 50, fontSize: 11 }}
                   >
-                    {coachKeyVisible ? 'Hide' : 'Show'}
+                    {enhancerKeyVisible ? 'Hide' : 'Show'}
                   </button>
                 </div>
               </div>
@@ -459,8 +459,8 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
                   Model
                 </label>
                 <select
-                  value={coachConfig.model}
-                  onChange={(e) => setCoachConfig(prev => ({ ...prev, model: e.target.value }))}
+                  value={enhancerConfig.model}
+                  onChange={(e) => setEnhancerConfig(prev => ({ ...prev, model: e.target.value }))}
                   style={{
                     width: '100%', padding: '6px 8px', borderRadius: 6, fontSize: 12,
                     background: 'var(--bg-tertiary, var(--bg-primary))',
@@ -481,8 +481,8 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
                 </label>
                 <input
                   className="search-input"
-                  value={coachConfig.baseUrl}
-                  onChange={(e) => setCoachConfig(prev => ({ ...prev, baseUrl: e.target.value }))}
+                  value={enhancerConfig.baseUrl}
+                  onChange={(e) => setEnhancerConfig(prev => ({ ...prev, baseUrl: e.target.value }))}
                   placeholder={DEFAULT_OPENAI_BASE_URL}
                   style={{ width: '100%', fontSize: 12, fontFamily: 'monospace' }}
                 />
@@ -494,14 +494,14 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button
                   className="btn btn-sm btn-primary"
-                  onClick={handleSaveCoach}
+                  onClick={handleSaveEnhancer}
                   style={{ minWidth: 80 }}
                 >
-                  {coachSaved ? 'Saved!' : 'Save'}
+                  {enhancerSaved ? 'Saved!' : 'Save'}
                 </button>
-                {coachTotalCost && coachTotalCost.calls > 0 && (
+                {enhancerTotalCost && enhancerTotalCost.calls > 0 && (
                   <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    Total spend: ${coachTotalCost.totalUsd.toFixed(4)} ({coachTotalCost.calls} calls)
+                    Total spend: ${enhancerTotalCost.totalUsd.toFixed(4)} ({enhancerTotalCost.calls} calls)
                   </span>
                 )}
               </div>

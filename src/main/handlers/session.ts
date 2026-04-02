@@ -6,7 +6,7 @@ import { homedir } from 'os'
 import { ptyManager } from '../pty-manager'
 import { loadState } from '../store'
 import { cleanupSessionRtkFlag } from '../rtk-manager'
-import { coachManager } from '../coach-manager'
+import { promptEnhancer } from '../prompt-enhancer'
 import { activeSessions, scanProjectSessions, getSessionTitle } from '../session-history'
 import { ensureDevDockClaudeMd } from '../claude-md'
 import { statuslineWatcher } from '../statusline-watcher'
@@ -262,7 +262,7 @@ export function registerSessionHandlers() {
     ptyManager.destroySession(sessionId)
     statuslineWatcher.unwatchSession(sessionId)
     cleanupSessionRtkFlag(sessionId)
-    coachManager.clearSession(sessionId)
+    promptEnhancer.clearSession(sessionId)
   })
 
   ipcMain.handle('save-temp-image', (_event, opts: { name: string; data: number[]; sessionId: string }) => {

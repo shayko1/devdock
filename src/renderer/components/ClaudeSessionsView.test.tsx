@@ -19,7 +19,6 @@ vi.mock('./PipelineView', () => ({ PipelineView: () => null }))
 vi.mock('./SessionInfoBar', () => ({
   SessionInfoBar: () => <div data-testid="session-info-bar" />,
 }))
-vi.mock('./CoachPanel', () => ({ CoachPanel: () => null }))
 vi.mock('./presets', () => ({
   PresetBar: () => <div data-testid="preset-bar" />,
   PresetList: () => <div data-testid="preset-list" />,
@@ -69,11 +68,6 @@ describe('ClaudeSessionsView', () => {
     })
     vi.mocked(window.api.getGitStatus).mockResolvedValue({
       isGitRepo: false,
-    } as any)
-    vi.mocked(window.api.coachGetConfig).mockResolvedValue({
-      enabled: false,
-      apiKey: '',
-      model: 'gpt-4.1-nano',
     } as any)
     vi.mocked(window.api.presetGetPinned).mockResolvedValue([])
     vi.mocked(window.api.presetGetRecent).mockResolvedValue([])

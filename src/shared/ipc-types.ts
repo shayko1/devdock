@@ -6,7 +6,7 @@
 import { AppState, ProcessStatus, Project, WorkspaceFolder } from './types'
 import { AgentInfo } from './agent-types'
 import { PipelineRun, PipelineConfig } from './pipeline-types'
-import { CoachConfig, CoachSuggestion, CoachAnalysis, CoachSessionCost } from './coach-types'
+import { EnhancerConfig, EnhanceResult, EnhancerSessionCost } from './enhancer-types'
 
 // ── Common result types ──
 
@@ -346,8 +346,7 @@ export type {
   AgentInfo,
   PipelineRun,
   PipelineConfig,
-  CoachConfig,
-  CoachSuggestion,
-  CoachAnalysis,
-  CoachSessionCost,
+  EnhancerConfig,
+  EnhanceResult,
+  EnhancerSessionCost,
 }

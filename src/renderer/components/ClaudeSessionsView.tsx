@@ -7,7 +7,6 @@ import { SearchView } from './SearchView'
 import { BrowserView } from './BrowserView'
 import { PipelineView } from './PipelineView'
 import { SessionInfoBar } from './SessionInfoBar'
-import { CoachPanel } from './CoachPanel'
 import { ChatInputBar } from './ChatInputBar'
 import { McpSkillsPanel } from './McpSkillsPanel'
 import { ResourceBadge } from './ResourceBadge'
@@ -72,7 +71,7 @@ interface Props {
   onLaunchPreset?: (presetId: string) => void
 }
 
-type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'coach' | 'mcp' | 'history' | 'resources' | 'presets'
+type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'mcp' | 'history' | 'resources' | 'presets'
 
 export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, scanPath, onNewSession, onCloseSession, onResumeSession, onResumeFromHistory, onOpenPipelineSession, onLaunchPreset }: Props) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -83,8 +82,6 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
   const [waitingSessions, setWaitingSessions] = useState<Set<string>>(new Set())
   const [rtkDisabledSessions, setRtkDisabledSessions] = useState<Set<string>>(new Set())
   const [rtkAvailable, setRtkAvailable] = useState(false)
-  const [coachEnabled, setCoachEnabled] = useState(false)
-  const [coachBadge, setCoachBadge] = useState(0)
   const [sessionTitles, setSessionTitles] = useState<Map<string, string>>(new Map())
   const { snapshot: resourceSnapshot, getSessionMetrics, isLoading: resourceLoading } = useResourceMonitor()
   const dragging = useRef(false)
@@ -96,34 +93,6 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
     window.api.rtkDetect().then(status => setRtkAvailable(status.installed))
   }, [rtkEnabled])
 
-  // Re-check coach config on mount and periodically (catches settings changes)
-  useEffect(() => {
-    const checkCoach = () => {
-      window.api.coachGetConfig?.()
-        .then(cfg => {
-          const enabled = cfg.enabled && cfg.apiKey.length > 0
-          setCoachEnabled(enabled)
-          if (!enabled) {
-            setSidePanel(prev => prev === 'coach' ? 'none' : prev)
-            setCoachBadge(0)
-          }
-        })
-        .catch(() => {})
-    }
-    checkCoach()
-    const interval = setInterval(checkCoach, 3000)
-    return () => clearInterval(interval)
-  }, [])
-
-  useEffect(() => {
-    if (!coachEnabled || !window.api.onCoachSuggestion) return
-    const unsub = window.api.onCoachSuggestion((analysis) => {
-      if (sidePanel !== 'coach') {
-        setCoachBadge(prev => prev + analysis.suggestions.length)
-      }
-    })
-    return unsub
-  }, [coachEnabled, sidePanel])
 
   const handleToggleRtk = useCallback(async (sessionId: string) => {
     const currentlyDisabled = rtkDisabledSessions.has(sessionId)
@@ -234,14 +203,6 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
     setViewingFile(null)
   }, [])
 
-  const toggleCoach = useCallback(() => {
-    setSidePanel(prev => {
-      if (prev === 'coach') return 'none'
-      setCoachBadge(0)
-      return 'coach'
-    })
-    setViewingFile(null)
-  }, [])
 
   const toggleMcp = useCallback(() => {
     setSidePanel(prev => prev === 'mcp' ? 'none' : 'mcp')
@@ -527,19 +488,6 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
       <div className="claude-main-area">
         <div className="claude-toolbar-row">
           <div className="claude-toolbar-icons">
-            {coachEnabled && (
-              <button
-                className={`claude-tb-icon ${sidePanel === 'coach' ? 'active' : ''}`}
-                onClick={toggleCoach}
-                title="Prompt Coach"
-                style={{ position: 'relative' }}
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5A4.5 4.5 0 0 0 3.5 6c0 1.855 1.244 3.407 2.945 3.88.036.34.143.656.31.935A5.5 5.5 0 0 1 2.5 6a5.5 5.5 0 0 1 11 0 5.5 5.5 0 0 1-4.255 4.815c.167-.28.274-.595.31-.935C11.256 9.407 12.5 7.855 12.5 6A4.5 4.5 0 0 0 8 1.5zM6.5 12.5A1.5 1.5 0 0 1 8 11h0a1.5 1.5 0 0 1 0 3h0a1.5 1.5 0 0 1-1.5-1.5z"/></svg>
-                {coachBadge > 0 && sidePanel !== 'coach' && (
-                  <span className="claude-tb-badge">{coachBadge}</span>
-                )}
-              </button>
-            )}
             <button className={`claude-tb-icon ${sidePanel === 'history' ? 'active' : ''}`} onClick={toggleHistory} title="Session History">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM2.5 8a5.5 5.5 0 1 1 11 0 5.5 5.5 0 0 1-11 0zM8 5a.5.5 0 0 1 .5.5V8l2 1a.5.5 0 0 1-.5.87l-2.25-1.25A.5.5 0 0 1 7.5 8V5.5A.5.5 0 0 1 8 5z"/></svg>
             </button>
@@ -669,12 +617,6 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
                   isLoading={resourceLoading}
                   sessionNames={sessionNameMap}
                   onClose={() => setSidePanel('none')}
-                />
-              ) : sidePanel === 'coach' ? (
-                <CoachPanel
-                  sessionId={activeSession.id}
-                  onClose={() => setSidePanel('none')}
-                  onWriteToTerminal={(text) => window.api.ptyWrite(activeSession.id, text)}
                 />
               ) : sidePanel === 'history' ? (
                 <div className="mcp-panel">

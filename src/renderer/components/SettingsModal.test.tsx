@@ -18,8 +18,8 @@ describe('SettingsModal', () => {
     vi.mocked(window.api.selectFolder).mockResolvedValue(null)
     vi.mocked(window.api.rtkDetect).mockResolvedValue({ installed: false, version: null, hookActive: false, path: null })
     vi.mocked(window.api.rtkGain).mockResolvedValue(null)
-    vi.mocked(window.api.coachGetConfig).mockResolvedValue({ enabled: false, apiKey: '', model: 'gpt-4.1-nano', baseUrl: '' })
-    vi.mocked(window.api.coachGetTotalCost).mockResolvedValue({ totalUsd: 0, calls: 0, promptTokens: 0, completionTokens: 0 })
+    vi.mocked(window.api.enhancerGetConfig).mockResolvedValue({ enabled: false, apiKey: '', model: 'gpt-4.1-nano', baseUrl: '' })
+    vi.mocked(window.api.enhancerGetTotalCost).mockResolvedValue({ totalUsd: 0, calls: 0 })
   })
 
   it('renders with current path in input', () => {
@@ -86,7 +86,7 @@ describe('SettingsModal', () => {
     expect(onBadges.length).toBeGreaterThanOrEqual(1)
   })
 
-  /** Coach section has first Enable, Dangerous Mode has second - use last one */
+  /** Enhancer section has first Enable, Dangerous Mode has second - use last one */
   const getDangerousModeEnableButton = () => {
     const buttons = screen.getAllByRole('button', { name: 'Enable' })
     return buttons[buttons.length - 1]
