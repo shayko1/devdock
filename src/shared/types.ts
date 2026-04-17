@@ -29,6 +29,8 @@ export interface AppState {
   chatInputEnabled?: boolean
   defaultModel?: string
   workspaceChosen?: boolean
+  activeTab?: 'launchpad' | 'folders' | 'claude' | 'agents' | 'db-access'
+  selectedProjectId?: string | null
 }
 
 export interface ProcessStatus {

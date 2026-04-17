@@ -37,6 +37,12 @@ fi
 if [ -d "$PROJECT_DIR/node_modules/node-pty" ]; then
   cp -R "$PROJECT_DIR/node_modules/node-pty" "$APP_DIR/Contents/Resources/app/node_modules/"
 fi
+# mysql2 + its runtime deps (required for DB Access feature)
+for mod in mysql2 aws-ssl-profiles denque iconv-lite long named-placeholders generate-function sql-escaper lru.min is-property safer-buffer; do
+  if [ -d "$PROJECT_DIR/node_modules/$mod" ]; then
+    cp -R "$PROJECT_DIR/node_modules/$mod" "$APP_DIR/Contents/Resources/app/node_modules/"
+  fi
+done
 
 # Copy the icon
 cp "$PROJECT_DIR/resources/icon.icns" "$APP_DIR/Contents/Resources/electron.icns"

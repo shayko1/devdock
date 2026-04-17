@@ -12,3 +12,4 @@ coverage/
 *.p12
 test-results/
 .claude/worktrees/
+.claude/cc10x/

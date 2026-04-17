@@ -65,12 +65,13 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
 
       // Restore all sessions first, then batch-add to state so the
       // active-session effect can find the preferred session in one pass.
+      // IMPORTANT: reuse the original session id so ChatInputBar's per-session
+      // cache (model, effort, context) rehydrates correctly.
       const restored: ClaudeSession[] = []
       for (const rec of saved) {
-        const newId = generateSessionId()
         try {
           const result = await window.api.ptyCreate({
-            sessionId: newId,
+            sessionId: rec.id,
             folderName: rec.folderName,
             folderPath: rec.folderPath,
             useWorktree: false,
@@ -80,7 +81,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
           })
           if (result.success) {
             restored.push({
-              id: newId,
+              id: rec.id,
               folderName: result.folderName || rec.folderName,
               folderPath: rec.folderPath,
               worktreePath: result.worktreePath ?? rec.worktreePath,
@@ -88,14 +89,14 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
               claudeSessionId: rec.claudeSessionId ?? null,
               dangerousMode: rec.dangerousMode,
             })
-            window.api.activeSessionsRemove(rec.id)
+            // Refresh the active-session record (worktree/branch may have changed)
             window.api.activeSessionsSet({
-              id: newId,
+              id: rec.id,
               claudeSessionId: rec.claudeSessionId,
               folderName: rec.folderName,
               folderPath: rec.folderPath,
-              worktreePath: rec.worktreePath,
-              branchName: rec.branchName,
+              worktreePath: result.worktreePath ?? rec.worktreePath,
+              branchName: result.branchName ?? rec.branchName,
               dangerousMode: rec.dangerousMode,
             })
           } else {

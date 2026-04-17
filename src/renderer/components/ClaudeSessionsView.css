@@ -91,6 +91,7 @@
 
 .sidebar-session-card.waiting:not(.exited) {
   border-left-color: var(--orange, #d29922);
+  box-shadow: inset 3px 0 0 var(--orange, #d29922);
 }
 
 .sidebar-session-card.exited {
@@ -118,8 +119,18 @@
 }
 .sidebar-status-dot.waiting {
   background: var(--orange, #d29922);
-  box-shadow: 0 0 6px rgba(210, 153, 34, 0.5);
-  animation: none;
+  animation: waiting-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes waiting-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(210, 153, 34, 0.55);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(210, 153, 34, 0);
+    transform: scale(1.3);
+  }
 }
 .sidebar-status-dot.exited {
   background: var(--text-muted, #6e7681);

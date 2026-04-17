@@ -17,21 +17,37 @@ export interface ActiveSession {
 const DEVDOCK_DIR = join(homedir(), '.devdock')
 const ACTIVE_FILE = join(DEVDOCK_DIR, 'active-sessions.json')
 
+interface ActiveSessionsFile {
+  sessions: ActiveSession[]
+  activeId?: string | null
+}
+
 class ActiveSessionStore {
   private sessions: ActiveSession[] = []
+  private activeId: string | null = null
 
   private load() {
     try {
       if (existsSync(ACTIVE_FILE)) {
-        this.sessions = JSON.parse(readFileSync(ACTIVE_FILE, 'utf-8'))
+        const raw = JSON.parse(readFileSync(ACTIVE_FILE, 'utf-8'))
+        // Support legacy format (bare array) and new format ({ sessions, activeId })
+        if (Array.isArray(raw)) {
+          this.sessions = raw
+          this.activeId = null
+        } else {
+          const parsed = raw as ActiveSessionsFile
+          this.sessions = parsed.sessions || []
+          this.activeId = parsed.activeId ?? null
+        }
       }
-    } catch { this.sessions = [] }
+    } catch { this.sessions = []; this.activeId = null }
   }
 
   private save() {
     try {
       mkdirSync(DEVDOCK_DIR, { recursive: true })
-      writeFileSync(ACTIVE_FILE, JSON.stringify(this.sessions, null, 2), 'utf-8')
+      const payload: ActiveSessionsFile = { sessions: this.sessions, activeId: this.activeId }
+      writeFileSync(ACTIVE_FILE, JSON.stringify(payload, null, 2), 'utf-8')
     } catch (err) {
       console.error('[ActiveSessions] save failed:', err)
     }
@@ -54,6 +70,7 @@ class ActiveSessionStore {
   remove(id: string) {
     this.load()
     this.sessions = this.sessions.filter(s => s.id !== id)
+    if (this.activeId === id) this.activeId = null
     this.save()
   }
 
@@ -62,8 +79,20 @@ class ActiveSessionStore {
     return [...this.sessions]
   }
 
+  setActiveId(id: string | null) {
+    this.load()
+    this.activeId = id
+    this.save()
+  }
+
+  getActiveId(): string | null {
+    this.load()
+    return this.activeId
+  }
+
   clear() {
     this.sessions = []
+    this.activeId = null
     this.save()
   }
 }

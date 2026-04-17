@@ -45,6 +45,27 @@ export function App() {
   const [activeFilter, setActiveFilter] = useState('all')
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [waitingClaudeIds, setWaitingClaudeIds] = useState<string[]>([])
+  const hydratedRef = useRef(false)
+
+  const handleWaitingSessionsChange = useCallback((ids: string[]) => {
+    setWaitingClaudeIds(prev => (prev.length === ids.length && prev.every((v, i) => v === ids[i]) ? prev : ids))
+  }, [])
+
+  // Hydrate activeTab + selectedProjectId once from persisted state
+  useEffect(() => {
+    if (!loaded || hydratedRef.current) return
+    hydratedRef.current = true
+    if (state.activeTab) setActiveTab(state.activeTab)
+    if (state.selectedProjectId) setSelectedProjectId(state.selectedProjectId)
+  }, [loaded, state.activeTab, state.selectedProjectId])
+
+  // Persist navigation state when it changes (after initial hydration)
+  useEffect(() => {
+    if (!loaded || !hydratedRef.current) return
+    if (state.activeTab === activeTab && state.selectedProjectId === selectedProjectId) return
+    persist({ ...state, activeTab, selectedProjectId })
+  }, [activeTab, selectedProjectId, loaded]) // eslint-disable-line react-hooks/exhaustive-deps
   const [scanning, setScanning] = useState(false)
   const [bulkSelection, setBulkSelection] = useState<Set<string>>(new Set())
   const [bulkMode, setBulkMode] = useState(false)
@@ -406,9 +427,18 @@ export function App() {
         <div
           className={`tab ${activeTab === 'claude' ? 'active' : ''}`}
           onClick={() => setActiveTab('claude')}
+          title={waitingClaudeIds.length > 0 ? `${waitingClaudeIds.length} session(s) waiting for input` : undefined}
         >
           Claude
-          {claudeSessions.length > 0 && (
+          {waitingClaudeIds.length > 0 && (
+            <span
+              className="tab-waiting-dot"
+              aria-label={`${waitingClaudeIds.length} waiting`}
+            >
+              {waitingClaudeIds.length > 1 ? waitingClaudeIds.length : ''}
+            </span>
+          )}
+          {claudeSessions.length > 0 && waitingClaudeIds.length === 0 && (
             <span style={{ marginLeft: 6, color: 'var(--orange)', fontSize: 11 }}>{claudeSessions.length}</span>
           )}
         </div>
@@ -455,6 +485,7 @@ export function App() {
             onResumeFromHistory={handleResumeFromHistory}
             onOpenPipelineSession={handleOpenPipelineSession}
             onLaunchPreset={handleLaunchPreset}
+            onWaitingSessionsChange={handleWaitingSessionsChange}
           />
         </ErrorBoundary>
       ) : activeTab === 'folders' ? (

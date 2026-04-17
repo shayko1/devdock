@@ -68,8 +68,8 @@ function findAkeylessBinary(): string {
   if (resolvedBinaryPath) return resolvedBinaryPath
 
   const candidates = [
-    '/usr/local/bin/akeyless',
     '/opt/homebrew/bin/akeyless',
+    '/usr/local/bin/akeyless',
     join(homedir(), 'akeyless'),
   ]
 
@@ -104,8 +104,11 @@ function envWithoutGateway(): NodeJS.ProcessEnv {
 /**
  * Runs an akeyless CLI command via `execFile` and resolves with stdout.
  * Rejects on non-zero exit, timeout, or stderr-only output.
+ * Retries up to {@link MAX_RETRIES} times on transient errors (e.g. unexpected EOF).
  */
-function runAkeylessCommand(args: string[]): Promise<string> {
+const MAX_RETRIES = 2
+
+function runAkeylessCommand(args: string[], retries: number = MAX_RETRIES): Promise<string> {
   return new Promise((resolve, reject) => {
     const bin = findAkeylessBinary()
     execFile(
@@ -114,7 +117,14 @@ function runAkeylessCommand(args: string[]): Promise<string> {
       { timeout: CLI_TIMEOUT, env: envWithGateway(), maxBuffer: 10 * 1024 * 1024 },
       (err, stdout, stderr) => {
         if (err) {
-          reject(new Error(`akeyless ${args[0]} failed: ${stderr || err.message}`))
+          const msg = stderr || err.message
+          const isTransient = /unexpected EOF|read body failed|connection reset/i.test(msg)
+          if (isTransient && retries > 0) {
+            console.warn(`[akeyless-db] transient error for '${args[0]}', retrying (${retries} left): ${msg}`)
+            resolve(runAkeylessCommand(args, retries - 1))
+            return
+          }
+          reject(new Error(`akeyless ${args[0]} failed: ${msg}`))
           return
         }
         resolve(stdout)

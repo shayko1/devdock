@@ -12,9 +12,10 @@ interface Props {
 type Mode = 'agent' | 'chat' | 'plan'
 
 const MODELS = [
-  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', short: 'Sonnet 4.6', desc: 'Latest Sonnet', ctx: 200_000 },
-  { id: 'claude-opus-4-6', label: 'Opus 4.6', short: 'Opus 4.6', desc: 'Latest Opus', ctx: 200_000 },
-  { id: 'haiku', label: 'Claude Haiku 3.5', short: 'Haiku 3.5', desc: 'Fastest, cheapest', ctx: 200_000 },
+  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6', short: 'Sonnet 4.6', desc: 'Fast & capable', ctx: 200_000 },
+  { id: 'claude-opus-4-6', label: 'Opus 4.6', short: 'Opus 4.6', desc: 'Powerful reasoning', ctx: 200_000 },
+  { id: 'claude-opus-4-7', label: 'Opus 4.7', short: 'Opus 4.7', desc: 'Latest & most capable', ctx: 200_000 },
+  { id: 'claude-haiku-4-5', label: 'Haiku 4.5', short: 'Haiku 4.5', desc: 'Fastest, cheapest', ctx: 200_000 },
 ]
 
 type EffortLevel = 'auto' | 'low' | 'medium' | 'high' | 'max'

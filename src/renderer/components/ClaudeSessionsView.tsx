@@ -69,11 +69,13 @@ interface Props {
   onResumeFromHistory: (claudeSessionId: string, folderName: string, folderPath: string, worktreePath?: string | null) => void
   onOpenPipelineSession?: (folderName: string, folderPath: string, worktreePath: string) => void
   onLaunchPreset?: (presetId: string) => void
+  /** Fires whenever the set of waiting-for-input session ids changes. */
+  onWaitingSessionsChange?: (waitingIds: string[]) => void
 }
 
 type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'mcp' | 'history' | 'resources' | 'presets'
 
-export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, scanPath, onNewSession, onCloseSession, onResumeSession, onResumeFromHistory, onOpenPipelineSession, onLaunchPreset }: Props) {
+export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, scanPath, onNewSession, onCloseSession, onResumeSession, onResumeFromHistory, onOpenPipelineSession, onLaunchPreset, onWaitingSessionsChange }: Props) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidePanel, setSidePanel] = useState<SidePanel>('none')
   const [viewingFile, setViewingFile] = useState<string | null>(null)
@@ -108,6 +110,11 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
 
   const recapSentRef = useRef<Set<string>>(new Set())
 
+  // Bubble the waiting set up to the App so the Claude tab can show an indicator
+  useEffect(() => {
+    onWaitingSessionsChange?.([...waitingSessions])
+  }, [waitingSessions, onWaitingSessionsChange])
+
   const handleWaitingChange = useCallback((sessionId: string, waiting: boolean) => {
     setWaitingSessions(prev => {
       const next = new Set(prev)
@@ -135,14 +142,32 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
   useEffect(() => {
     if (sessions.length === 0) {
       setActiveSessionId(null)
-    } else if (!activeSessionId || !sessions.find(s => s.id === activeSessionId)) {
-      // Try to restore the last-active session (matched by claudeSessionId which survives restarts)
-      const savedClaudeId = localStorage.getItem('devdock-last-active-claude-session')
-      const preferred = savedClaudeId
-        ? sessions.find(s => s.claudeSessionId === savedClaudeId)
-        : null
-      setActiveSessionId(preferred?.id ?? sessions[sessions.length - 1].id)
+      return
     }
+    if (activeSessionId && sessions.find(s => s.id === activeSessionId)) return
+
+    // Prefer the persisted active session id (survives restart), then fall back
+    // to matching by claudeSessionId, then to the last session.
+    let cancelled = false
+    const pick = async () => {
+      let resolved: string | null = null
+      try {
+        const savedActiveId = await window.api.activeSessionsGetActiveId()
+        if (savedActiveId && sessions.find(s => s.id === savedActiveId)) {
+          resolved = savedActiveId
+        }
+      } catch { /* ignore */ }
+      if (!resolved) {
+        const savedClaudeId = localStorage.getItem('devdock-last-active-claude-session')
+        const preferred = savedClaudeId
+          ? sessions.find(s => s.claudeSessionId === savedClaudeId)
+          : null
+        resolved = preferred?.id ?? sessions[sessions.length - 1].id
+      }
+      if (!cancelled) setActiveSessionId(resolved)
+    }
+    pick()
+    return () => { cancelled = true }
   }, [sessions, activeSessionId])
 
   // Track session titles from first user message sent via ChatInputBar
@@ -156,7 +181,9 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
 
   const handleSelectSession = useCallback((id: string) => {
     setActiveSessionId(id)
-    // Persist which session is active (by claudeSessionId which survives restarts)
+    // Persist the active session — by PTY id (direct lookup across restarts) and by
+    // claudeSessionId as a fallback for sessions that were recreated.
+    window.api.activeSessionsSetActiveId(id)
     const session = sessions.find(s => s.id === id)
     if (session?.claudeSessionId) {
       localStorage.setItem('devdock-last-active-claude-session', session.claudeSessionId)

@@ -334,6 +334,14 @@ export function registerSessionHandlers() {
     return activeSessions.getAll()
   })
 
+  ipcMain.handle('active-sessions-set-active-id', (_event, id: string | null) => {
+    activeSessions.setActiveId(id)
+  })
+
+  ipcMain.handle('active-sessions-get-active-id', () => {
+    return activeSessions.getActiveId()
+  })
+
   // Session history
   ipcMain.handle('session-history-scan', (_event, folderPath: string, folderName: string) => {
     return scanProjectSessions(folderPath, folderName)

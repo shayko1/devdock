@@ -214,6 +214,10 @@ const api = {
     ipcRenderer.invoke('active-sessions-remove', id),
   activeSessionsGetAll: (): Promise<ActiveSession[]> =>
     ipcRenderer.invoke('active-sessions-get-all'),
+  activeSessionsSetActiveId: (id: string | null): Promise<void> =>
+    ipcRenderer.invoke('active-sessions-set-active-id', id),
+  activeSessionsGetActiveId: (): Promise<string | null> =>
+    ipcRenderer.invoke('active-sessions-get-active-id'),
 
   // Session history
   sessionHistoryScan: (folderPath: string, folderName: string): Promise<ClaudeSessionInfo[]> =>
