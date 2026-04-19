@@ -19,8 +19,17 @@ rm -rf "$APP_DIR"
 mkdir -p "$DIST_DIR"
 cp -R "$ELECTRON_APP" "$APP_DIR"
 
-# Rename the binary
+# Rename the binary and update Info.plist so macOS can find it
 mv "$APP_DIR/Contents/MacOS/Electron" "$APP_DIR/Contents/MacOS/$APP_NAME"
+/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $APP_NAME" "$APP_DIR/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleName $APP_NAME" "$APP_DIR/Contents/Info.plist" 2>/dev/null || true
+
+# Replace the default electron.icns with the DevDock icon so the dock/Finder
+# shows the right artwork. Info.plist still points at electron.icns, which is
+# why we overwrite in place rather than renaming.
+if [ -f "$PROJECT_DIR/resources/icon.icns" ]; then
+  cp "$PROJECT_DIR/resources/icon.icns" "$APP_DIR/Contents/Resources/electron.icns"
+fi
 
 # Copy app code into Resources/app
 mkdir -p "$APP_DIR/Contents/Resources/app"

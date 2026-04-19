@@ -14,6 +14,7 @@ import { ResourcePanel } from './ResourcePanel'
 import { useResourceMonitor } from '../hooks/useResourceMonitor'
 import { WorkspaceInitProgress } from './WorkspaceInitProgress'
 import { PresetBar, PresetList } from './presets'
+import { SummariesPanel } from './SummariesPanel'
 import './ClaudeSessionsView.css'
 
 function formatTimeAgo(ts: number): string {
@@ -73,7 +74,7 @@ interface Props {
   onWaitingSessionsChange?: (waitingIds: string[]) => void
 }
 
-type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'mcp' | 'history' | 'resources' | 'presets'
+type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'mcp' | 'history' | 'resources' | 'presets' | 'summaries'
 
 export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, scanPath, onNewSession, onCloseSession, onResumeSession, onResumeFromHistory, onOpenPipelineSession, onLaunchPreset, onWaitingSessionsChange }: Props) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -243,6 +244,11 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
 
   const togglePresets = useCallback(() => {
     setSidePanel(prev => prev === 'presets' ? 'none' : 'presets')
+    setViewingFile(null)
+  }, [])
+
+  const toggleSummaries = useCallback(() => {
+    setSidePanel(prev => prev === 'summaries' ? 'none' : 'summaries')
     setViewingFile(null)
   }, [])
 
@@ -518,6 +524,9 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
             <button className={`claude-tb-icon ${sidePanel === 'history' ? 'active' : ''}`} onClick={toggleHistory} title="Session History">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM2.5 8a5.5 5.5 0 1 1 11 0 5.5 5.5 0 0 1-11 0zM8 5a.5.5 0 0 1 .5.5V8l2 1a.5.5 0 0 1-.5.87l-2.25-1.25A.5.5 0 0 1 7.5 8V5.5A.5.5 0 0 1 8 5z"/></svg>
             </button>
+            <button className={`claude-tb-icon ${sidePanel === 'summaries' ? 'active' : ''}`} onClick={toggleSummaries} title="Session Summaries">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 0h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2zm0 1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H4zm1 2h6v1H5V3zm0 2.5h6v1H5v-1zM5 8h6v1H5V8zm0 2.5h4v1H5v-1z"/></svg>
+            </button>
             <button className={`claude-tb-icon ${sidePanel === 'mcp' ? 'active' : ''}`} onClick={toggleMcp} title="MCP & Skills">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M5 1a2 2 0 0 0-2 2v1H2a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h1v4a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9h1a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-1V3a2 2 0 0 0-2-2H5zm0 1h6a1 1 0 0 1 1 1v1H4V3a1 1 0 0 1 1-1zM2 5h12v3H2V5zm3 5h2v1H5v-1zm4 0h2v1H9v-1z"/></svg>
             </button>
@@ -638,7 +647,16 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
           <>
             <div className="side-resize-handle" onMouseDown={onDragStart} />
             <div className="claude-sessions-side" style={{ width: sideWidth }}>
-              {sidePanel === 'resources' ? (
+              {sidePanel === 'summaries' ? (
+                <SummariesPanel
+                  projectName={activeSession.folderName}
+                  projectPath={activeSession.worktreePath || activeSession.folderPath}
+                  sessionId={activeSession.id}
+                  claudeSessionId={activeSession.claudeSessionId ?? null}
+                  onClose={() => setSidePanel('none')}
+                  onResumeSession={onResumeFromHistory}
+                />
+              ) : sidePanel === 'resources' ? (
                 <ResourcePanel
                   snapshot={resourceSnapshot}
                   isLoading={resourceLoading}

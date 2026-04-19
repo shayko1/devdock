@@ -12,6 +12,7 @@ import type {
   StatuslineData, RecoverableSession, ScrollbackRestoreResult, ResourceSnapshot,
   InitProgress, NotificationSettings,
   SessionPreset, SessionPresetCreate, PresetLaunchOptions, PresetLaunchResult,
+  SessionSummary, SaveSummaryOptions,
 } from '../shared/ipc-types'
 
 const api = {
@@ -275,6 +276,20 @@ const api = {
     ipcRenderer.invoke('preset-get-recent', limit),
   presetLaunch: (opts: PresetLaunchOptions): Promise<PresetLaunchResult> =>
     ipcRenderer.invoke('preset-launch', opts),
+
+  // Session summaries
+  summarySave: (opts: SaveSummaryOptions): Promise<SessionSummary> =>
+    ipcRenderer.invoke('summary-save', opts),
+  summarySaveFromFile: (filePath: string, title: string, projectName: string, projectPath: string, claudeSessionId: string | null, sessionPtyId: string | null): Promise<SessionSummary | null> =>
+    ipcRenderer.invoke('summary-save-from-file', filePath, title, projectName, projectPath, claudeSessionId, sessionPtyId),
+  summaryList: (projectName?: string): Promise<SessionSummary[]> =>
+    ipcRenderer.invoke('summary-list', projectName),
+  summaryGet: (id: string): Promise<{ summary: SessionSummary; html: string } | null> =>
+    ipcRenderer.invoke('summary-get', id),
+  summaryDelete: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('summary-delete', id),
+  summaryOpenInBrowser: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('summary-open-in-browser', id),
 
   // Akeyless DB Access
   akeylessCheckStatus: (): Promise<{

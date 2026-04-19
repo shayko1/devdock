@@ -336,6 +336,28 @@ export interface PresetLaunchResult extends PtyCreateResult {
   preset?: SessionPreset
 }
 
+// ── Session summaries ──
+
+export interface SessionSummary {
+  id: string
+  title: string
+  projectName: string
+  projectPath: string
+  claudeSessionId: string | null
+  sessionPtyId: string | null
+  createdAt: number
+  htmlFileName: string
+}
+
+export interface SaveSummaryOptions {
+  title: string
+  htmlContent: string
+  projectName: string
+  projectPath: string
+  claudeSessionId: string | null
+  sessionPtyId: string | null
+}
+
 // ── Re-exports for convenience ──
 
 export type {

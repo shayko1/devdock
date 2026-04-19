@@ -595,7 +595,9 @@ export function ChatInputBar({ sessionId, rootPath, onSend, onImageUpload, disab
       }
     }
 
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter') {
+      if (e.shiftKey) return
+      if (e.nativeEvent?.isComposing) return
       e.preventDefault()
       handleSend()
     }

@@ -123,14 +123,17 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
         let match
         urlRegex.lastIndex = 0
         while ((match = urlRegex.exec(text)) !== null) {
+          const url = match[0]
+          const startX = match.index + 1
+          const endX = match.index + url.length + 1
           links.push({
             range: {
-              start: { x: match.index + 1, y: bufferLineNumber },
-              end: { x: match.index + match[0].length + 1, y: bufferLineNumber }
+              start: { x: startX, y: bufferLineNumber },
+              end: { x: endX, y: bufferLineNumber }
             },
-            text: match[0],
+            text: url,
             activate() {
-              window.api.openInBrowser(match![0])
+              window.api.openInBrowser(url)
             }
           })
         }
