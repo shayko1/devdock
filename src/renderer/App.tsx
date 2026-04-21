@@ -352,7 +352,7 @@ export function App() {
         padding: 40, textAlign: 'center', gap: 24,
       }}>
         <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.02em' }}>
-          <span style={{ opacity: 0.4, marginRight: 8 }}>DD</span>DevHub-AI
+          <span style={{ opacity: 0.4, marginRight: 8 }}>DHAI</span>DevHub-AI
         </div>
         <p style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 420, lineHeight: 1.6 }}>
           Choose the root folder that contains your projects.
@@ -390,7 +390,7 @@ export function App() {
   return (
     <>
       <div className="titlebar">
-        <span className="titlebar-logo">DD</span>
+        <span className="titlebar-logo">DHAI</span>
         DevHub-AI
         <div className="theme-switcher">
           <button className={`theme-btn ${theme === 'light' ? 'active' : ''}`} onClick={() => setTheme('light')} title="Light mode">☀</button>
