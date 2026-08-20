@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { renderHook, waitFor, act } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { renderHook, act } from '@testing-library/react'
 import { useSessionTitles } from './useSessionTitles'
 import type { ClaudeSession } from './useClaudeSessions'
 
@@ -17,6 +17,7 @@ function makeSession(overrides: Partial<ClaudeSession> = {}): ClaudeSession {
 
 describe('useSessionTitles', () => {
   beforeEach(() => {
+    vi.useFakeTimers()
     vi.mocked(window.api.sessionTitleGenerate).mockReset().mockResolvedValue({
       title: 'Fix Refund Webhooks',
       source: 'ai',
@@ -24,13 +25,22 @@ describe('useSessionTitles', () => {
     })
   })
 
-  it('names a live unnamed session', async () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('names a live unnamed session after the initial delay', async () => {
     const setSessionTitle = vi.fn()
     renderHook(() => useSessionTitles({ sessions: [makeSession()], setSessionTitle }))
 
-    await waitFor(() => {
-      expect(setSessionTitle).toHaveBeenCalledWith('s1', 'Fix Refund Webhooks', false)
-    })
+    // Should NOT generate immediately.
+    await act(async () => {})
+    expect(window.api.sessionTitleGenerate).not.toHaveBeenCalled()
+
+    // Advance past initial delay (90s) + one retry interval (30s).
+    await act(async () => { vi.advanceTimersByTime(120_000) })
+
+    expect(setSessionTitle).toHaveBeenCalledWith('s1', 'Fix Refund Webhooks', false)
   })
 
   it('passes the worktree path as the cwd when the session has one', async () => {
@@ -38,7 +48,9 @@ describe('useSessionTitles', () => {
     const session = makeSession({ worktreePath: '/Users/dev/.devdock/worktrees/dd/1/worktree' })
     renderHook(() => useSessionTitles({ sessions: [session], setSessionTitle }))
 
-    await waitFor(() => expect(window.api.sessionTitleGenerate).toHaveBeenCalled())
+    await act(async () => { vi.advanceTimersByTime(120_000) })
+
+    expect(window.api.sessionTitleGenerate).toHaveBeenCalled()
     expect(vi.mocked(window.api.sessionTitleGenerate).mock.calls[0][0]).toMatchObject({
       sessionId: 's1',
       cwd: '/Users/dev/.devdock/worktrees/dd/1/worktree',
@@ -53,7 +65,7 @@ describe('useSessionTitles', () => {
       setSessionTitle,
     }))
 
-    await Promise.resolve()
+    await act(async () => { vi.advanceTimersByTime(200_000) })
     expect(window.api.sessionTitleGenerate).not.toHaveBeenCalled()
   })
 
@@ -64,7 +76,7 @@ describe('useSessionTitles', () => {
       setSessionTitle,
     }))
 
-    await Promise.resolve()
+    await act(async () => { vi.advanceTimersByTime(200_000) })
     expect(window.api.sessionTitleGenerate).not.toHaveBeenCalled()
   })
 
@@ -78,7 +90,7 @@ describe('useSessionTitles', () => {
       setSessionTitle,
     }))
 
-    await Promise.resolve()
+    await act(async () => { vi.advanceTimersByTime(200_000) })
     expect(window.api.sessionTitleGenerate).not.toHaveBeenCalled()
   })
 
@@ -93,6 +105,10 @@ describe('useSessionTitles', () => {
       ({ sessions }) => useSessionTitles({ sessions, setSessionTitle }),
       { initialProps: { sessions: [makeSession()] } }
     )
+
+    // Advance past the initial delay so it fires.
+    await act(async () => { vi.advanceTimersByTime(120_000) })
+    expect(window.api.sessionTitleGenerate).toHaveBeenCalled()
 
     // User renames by hand before the model answers.
     rerender({ sessions: [makeSession({ title: 'My Name', titleManual: true })] })
@@ -127,7 +143,9 @@ describe('useSessionTitles', () => {
       setSessionTitle,
     }))
 
-    await waitFor(() => expect(result.current.generatingIds.has('s1')).toBe(true))
+    await act(async () => { vi.advanceTimersByTime(120_000) })
+
+    expect(result.current.generatingIds.has('s1')).toBe(true)
     await act(async () => { resolveGenerate(null) })
     expect(result.current.generatingIds.has('s1')).toBe(false)
   })
@@ -141,7 +159,9 @@ describe('useSessionTitles', () => {
       setSessionTitle,
     }))
 
-    await waitFor(() => expect(window.api.sessionTitleGenerate).toHaveBeenCalled())
+    await act(async () => { vi.advanceTimersByTime(120_000) })
+
+    expect(window.api.sessionTitleGenerate).toHaveBeenCalled()
     expect(setSessionTitle).not.toHaveBeenCalled()
     expect(result.current.generatingIds.size).toBe(0)
   })
@@ -150,18 +170,27 @@ describe('useSessionTitles', () => {
     const setSessionTitle = vi.fn()
     vi.mocked(window.api.sessionTitleGenerate).mockResolvedValue(null)
 
-    const { rerender } = renderHook(
+    renderHook(
       ({ sessions }) => useSessionTitles({ sessions, setSessionTitle }),
       { initialProps: { sessions: [makeSession()] } }
     )
 
-    // Each session-list change is one attempt; the budget is 6.
-    for (let i = 0; i < 12; i++) {
-      await act(async () => {
-        rerender({ sessions: [makeSession({ branchName: `b${i}` })] })
-      })
-    }
+    // Advance well past the initial delay and through many retry intervals.
+    await act(async () => { vi.advanceTimersByTime(90_000 + 12 * 30_000) })
 
     expect(vi.mocked(window.api.sessionTitleGenerate).mock.calls.length).toBeLessThanOrEqual(6)
+  })
+
+  it('does not attempt before the initial delay has passed', async () => {
+    const setSessionTitle = vi.fn()
+    renderHook(() => useSessionTitles({ sessions: [makeSession()], setSessionTitle }))
+
+    // At 60 seconds — still within the 90s initial delay.
+    await act(async () => { vi.advanceTimersByTime(60_000) })
+    expect(window.api.sessionTitleGenerate).not.toHaveBeenCalled()
+
+    // At 120s total — past initial delay + one retry tick.
+    await act(async () => { vi.advanceTimersByTime(60_000) })
+    expect(window.api.sessionTitleGenerate).toHaveBeenCalled()
   })
 })
