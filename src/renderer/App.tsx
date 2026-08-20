@@ -463,23 +463,13 @@ export function App() {
         </div>
       </div>
 
-      {/* DB Access is always mounted so connection state survives tab switches */}
+      {/* Claude and DB tabs are always mounted so terminal/connection state survives tab switches */}
       <div style={{
-        display: activeTab === 'db-access' ? 'flex' : 'none',
+        display: activeTab === 'claude' ? 'flex' : 'none',
         flex: 1,
         flexDirection: 'column',
         overflow: 'hidden',
       }}>
-        <ErrorBoundary name="DB Access">
-          <DbWorkbenchView />
-        </ErrorBoundary>
-      </div>
-
-      {activeTab === 'db-access' ? null : activeTab === 'agents' ? (
-        <ErrorBoundary name="Agents">
-          <AgentsView />
-        </ErrorBoundary>
-      ) : activeTab === 'claude' ? (
         <ErrorBoundary name="Claude Sessions">
           <ClaudeSessionsView
             sessions={claudeSessions}
@@ -499,6 +489,23 @@ export function App() {
             onRegenerateSessionTitle={handleRegenerateSessionTitle}
             onWaitingSessionsChange={handleWaitingSessionsChange}
           />
+        </ErrorBoundary>
+      </div>
+
+      <div style={{
+        display: activeTab === 'db-access' ? 'flex' : 'none',
+        flex: 1,
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}>
+        <ErrorBoundary name="DB Access">
+          <DbWorkbenchView />
+        </ErrorBoundary>
+      </div>
+
+      {activeTab === 'claude' || activeTab === 'db-access' ? null : activeTab === 'agents' ? (
+        <ErrorBoundary name="Agents">
+          <AgentsView />
         </ErrorBoundary>
       ) : activeTab === 'folders' ? (
         <ErrorBoundary name="Folders">
