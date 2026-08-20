@@ -1,3 +1,5 @@
+import type { KanbanColumn } from './ipc-types'
+
 export interface Project {
   id: string
   name: string
@@ -31,6 +33,7 @@ export interface AppState {
   workspaceChosen?: boolean
   activeTab?: 'launchpad' | 'folders' | 'claude' | 'agents' | 'db-access'
   selectedProjectId?: string | null
+  kanbanColumns?: KanbanColumn[]
 }
 
 export interface ProcessStatus {

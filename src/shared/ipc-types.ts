@@ -156,6 +156,14 @@ export interface ActiveSession {
   worktreePath: string | null
   branchName: string | null
   dangerousMode?: boolean
+  columnId?: string
+}
+
+export interface KanbanColumn {
+  id: string
+  name: string
+  order: number
+  color?: string
 }
 
 // ── Session history ──
