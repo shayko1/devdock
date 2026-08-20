@@ -4,6 +4,12 @@ export interface EnhancerConfig {
   model: string
   /** Override the OpenAI-compatible API base URL (e.g. company proxy). Empty = default. */
   baseUrl: string
+  /**
+   * Auto-name Claude sessions with the AI. Independent of `enabled` — prompt
+   * enhancement and session naming are separate opt-ins over the same API key.
+   * Undefined counts as on, so existing configs get naming for free.
+   */
+  titlesEnabled?: boolean
 }
 
 export const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1'

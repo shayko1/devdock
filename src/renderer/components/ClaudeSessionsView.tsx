@@ -42,6 +42,7 @@ interface Session {
   dangerousMode?: boolean
   pendingRecap?: boolean
   title?: string
+  titleManual?: boolean
   initializing?: boolean
   columnId?: string
 }
@@ -73,13 +74,21 @@ interface Props {
   onOpenPipelineSession?: (folderName: string, folderPath: string, worktreePath: string) => void
   onLaunchPreset?: (presetId: string) => void
   onUpdateSessionColumn: (sessionId: string, columnId: string) => void
+  /** Commits a session title. `manual: true` pins it against auto-naming. */
+  onSetSessionTitle: (sessionId: string, title: string, manual: boolean) => void
+  /** Clears a title so the session falls back to auto-naming. */
+  onClearSessionTitle: (sessionId: string) => void
+  /** Session ids currently being auto-named. */
+  titleGeneratingIds: Set<string>
+  /** Re-runs auto-naming for one session. */
+  onRegenerateSessionTitle: (sessionId: string) => void
   /** Fires whenever the set of waiting-for-input session ids changes. */
   onWaitingSessionsChange?: (waitingIds: string[]) => void
 }
 
 type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'mcp' | 'history' | 'resources' | 'presets' | 'summaries'
 
-export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, scanPath, onNewSession, onCloseSession, onResumeSession, onResumeFromHistory, onOpenPipelineSession, onLaunchPreset, onUpdateSessionColumn, onWaitingSessionsChange }: Props) {
+export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, scanPath, onNewSession, onCloseSession, onResumeSession, onResumeFromHistory, onOpenPipelineSession, onLaunchPreset, onUpdateSessionColumn, onSetSessionTitle, onClearSessionTitle, titleGeneratingIds, onRegenerateSessionTitle, onWaitingSessionsChange }: Props) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidePanel, setSidePanel] = useState<SidePanel>('none')
   const [viewingFile, setViewingFile] = useState<string | null>(null)
@@ -88,7 +97,6 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
   const [waitingSessions, setWaitingSessions] = useState<Set<string>>(new Set())
   const [rtkDisabledSessions, setRtkDisabledSessions] = useState<Set<string>>(new Set())
   const [rtkAvailable, setRtkAvailable] = useState(false)
-  const [sessionTitles, setSessionTitles] = useState<Map<string, string>>(new Map())
   const { snapshot: resourceSnapshot, getSessionMetrics, isLoading: resourceLoading } = useResourceMonitor()
   const { columns, addColumn, renameColumn, deleteColumn, moveColumnUp, moveColumnDown, getSessionColumn } = useKanban()
   const dragging = useRef(false)
@@ -175,15 +183,6 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
     return () => { cancelled = true }
   }, [sessions, activeSessionId])
 
-  // Track session titles from first user message sent via ChatInputBar
-  // (terminal output parsing is unreliable — it captures escape codes and garbage)
-  useEffect(() => {
-    // Cleanup placeholder — no PTY listener needed; titles come from handleChatSend
-    const unsub = () => {}
-
-    return unsub
-  }, [sessions])
-
   const handleSelectSession = useCallback((id: string) => {
     setActiveSessionId(id)
     // Persist the active session — by PTY id (direct lookup across restarts) and by
@@ -201,6 +200,10 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
     e.stopPropagation()
     onCloseSession(sessionId)
   }, [onCloseSession])
+
+  const handleRenameSession = useCallback((sessionId: string, title: string) => {
+    onSetSessionTitle(sessionId, title, true)
+  }, [onSetSessionTitle])
 
   const activeSession = sessions.find(s => s.id === activeSessionId)
   const sessionRoot = activeSession?.worktreePath || activeSession?.folderPath || ''
@@ -317,10 +320,10 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
   const sessionNameMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const s of sessions) {
-      map.set(s.id, sessionTitles.get(s.id) || s.folderName)
+      map.set(s.id, s.title || s.folderName)
     }
     return map
-  }, [sessions, sessionTitles])
+  }, [sessions])
 
   const filteredHistory = useMemo(() => {
     if (!historySearch.trim()) return historyRecords
@@ -343,21 +346,16 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
       : text
     window.api.ptyWrite(activeSessionId, escaped + '\r')
 
-    // Update session title from first non-command message — extract a short summary
-    if (!text.startsWith('/') && text.trim().length > 5 && !sessionTitles.has(activeSessionId)) {
-      const raw = text.trim()
-      // Take the first sentence or line, whichever is shorter
-      const firstLine = raw.split('\n')[0].trim()
-      const firstSentence = firstLine.split(/[.!?]\s/)[0].trim()
-      const short = firstSentence.length < firstLine.length ? firstSentence : firstLine
-      const title = short.length > 45 ? short.slice(0, 42) + '...' : short
-      setSessionTitles(prev => {
-        const next = new Map(prev)
-        next.set(activeSessionId, title)
-        return next
-      })
+    // The first real message is what a session gets named from. Nudge naming
+    // instead of waiting for the retry interval, once Claude has written the
+    // message to its transcript. Sessions the user has already named — or
+    // deliberately pinned to the folder name — are left alone.
+    const session = sessions.find(s => s.id === activeSessionId)
+    const nameable = session && !session.title && !session.titleManual
+    if (nameable && !text.startsWith('/') && text.trim().length > 5) {
+      setTimeout(() => onRegenerateSessionTitle(activeSessionId), 2500)
     }
-  }, [activeSessionId, sessionTitles])
+  }, [activeSessionId, sessions, onRegenerateSessionTitle])
 
   const handleChatImageUpload = useCallback(async (file: File) => {
     if (!activeSessionId) return
@@ -425,15 +423,19 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
       <KanbanPanel
         sessions={sessions}
         columns={columns}
-        sessionTitles={sessionTitles}
         activeSessionId={activeSessionId}
         waitingSessions={waitingSessions}
         getSessionMetrics={(id) => getSessionMetrics(id) ?? undefined}
         isResourceLoading={resourceLoading}
+        generatingTitleIds={titleGeneratingIds}
         getSessionColumn={getSessionColumn}
+        scanPath={scanPath}
         onSelectSession={handleSelectSession}
         onCloseSession={handleClose}
         onResumeSession={onResumeSession}
+        onRenameSession={handleRenameSession}
+        onRegenerateSessionTitle={onRegenerateSessionTitle}
+        onResetSessionTitle={onClearSessionTitle}
         onMoveSession={onUpdateSessionColumn}
         onAddColumn={addColumn}
         onRenameColumn={renameColumn}
@@ -441,6 +443,8 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
         onMoveColumnUp={moveColumnUp}
         onMoveColumnDown={moveColumnDown}
         onNewSession={onNewSession}
+        onLaunchPreset={handleLaunchPreset}
+        onShowAllPresets={togglePresets}
       />
 
       {/* Main area (toolbar + info bar + terminal) */}

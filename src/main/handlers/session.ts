@@ -8,6 +8,8 @@ import { loadState } from '../store'
 import { cleanupSessionRtkFlag } from '../rtk-manager'
 import { promptEnhancer } from '../prompt-enhancer'
 import { activeSessions, scanProjectSessions, getSessionTitle } from '../session-history'
+import { sessionTitler } from '../session-titler'
+import type { SessionTitleRequest } from '../../shared/ipc-types'
 import { ensureDevDockClaudeMd } from '../claude-md'
 import { statuslineWatcher } from '../statusline-watcher'
 import { workspaceInitTracker } from '../workspace-init-tracker'
@@ -349,6 +351,15 @@ export function registerSessionHandlers() {
 
   ipcMain.handle('session-history-title', (_event, claudeSessionId: string, dirName: string) => {
     return getSessionTitle(claudeSessionId, dirName)
+  })
+
+  // Session auto-naming
+  ipcMain.handle('active-sessions-set-title', (_event, id: string, title: string | null, manual: boolean) => {
+    activeSessions.setTitle(id, title, manual)
+  })
+
+  ipcMain.handle('session-title-generate', (_event, req: SessionTitleRequest) => {
+    return sessionTitler.generate(req)
   })
 }
 

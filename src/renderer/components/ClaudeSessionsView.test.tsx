@@ -33,6 +33,8 @@ function makeSession(overrides: Partial<{
   exited: boolean
   claudeSessionId: string | null
   dangerousMode: boolean
+  title: string
+  titleManual: boolean
 }> = {}) {
   return {
     id: 's1',
@@ -57,6 +59,10 @@ const defaultViewProps = {
   onResumeSession: vi.fn(),
   onResumeFromHistory: vi.fn(),
   onUpdateSessionColumn: vi.fn(),
+  onSetSessionTitle: vi.fn(),
+  onClearSessionTitle: vi.fn(),
+  titleGeneratingIds: new Set<string>(),
+  onRegenerateSessionTitle: vi.fn(),
 }
 
 describe('ClaudeSessionsView', () => {
@@ -215,7 +221,7 @@ describe('ClaudeSessionsView', () => {
     expect(screen.queryByText('UNSAFE')).not.toBeInTheDocument()
   })
 
-  it('dangerous session shows warning indicator with tooltip', () => {
+  it('dangerous session shows warning indicator with tooltip', async () => {
     const session = makeSession({
       id: 'danger',
       folderName: 'danger-folder',
@@ -227,11 +233,11 @@ describe('ClaudeSessionsView', () => {
         sessions={[session]}
       />
     )
-    const indicators = screen.getAllByTitle(/Dangerous mode/)
+    const indicators = await screen.findAllByTitle(/Dangerous mode/)
     expect(indicators.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('exited active session shows "Session ended" overlay', () => {
+  it('exited active session shows "Session ended" overlay', async () => {
     const session = makeSession({
       id: 'exited',
       folderName: 'exited-folder',
@@ -243,7 +249,63 @@ describe('ClaudeSessionsView', () => {
         sessions={[session]}
       />
     )
-    expect(screen.getByText('Session ended')).toBeInTheDocument()
+    expect(await screen.findByText('Session ended')).toBeInTheDocument()
+  })
+
+  it('shows the AI title with the folder name beneath it', async () => {
+    const session = makeSession({
+      id: 'titled',
+      folderName: 'deckdrop-pro',
+      title: 'Fix Stripe Refunds',
+    })
+    render(
+      <ClaudeSessionsView
+        {...defaultViewProps}
+        sessions={[session]}
+      />
+    )
+    expect(await screen.findByText('Fix Stripe Refunds')).toBeInTheDocument()
+    expect(screen.getByText('deckdrop-pro')).toBeInTheDocument()
+  })
+
+  it('does not repeat the folder name when a session has no title', async () => {
+    const session = makeSession({ id: 'plain', folderName: 'deckdrop-pro' })
+    render(
+      <ClaudeSessionsView
+        {...defaultViewProps}
+        sessions={[session]}
+      />
+    )
+    // Card name only — no duplicate sub-line
+    expect(await screen.findAllByText('deckdrop-pro')).toHaveLength(1)
+  })
+
+  it('double-clicking a card name renames the session as manual', async () => {
+    const session = makeSession({ id: 'rename-me', folderName: 'project' })
+    const onSetSessionTitle = vi.fn()
+    render(
+      <ClaudeSessionsView
+        {...defaultViewProps}
+        sessions={[session]}
+        onSetSessionTitle={onSetSessionTitle}
+      />
+    )
+    fireEvent.doubleClick(await screen.findByText('project'))
+    const input = screen.getByLabelText('Session name')
+    fireEvent.change(input, { target: { value: 'Billing Investigation' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onSetSessionTitle).toHaveBeenCalledWith('rename-me', 'Billing Investigation', true)
+  })
+
+  it('renders the quick-launch preset bar alongside the board', async () => {
+    const session = makeSession({ id: 's1', folderName: 'project' })
+    render(
+      <ClaudeSessionsView
+        {...defaultViewProps}
+        sessions={[session]}
+      />
+    )
+    expect(await screen.findByTestId('preset-bar')).toBeInTheDocument()
   })
 
   it('renders multiple tabs, clicking selects different session', async () => {

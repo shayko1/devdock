@@ -157,6 +157,31 @@ export interface ActiveSession {
   branchName: string | null
   dangerousMode?: boolean
   columnId?: string
+  /** Display name for the session card. Falls back to folderName when absent. */
+  title?: string
+  /**
+   * True when the user chose the label themselves — either by renaming or by
+   * resetting to the folder name. Auto-naming leaves these sessions alone.
+   */
+  titleManual?: boolean
+}
+
+// ── Session auto-naming ──
+
+export interface SessionTitleRequest {
+  /** PTY session id — used to pull terminal context as a fallback source. */
+  sessionId: string
+  folderName: string
+  /** Session working directory (worktree path when present, else the project path). */
+  cwd: string
+  claudeSessionId?: string | null
+}
+
+export interface SessionTitleResponse {
+  title: string
+  /** 'ai' when the model named it, 'heuristic' when derived from the first message. */
+  source: 'ai' | 'heuristic'
+  costUsd: number
 }
 
 export interface KanbanColumn {

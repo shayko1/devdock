@@ -11,7 +11,10 @@ export interface ClaudeSession {
   claudeSessionId?: string | null
   dangerousMode?: boolean
   pendingRecap?: boolean
+  /** Card label. Absent means "show the folder name". */
   title?: string
+  /** True when the user chose the label — auto-naming leaves it alone. */
+  titleManual?: boolean
   initializing?: boolean
   columnId?: string
 }
@@ -90,6 +93,8 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
               claudeSessionId: rec.claudeSessionId ?? null,
               dangerousMode: rec.dangerousMode,
               columnId: rec.columnId,
+              title: rec.title,
+              titleManual: rec.titleManual,
             })
             // Refresh the active-session record (worktree/branch may have changed)
             window.api.activeSessionsSet({
@@ -101,6 +106,8 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
               branchName: result.branchName ?? rec.branchName,
               dangerousMode: rec.dangerousMode,
               columnId: rec.columnId,
+              title: rec.title,
+              titleManual: rec.titleManual,
             })
           } else {
             window.api.activeSessionsRemove(rec.id)
@@ -233,6 +240,9 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
           worktreePath: result.worktreePath ?? session.worktreePath,
           branchName: result.branchName ?? session.branchName,
           dangerousMode: session.dangerousMode,
+          columnId: session.columnId,
+          title: session.title,
+          titleManual: session.titleManual,
         })
 
         detectClaudeId(newPtyId, session.worktreePath || session.folderPath, session.claudeSessionId, setSessions)
@@ -394,6 +404,32 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
     window.api.kanbanMoveSession(sessionId, columnId)
   }, [])
 
+  /**
+   * Set a session's card title. `manual` records that the user chose it, which
+   * pins the title against auto-naming. Callers decide whether the write is
+   * allowed — see useSessionTitles for the auto-naming policy.
+   */
+  const setSessionTitle = useCallback((sessionId: string, title: string, manual: boolean) => {
+    const trimmed = title.trim()
+    setSessions(prev => prev.map(s =>
+      s.id === sessionId
+        ? { ...s, title: trimmed || undefined, titleManual: manual }
+        : s
+    ))
+    window.api.activeSessionsSetTitle(sessionId, trimmed || null, manual)
+  }, [])
+
+  /**
+   * Pin a session back to its folder name. Counts as a manual choice so
+   * auto-naming does not immediately re-title it.
+   */
+  const clearSessionTitle = useCallback((sessionId: string) => {
+    setSessions(prev => prev.map(s =>
+      s.id === sessionId ? { ...s, title: undefined, titleManual: true } : s
+    ))
+    window.api.activeSessionsSetTitle(sessionId, null, true)
+  }, [])
+
   return {
     sessions,
     startSession,
@@ -403,5 +439,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
     closeSession,
     launchPreset,
     updateSessionColumn,
+    setSessionTitle,
+    clearSessionTitle,
   }
 }

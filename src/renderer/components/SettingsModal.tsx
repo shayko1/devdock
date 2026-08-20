@@ -77,6 +77,9 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
       .catch(() => {})
   }, [])
 
+  // Undefined counts as on, so existing configs get session naming without re-opting in.
+  const sessionTitlesEnabled = enhancerConfig.titlesEnabled !== false
+
   const handleSaveEnhancer = useCallback(async () => {
     await window.api.enhancerSetConfig?.(enhancerConfig)
     setEnhancerSaved(true)
@@ -429,7 +432,28 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
             and suggests a better version. Toggle on/off in the chat input bar. Very cheap — typically &lt;$0.01/session.
           </p>
 
-          {enhancerConfig.enabled && (
+          {/* Session auto-naming shares the API key below but is opted into separately. */}
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={sessionTitlesEnabled}
+              onChange={(e) => {
+                const next = { ...enhancerConfig, titlesEnabled: e.target.checked }
+                setEnhancerConfig(next)
+                window.api.enhancerSetConfig?.(next)
+              }}
+              style={{ marginTop: 2 }}
+            />
+            <span>
+              <span style={{ fontSize: 12, color: 'var(--text-primary)' }}>Auto-name sessions</span>
+              <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)' }}>
+                Names each session on the board after the task it is working on, with the folder name
+                shown beneath. Without an API key, names fall back to the first message.
+              </span>
+            </span>
+          </label>
+
+          {(enhancerConfig.enabled || sessionTitlesEnabled) && (
             <>
               <div style={{ marginBottom: 10 }}>
                 <label style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>
@@ -497,7 +521,7 @@ export function SettingsModal({ currentPath, currentScanDepth, rtkEnabled, dange
                   onClick={handleSaveEnhancer}
                   style={{ minWidth: 80 }}
                 >
-                  {enhancerSaved ? 'Saved!' : 'Save'}
+                  {enhancerSaved ? 'Saved!' : 'Save API Settings'}
                 </button>
                 {enhancerTotalCost && enhancerTotalCost.calls > 0 && (
                   <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>

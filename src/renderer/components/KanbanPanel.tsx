@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react'
 import { KanbanColumnSection, KanbanSession } from './KanbanColumn'
-import type { KanbanColumn, SessionMetrics } from '../../shared/ipc-types'
+import { PresetBar } from './presets'
+import type { KanbanColumn, SessionMetrics, SessionPreset } from '../../shared/ipc-types'
 import './KanbanPanel.css'
 
 const MIN_WIDTH = 200
@@ -11,15 +12,20 @@ const WIDTH_STORAGE_KEY = 'devdock-kanban-width'
 interface Props {
   sessions: KanbanSession[]
   columns: KanbanColumn[]
-  sessionTitles: Map<string, string>
   activeSessionId: string | null
   waitingSessions: Set<string>
   getSessionMetrics: (id: string) => SessionMetrics | undefined
   isResourceLoading: boolean
+  generatingTitleIds: Set<string>
   getSessionColumn: (columnId?: string) => string
+  /** Workspace root, used by the preset editor's folder picker. */
+  scanPath: string
   onSelectSession: (id: string) => void
   onCloseSession: (id: string, e: React.MouseEvent) => void
   onResumeSession: (id: string) => void
+  onRenameSession: (id: string, title: string) => void
+  onRegenerateSessionTitle: (id: string) => void
+  onResetSessionTitle: (id: string) => void
   onMoveSession: (sessionId: string, columnId: string) => void
   onAddColumn: (name: string) => void
   onRenameColumn: (columnId: string, name: string) => void
@@ -27,20 +33,26 @@ interface Props {
   onMoveColumnUp: (columnId: string) => void
   onMoveColumnDown: (columnId: string) => void
   onNewSession: () => void
+  onLaunchPreset: (preset: SessionPreset) => void
+  onShowAllPresets: () => void
 }
 
 export function KanbanPanel({
   sessions,
   columns,
-  sessionTitles,
   activeSessionId,
   waitingSessions,
   getSessionMetrics,
   isResourceLoading,
+  generatingTitleIds,
   getSessionColumn,
+  scanPath,
   onSelectSession,
   onCloseSession,
   onResumeSession,
+  onRenameSession,
+  onRegenerateSessionTitle,
+  onResetSessionTitle,
   onMoveSession,
   onAddColumn,
   onRenameColumn,
@@ -48,6 +60,8 @@ export function KanbanPanel({
   onMoveColumnUp,
   onMoveColumnDown,
   onNewSession,
+  onLaunchPreset,
+  onShowAllPresets,
 }: Props) {
   const [width, setWidth] = useState(() => {
     const saved = localStorage.getItem(WIDTH_STORAGE_KEY)
@@ -114,20 +128,28 @@ export function KanbanPanel({
           +
         </button>
       </div>
+      <PresetBar
+        scanPath={scanPath}
+        onLaunchPreset={onLaunchPreset}
+        onShowAllPresets={onShowAllPresets}
+      />
       <div className="kanban-panel-body">
         {sortedColumns.map((column, index) => (
           <KanbanColumnSection
             key={column.id}
             column={column}
             sessions={sessionsByColumn.get(column.id) ?? []}
-            sessionTitles={sessionTitles}
             activeSessionId={activeSessionId}
             waitingSessions={waitingSessions}
             getSessionMetrics={getSessionMetrics}
             isResourceLoading={isResourceLoading}
+            generatingTitleIds={generatingTitleIds}
             onSelectSession={onSelectSession}
             onCloseSession={onCloseSession}
             onResumeSession={onResumeSession}
+            onRenameSession={onRenameSession}
+            onRegenerateSessionTitle={onRegenerateSessionTitle}
+            onResetSessionTitle={onResetSessionTitle}
             onDrop={onMoveSession}
             onRename={onRenameColumn}
             onDelete={onDeleteColumn}

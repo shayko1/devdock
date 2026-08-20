@@ -13,6 +13,13 @@ export interface ActiveSession {
   branchName: string | null
   dangerousMode?: boolean
   columnId?: string
+  /** Display name for the session card. Falls back to folderName when absent. */
+  title?: string
+  /**
+   * True when the user chose the label themselves — either by renaming or by
+   * resetting to the folder name. Auto-naming leaves these sessions alone.
+   */
+  titleManual?: boolean
 }
 
 const DEVDOCK_DIR = join(homedir(), '.devdock')
@@ -68,6 +75,22 @@ class ActiveSessionStore {
     if (s) { s.claudeSessionId = claudeSessionId; this.save() }
   }
 
+  /**
+   * Persist a session's display title. `manual` records that the user chose it
+   * — including choosing to have none, which pins the session to its folder
+   * name. Whether a write is allowed is decided by the caller, not here.
+   */
+  setTitle(id: string, title: string | null, manual: boolean) {
+    this.load()
+    const s = this.sessions.find(r => r.id === id)
+    if (!s) return
+    if (title === null) delete s.title
+    else s.title = title
+    if (manual) s.titleManual = true
+    else delete s.titleManual
+    this.save()
+  }
+
   remove(id: string) {
     this.load()
     this.sessions = this.sessions.filter(s => s.id !== id)
@@ -120,7 +143,7 @@ const CLAUDE_PROJECTS_DIR = join(homedir(), '.claude', 'projects')
  * Claude encodes CWD paths: replace / with -, replace . with -
  * e.g. /Users/shayk/.dev3.0/worktrees/foo → -Users-shayk--dev3-0-worktrees-foo
  */
-function encodePath(p: string): string {
+export function encodePath(p: string): string {
   return p.replace(/\//g, '-').replace(/\./g, '-')
 }
 
@@ -260,6 +283,33 @@ function isSystemMessage(text: string): boolean {
     t.startsWith('<local-') ||
     t.startsWith('Unknown skill:') ||
     t.length < 3
+}
+
+/**
+ * First real user messages of a Claude session, oldest first, system/command
+ * noise removed. This is the best available signal for naming a session.
+ *
+ * `cwd` is the session's working directory (worktree path when present); the
+ * transcript directory name is derived from it the same way Claude encodes it.
+ */
+export function getSessionUserMessages(claudeSessionId: string, cwd: string, limit = 4): string[] {
+  const filePath = join(CLAUDE_PROJECTS_DIR, encodePath(cwd), `${claudeSessionId}.jsonl`)
+  if (!existsSync(filePath)) return []
+
+  const messages: string[] = []
+  try {
+    const lines = readFileSync(filePath, 'utf-8').split('\n').filter(Boolean)
+    for (const line of lines) {
+      if (messages.length >= limit) break
+      try {
+        const entry = JSON.parse(line)
+        if (entry.type !== 'user' && entry.type !== 'human') continue
+        const text = extractText(entry)
+        if (text && !isSystemMessage(text)) messages.push(text.trim())
+      } catch { continue }
+    }
+  } catch { /* unreadable transcript */ }
+  return messages
 }
 
 /**

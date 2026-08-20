@@ -8,6 +8,7 @@ import type {
   DirectoryEntry, FileContent, FileSearchResult, FileSearchEntry, DiffResult,
   SystemPortInfo, RtkStatus, RtkToggleResult, RtkGainStats,
   BrowserEvent, ActiveSession, ClaudeSessionInfo, SessionTitle,
+  SessionTitleRequest, SessionTitleResponse,
   McpConfigEntry, SkillEntry, CreateCommandOptions, SaveTempImageOptions,
   StatuslineData, RecoverableSession, ScrollbackRestoreResult, ResourceSnapshot,
   InitProgress, NotificationSettings,
@@ -220,6 +221,13 @@ const api = {
     ipcRenderer.invoke('active-sessions-set-active-id', id),
   activeSessionsGetActiveId: (): Promise<string | null> =>
     ipcRenderer.invoke('active-sessions-get-active-id'),
+  /** Persist a session's card title. `manual: true` pins it against auto-naming. */
+  activeSessionsSetTitle: (id: string, title: string | null, manual: boolean): Promise<void> =>
+    ipcRenderer.invoke('active-sessions-set-title', id, title, manual),
+
+  // Session auto-naming
+  sessionTitleGenerate: (req: SessionTitleRequest): Promise<SessionTitleResponse | null> =>
+    ipcRenderer.invoke('session-title-generate', req),
 
   // Session history
   sessionHistoryScan: (folderPath: string, folderName: string): Promise<ClaudeSessionInfo[]> =>

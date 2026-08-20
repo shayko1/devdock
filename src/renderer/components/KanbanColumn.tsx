@@ -11,19 +11,24 @@ export interface KanbanSession {
   dangerousMode?: boolean
   initializing?: boolean
   columnId?: string
+  title?: string
+  titleManual?: boolean
 }
 
 interface Props {
   column: KanbanColumn
   sessions: KanbanSession[]
-  sessionTitles: Map<string, string>
   activeSessionId: string | null
   waitingSessions: Set<string>
   getSessionMetrics: (id: string) => SessionMetrics | undefined
   isResourceLoading: boolean
+  generatingTitleIds: Set<string>
   onSelectSession: (id: string) => void
   onCloseSession: (id: string, e: React.MouseEvent) => void
   onResumeSession: (id: string) => void
+  onRenameSession: (id: string, title: string) => void
+  onRegenerateSessionTitle: (id: string) => void
+  onResetSessionTitle: (id: string) => void
   onDrop: (sessionId: string, columnId: string) => void
   onRename: (columnId: string, name: string) => void
   onDelete: (columnId: string) => void
@@ -36,14 +41,17 @@ interface Props {
 export function KanbanColumnSection({
   column,
   sessions,
-  sessionTitles,
   activeSessionId,
   waitingSessions,
   getSessionMetrics,
   isResourceLoading,
+  generatingTitleIds,
   onSelectSession,
   onCloseSession,
   onResumeSession,
+  onRenameSession,
+  onRegenerateSessionTitle,
+  onResetSessionTitle,
   onDrop,
   onRename,
   onDelete,
@@ -184,14 +192,17 @@ export function KanbanColumnSection({
               <KanbanCard
                 key={session.id}
                 session={session}
-                title={sessionTitles.get(session.id) ?? session.folderName}
                 isActive={activeSessionId === session.id}
                 isWaiting={waitingSessions.has(session.id)}
                 metrics={getSessionMetrics(session.id)}
                 isResourceLoading={isResourceLoading}
+                isGeneratingTitle={generatingTitleIds.has(session.id)}
                 onSelect={onSelectSession}
                 onClose={onCloseSession}
                 onResume={onResumeSession}
+                onRename={onRenameSession}
+                onRegenerateTitle={onRegenerateSessionTitle}
+                onResetTitle={onResetSessionTitle}
                 onDragStart={handleCardDragStart}
               />
             ))

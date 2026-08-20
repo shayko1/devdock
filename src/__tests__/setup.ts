@@ -96,6 +96,11 @@ const mockApi = {
   activeSessionsUpdateClaudeId: vi.fn().mockResolvedValue(undefined),
   activeSessionsRemove: vi.fn().mockResolvedValue(undefined),
   activeSessionsGetAll: vi.fn().mockResolvedValue([]),
+  activeSessionsSetActiveId: vi.fn().mockResolvedValue(undefined),
+  activeSessionsGetActiveId: vi.fn().mockResolvedValue(null),
+  activeSessionsSetTitle: vi.fn().mockResolvedValue(undefined),
+  // Session auto-naming
+  sessionTitleGenerate: vi.fn().mockResolvedValue(null),
   // Session history
   sessionHistoryScan: vi.fn().mockResolvedValue([]),
   sessionHistoryTitle: vi.fn().mockResolvedValue(null),

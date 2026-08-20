@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { ResourceBadge } from './ResourceBadge'
 import type { SessionMetrics } from '../../shared/ipc-types'
 
@@ -11,45 +11,126 @@ interface Props {
     claudeSessionId?: string | null
     dangerousMode?: boolean
     initializing?: boolean
+    title?: string
+    titleManual?: boolean
   }
-  title: string
   isActive: boolean
   isWaiting: boolean
   metrics: SessionMetrics | undefined
   isResourceLoading: boolean
+  /** True while the session is being auto-named. */
+  isGeneratingTitle: boolean
   onSelect: (id: string) => void
   onClose: (id: string, e: React.MouseEvent) => void
   onResume: (id: string) => void
+  onRename: (id: string, title: string) => void
+  onRegenerateTitle: (id: string) => void
+  onResetTitle: (id: string) => void
   onDragStart: (e: React.DragEvent, sessionId: string) => void
 }
 
 export function KanbanCard({
   session,
-  title,
   isActive,
   isWaiting,
   metrics,
   isResourceLoading,
+  isGeneratingTitle,
   onSelect,
   onClose,
   onResume,
+  onRename,
+  onRegenerateTitle,
+  onResetTitle,
   onDragStart,
 }: Props) {
   const isExited = !!session.exited
   const isInitializing = !!session.initializing
+  const label = session.title || session.folderName
+  /** Only show the folder sub-line once the card is showing something else on top. */
+  const showProject = !!session.title && session.title !== session.folderName
+
+  const [renaming, setRenaming] = useState(false)
+  const [draft, setDraft] = useState(label)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const handleMouseDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setContextMenu(null)
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  }, [contextMenu])
+
+  useEffect(() => {
+    if (renaming) inputRef.current?.select()
+  }, [renaming])
+
+  const startRename = useCallback(() => {
+    setDraft(session.title || session.folderName)
+    setRenaming(true)
+  }, [session.title, session.folderName])
+
+  const commitRename = useCallback(() => {
+    const trimmed = draft.trim()
+    if (trimmed && trimmed !== label) onRename(session.id, trimmed)
+    setRenaming(false)
+  }, [draft, label, session.id, onRename])
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({ x: e.clientX, y: e.clientY })
+  }
+
+  const runMenuAction = (action: () => void) => {
+    action()
+    setContextMenu(null)
+  }
 
   return (
     <div
       className={`kanban-card ${isActive ? 'active' : ''} ${isExited ? 'exited' : ''} ${isWaiting ? 'waiting' : ''}`}
-      draggable
+      draggable={!renaming}
       onDragStart={(e) => onDragStart(e, session.id)}
-      onClick={() => onSelect(session.id)}
+      onClick={() => { if (!renaming) onSelect(session.id) }}
+      onContextMenu={handleContextMenu}
     >
       <div className="kanban-card-row1">
         <span className={`sidebar-status-dot ${isExited ? 'exited' : isWaiting ? 'waiting' : 'active'}`} />
-        <span className="kanban-card-name" title={title}>
-          {title}
-        </span>
+        {renaming ? (
+          <input
+            ref={inputRef}
+            className="kanban-card-rename-input"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitRename}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              e.stopPropagation()
+              if (e.key === 'Enter') commitRename()
+              else if (e.key === 'Escape') setRenaming(false)
+            }}
+            aria-label="Session name"
+            autoFocus
+          />
+        ) : (
+          <span
+            className="kanban-card-name"
+            title={`${label} — double-click to rename`}
+            onDoubleClick={(e) => { e.stopPropagation(); startRename() }}
+          >
+            {label}
+          </span>
+        )}
+        {isGeneratingTitle && !renaming && (
+          <span className="kanban-card-naming" title="Naming session…">
+            <span className="thinking-dots"><span /><span /><span /></span>
+          </span>
+        )}
         <button
           className="sidebar-card-close"
           onClick={(e) => onClose(session.id, e)}
@@ -58,8 +139,8 @@ export function KanbanCard({
           ×
         </button>
       </div>
-      {title !== session.folderName && (
-        <span className="kanban-card-project">{session.folderName}</span>
+      {showProject && (
+        <span className="kanban-card-project" title={session.folderName}>{session.folderName}</span>
       )}
       {session.branchName && (
         <div className="kanban-card-branch">
@@ -111,6 +192,24 @@ export function KanbanCard({
           <span className="sidebar-badge-exited">Ended</span>
         )}
       </div>
+      {contextMenu && (
+        <div
+          ref={menuRef}
+          className="kanban-context-menu"
+          style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button onClick={() => runMenuAction(startRename)}>Rename</button>
+          <button onClick={() => runMenuAction(() => onRegenerateTitle(session.id))}>
+            Rename with AI
+          </button>
+          {session.title && (
+            <button onClick={() => runMenuAction(() => onResetTitle(session.id))}>
+              Reset to folder name
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

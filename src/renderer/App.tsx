@@ -3,6 +3,7 @@ import { useAppState } from './hooks/useAppState'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useGridNavigation } from './hooks/useGridNavigation'
 import { useClaudeSessions } from './hooks/useClaudeSessions'
+import { useSessionTitles } from './hooks/useSessionTitles'
 import { Sidebar } from './components/Sidebar'
 import { ProjectCard } from './components/ProjectCard'
 import { EditProjectModal } from './components/EditProjectModal'
@@ -91,12 +92,17 @@ export function App() {
     closeSession: handleCloseClaudeSession,
     launchPreset: handleLaunchPreset,
     updateSessionColumn: handleUpdateSessionColumn,
+    setSessionTitle: handleSetSessionTitle,
+    clearSessionTitle: handleClearSessionTitle,
   } = useClaudeSessions({
     dangerousMode: state.dangerousMode ?? false,
     defaultModel: state.defaultModel,
     onSessionActivated: () => setActiveTab('claude'),
     onNewSessionModalClosed: () => setShowNewSession(false),
   })
+
+  const { generatingIds: titleGeneratingIds, regenerateTitle: handleRegenerateSessionTitle } =
+    useSessionTitles({ sessions: claudeSessions, setSessionTitle: handleSetSessionTitle })
 
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -487,6 +493,10 @@ export function App() {
             onOpenPipelineSession={handleOpenPipelineSession}
             onLaunchPreset={handleLaunchPreset}
             onUpdateSessionColumn={handleUpdateSessionColumn}
+            onSetSessionTitle={handleSetSessionTitle}
+            onClearSessionTitle={handleClearSessionTitle}
+            titleGeneratingIds={titleGeneratingIds}
+            onRegenerateSessionTitle={handleRegenerateSessionTitle}
             onWaitingSessionsChange={handleWaitingSessionsChange}
           />
         </ErrorBoundary>

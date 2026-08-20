@@ -311,11 +311,35 @@
 }
 
 .kanban-card-project {
+  display: block;
   font-size: 10px;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding-left: 13px;
+}
+
+/* Inline session rename, sized to sit in place of .kanban-card-name */
+.kanban-card-rename-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 1px 4px;
+  outline: none;
+}
+
+.kanban-card-naming {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
 .kanban-card-branch {

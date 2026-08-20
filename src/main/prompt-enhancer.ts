@@ -2,10 +2,9 @@ import {
   EnhancerConfig,
   EnhanceResult,
   EnhancerSessionCost,
-  MODEL_PRICING,
-  DEFAULT_ENHANCER_MODEL,
-  DEFAULT_OPENAI_BASE_URL
+  DEFAULT_ENHANCER_MODEL
 } from '../shared/enhancer-types'
+import { chatCompletion, parseJsonContent, stripAnsi } from './ai-client'
 
 const SYSTEM_PROMPT = `You are a Prompt Enhancer for Claude Code — an AI coding assistant that runs in a terminal.
 
@@ -89,9 +88,7 @@ class PromptEnhancer {
       return null
     }
 
-    const contextChunks = this.contextBuffers.get(sessionId) || []
-    const rawContext = contextChunks.join('')
-    const context = this.stripAnsi(rawContext).slice(-MAX_CONTEXT_CHARS)
+    const context = this.getContext(sessionId)
 
     try {
       return await this.callOpenAI(sessionId, prompt, context)
@@ -106,63 +103,46 @@ class PromptEnhancer {
       ? `## Recent terminal context:\n${context}\n\n## User's prompt to enhance:\n${prompt}`
       : `## User's prompt to enhance:\n${prompt}`
 
-    const body = {
-      model: this.config.model || DEFAULT_ENHANCER_MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userMessage }
-      ],
+    const result = await chatCompletion({
+      config: this.config,
+      system: SYSTEM_PROMPT,
+      user: userMessage,
       temperature: 0.3,
-      max_tokens: 1000
-    }
-
-    const baseUrl = (this.config.baseUrl || DEFAULT_OPENAI_BASE_URL).replace(/\/+$/, '')
-    const res = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.config.apiKey}`
-      },
-      body: JSON.stringify(body)
+      maxTokens: 1000,
+      label: 'Enhancer',
     })
+    if (!result) return null
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => 'unknown')
-      console.error(`[Enhancer] OpenAI API error ${res.status}: ${errText}`)
+    this.trackCost(sessionId, result.costUsd)
+
+    const parsed = parseJsonContent<{ enhanced?: unknown; explanation?: unknown }>(result.content)
+    if (!parsed) {
+      console.error('[Enhancer] Failed to parse response')
       return null
     }
 
-    const json = await res.json()
-    const choice = json.choices?.[0]
-    if (!choice) return null
+    return {
+      enhanced: String(parsed.enhanced || prompt),
+      explanation: String(parsed.explanation || 'No changes needed'),
+      costUsd: result.costUsd
+    }
+  }
 
-    const usage = json.usage || {}
-    const promptTokens = usage.prompt_tokens || 0
-    const completionTokens = usage.completion_tokens || 0
-
-    const pricing = MODEL_PRICING[this.config.model] || MODEL_PRICING[DEFAULT_ENHANCER_MODEL]
-    const costUsd = (promptTokens * pricing.input + completionTokens * pricing.output) / 1_000_000
-
-    // Track cost
+  private trackCost(sessionId: string, costUsd: number) {
     const cost = this.costs.get(sessionId) || { totalUsd: 0, calls: 0 }
     cost.totalUsd += costUsd
     cost.calls += 1
     this.costs.set(sessionId, cost)
+  }
 
-    try {
-      const content = choice.message?.content?.trim() || ''
-      const cleaned = content.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
-      const parsed = JSON.parse(cleaned)
-
-      return {
-        enhanced: String(parsed.enhanced || prompt),
-        explanation: String(parsed.explanation || 'No changes needed'),
-        costUsd
-      }
-    } catch {
-      console.error('[Enhancer] Failed to parse response')
-      return null
-    }
+  /**
+   * Recent terminal output for a session, ANSI-stripped and capped.
+   * Used by the session titler when a session has no Claude transcript yet.
+   */
+  getContext(sessionId: string, maxChars = MAX_CONTEXT_CHARS): string {
+    const chunks = this.contextBuffers.get(sessionId)
+    if (!chunks || chunks.length === 0) return ''
+    return stripAnsi(chunks.join('')).slice(-maxChars)
   }
 
   getCost(sessionId: string): EnhancerSessionCost {
@@ -181,11 +161,6 @@ class PromptEnhancer {
   clearSession(sessionId: string) {
     this.contextBuffers.delete(sessionId)
     this.contextLengths.delete(sessionId)
-  }
-
-  private stripAnsi(text: string): string {
-    // eslint-disable-next-line no-control-regex
-    return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '')
   }
 }
 
