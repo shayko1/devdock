@@ -12,6 +12,7 @@ export interface ActiveSession {
   worktreePath: string | null
   branchName: string | null
   dangerousMode?: boolean
+  columnId?: string
 }
 
 const DEVDOCK_DIR = join(homedir(), '.devdock')
