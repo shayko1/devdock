@@ -13,6 +13,7 @@ import type {
   InitProgress, NotificationSettings,
   SessionPreset, SessionPresetCreate, PresetLaunchOptions, PresetLaunchResult,
   SessionSummary, SaveSummaryOptions,
+  KanbanColumn,
 } from '../shared/ipc-types'
 
 const api = {
@@ -327,6 +328,14 @@ const api = {
   dbListDatabases: (connectionId: string): Promise<{
     success: boolean; databases: string[]; error?: string;
   }> => ipcRenderer.invoke('db-list-databases', connectionId),
+
+  // Kanban session board
+  kanbanGetColumns: (): Promise<KanbanColumn[]> =>
+    ipcRenderer.invoke('kanban:get-columns'),
+  kanbanSaveColumns: (columns: KanbanColumn[]): Promise<void> =>
+    ipcRenderer.invoke('kanban:save-columns', columns),
+  kanbanMoveSession: (sessionId: string, columnId: string): Promise<void> =>
+    ipcRenderer.invoke('kanban:move-session', sessionId, columnId),
 }
 
 contextBridge.exposeInMainWorld('api', api)

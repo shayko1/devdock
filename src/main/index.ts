@@ -37,6 +37,7 @@ import {
   registerAkeylessHandlers,
   registerDbWorkbenchHandlers,
   registerSummaryHandlers,
+  registerKanbanHandlers,
 } from './handlers'
 import { resourceMonitor } from './resource-monitor'
 
@@ -183,6 +184,7 @@ function setupIPC() {
   registerAkeylessHandlers()
   registerDbWorkbenchHandlers()
   registerSummaryHandlers()
+  registerKanbanHandlers()
 }
 
 app.whenReady().then(() => {
