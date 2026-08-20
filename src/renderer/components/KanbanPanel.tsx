@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import { KanbanColumnSection, KanbanSession } from './KanbanColumn'
 import type { KanbanColumn, SessionMetrics } from '../../shared/ipc-types'
 import './KanbanPanel.css'
