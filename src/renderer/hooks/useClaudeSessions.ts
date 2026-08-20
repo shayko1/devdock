@@ -389,6 +389,11 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
     }
   }, [onSessionActivated])
 
+  const updateSessionColumn = useCallback((sessionId: string, columnId: string) => {
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, columnId } : s))
+    window.api.kanbanMoveSession(sessionId, columnId)
+  }, [])
+
   return {
     sessions,
     startSession,
@@ -397,5 +402,6 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
     resumeFromHistory,
     closeSession,
     launchPreset,
+    updateSessionColumn,
   }
 }

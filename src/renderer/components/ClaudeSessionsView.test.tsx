@@ -56,6 +56,7 @@ const defaultViewProps = {
   onCloseSession: vi.fn(),
   onResumeSession: vi.fn(),
   onResumeFromHistory: vi.fn(),
+  onUpdateSessionColumn: vi.fn(),
 }
 
 describe('ClaudeSessionsView', () => {

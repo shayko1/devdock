@@ -72,13 +72,14 @@ interface Props {
   onResumeFromHistory: (claudeSessionId: string, folderName: string, folderPath: string, worktreePath?: string | null) => void
   onOpenPipelineSession?: (folderName: string, folderPath: string, worktreePath: string) => void
   onLaunchPreset?: (presetId: string) => void
+  onUpdateSessionColumn: (sessionId: string, columnId: string) => void
   /** Fires whenever the set of waiting-for-input session ids changes. */
   onWaitingSessionsChange?: (waitingIds: string[]) => void
 }
 
 type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'mcp' | 'history' | 'resources' | 'presets' | 'summaries'
 
-export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, scanPath, onNewSession, onCloseSession, onResumeSession, onResumeFromHistory, onOpenPipelineSession, onLaunchPreset, onWaitingSessionsChange }: Props) {
+export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, scanPath, onNewSession, onCloseSession, onResumeSession, onResumeFromHistory, onOpenPipelineSession, onLaunchPreset, onUpdateSessionColumn, onWaitingSessionsChange }: Props) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidePanel, setSidePanel] = useState<SidePanel>('none')
   const [viewingFile, setViewingFile] = useState<string | null>(null)
@@ -89,7 +90,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
   const [rtkAvailable, setRtkAvailable] = useState(false)
   const [sessionTitles, setSessionTitles] = useState<Map<string, string>>(new Map())
   const { snapshot: resourceSnapshot, getSessionMetrics, isLoading: resourceLoading } = useResourceMonitor()
-  const { columns, addColumn, renameColumn, deleteColumn, moveColumnUp, moveColumnDown, moveSession, getSessionColumn } = useKanban()
+  const { columns, addColumn, renameColumn, deleteColumn, moveColumnUp, moveColumnDown, getSessionColumn } = useKanban()
   const dragging = useRef(false)
   const bodyRef = useRef<HTMLDivElement>(null)
   const splitPaneToolbarRef = useRef<HTMLDivElement>(null)
@@ -433,7 +434,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
         onSelectSession={handleSelectSession}
         onCloseSession={handleClose}
         onResumeSession={onResumeSession}
-        onMoveSession={moveSession}
+        onMoveSession={onUpdateSessionColumn}
         onAddColumn={addColumn}
         onRenameColumn={renameColumn}
         onDeleteColumn={deleteColumn}

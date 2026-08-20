@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, useRef } from 'react'
 import { KanbanColumnSection, KanbanSession } from './KanbanColumn'
 import type { KanbanColumn, SessionMetrics } from '../../shared/ipc-types'
 import './KanbanPanel.css'
@@ -53,6 +53,8 @@ export function KanbanPanel({
     const saved = localStorage.getItem(WIDTH_STORAGE_KEY)
     return saved ? Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Number(saved))) : DEFAULT_WIDTH
   })
+  const widthRef = useRef(width)
+  widthRef.current = width
   const [addingColumn, setAddingColumn] = useState(false)
   const [newColumnName, setNewColumnName] = useState('')
 
@@ -88,7 +90,7 @@ export function KanbanPanel({
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     const startX = e.clientX
-    const startWidth = width
+    const startWidth = widthRef.current
     let latestWidth = startWidth
     const onMouseMove = (ev: MouseEvent) => {
       const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + (ev.clientX - startX)))
@@ -102,7 +104,7 @@ export function KanbanPanel({
     }
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('mouseup', onMouseUp)
-  }, [width])
+  }, [])
 
   return (
     <div className="kanban-panel" style={{ width }}>

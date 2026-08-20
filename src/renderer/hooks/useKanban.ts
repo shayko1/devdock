@@ -27,6 +27,7 @@ export function useKanban() {
   }, [persistColumns])
 
   const deleteColumn = useCallback((columnId: string) => {
+    if (columnsRef.current.length <= 1) return
     const next = columnsRef.current
       .filter((c) => c.id !== columnId)
       .sort((a, b) => a.order - b.order)
@@ -54,10 +55,6 @@ export function useKanban() {
     persistColumns(sorted)
   }, [persistColumns])
 
-  const moveSession = useCallback((sessionId: string, columnId: string) => {
-    window.api.kanbanMoveSession(sessionId, columnId)
-  }, [])
-
   const getSessionColumn = useCallback((columnId?: string) => {
     if (columnId && columnsRef.current.some((c) => c.id === columnId)) return columnId
     const sorted = [...columnsRef.current].sort((a, b) => a.order - b.order)
@@ -71,7 +68,6 @@ export function useKanban() {
     deleteColumn,
     moveColumnUp,
     moveColumnDown,
-    moveSession,
     getSessionColumn
   }
 }

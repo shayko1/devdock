@@ -90,6 +90,7 @@ export function App() {
     resumeFromHistory: handleResumeFromHistory,
     closeSession: handleCloseClaudeSession,
     launchPreset: handleLaunchPreset,
+    updateSessionColumn: handleUpdateSessionColumn,
   } = useClaudeSessions({
     dangerousMode: state.dangerousMode ?? false,
     defaultModel: state.defaultModel,
@@ -485,6 +486,7 @@ export function App() {
             onResumeFromHistory={handleResumeFromHistory}
             onOpenPipelineSession={handleOpenPipelineSession}
             onLaunchPreset={handleLaunchPreset}
+            onUpdateSessionColumn={handleUpdateSessionColumn}
             onWaitingSessionsChange={handleWaitingSessionsChange}
           />
         </ErrorBoundary>
