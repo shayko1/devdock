@@ -111,11 +111,11 @@ describe('ClaudeSessionsView', () => {
         onNewSession={onNewSession}
       />
     )
-    fireEvent.click(screen.getByTitle('New Claude session'))
+    fireEvent.click(screen.getByTitle('New session'))
     expect(onNewSession).toHaveBeenCalledTimes(1)
   })
 
-  it('renders tab for each session with folder name', () => {
+  it('renders tab for each session with folder name', async () => {
     const sessions = [
       makeSession({ id: 'a', folderName: 'project-a' }),
       makeSession({ id: 'b', folderName: 'project-b' }),
@@ -126,11 +126,11 @@ describe('ClaudeSessionsView', () => {
         sessions={sessions}
       />
     )
-    expect(screen.getByText('project-a')).toBeInTheDocument()
+    expect(await screen.findByText('project-a')).toBeInTheDocument()
     expect(screen.getByText('project-b')).toBeInTheDocument()
   })
 
-  it('clicking × calls onCloseSession with session id', () => {
+  it('clicking × calls onCloseSession with session id', async () => {
     const session = makeSession({ id: 'close-me', folderName: 'test-folder' })
     const onCloseSession = vi.fn()
     render(
@@ -140,13 +140,13 @@ describe('ClaudeSessionsView', () => {
         onCloseSession={onCloseSession}
       />
     )
-    const closeButtons = screen.getAllByTitle('Close session')
+    const closeButtons = await screen.findAllByTitle('Close session')
     expect(closeButtons.length).toBeGreaterThanOrEqual(1)
     fireEvent.click(closeButtons[0])
     expect(onCloseSession).toHaveBeenCalledWith('close-me')
   })
 
-  it('shows Resume on exited session with claudeSessionId, calls onResumeSession', () => {
+  it('shows Resume on exited session with claudeSessionId, calls onResumeSession', async () => {
     const session = makeSession({
       id: 'resume-me',
       folderName: 'resume-folder',
@@ -161,12 +161,12 @@ describe('ClaudeSessionsView', () => {
         onResumeSession={onResumeSession}
       />
     )
-    const resumeBtn = screen.getByTitle('Resume session')
+    const resumeBtn = await screen.findByTitle('Resume session')
     fireEvent.click(resumeBtn)
     expect(onResumeSession).toHaveBeenCalledWith('resume-me')
   })
 
-  it('exited session without claudeSessionId has no Resume tab button', () => {
+  it('exited session without claudeSessionId has no Resume tab button', async () => {
     const session = makeSession({
       id: 'no-resume',
       folderName: 'no-resume-folder',
@@ -179,11 +179,12 @@ describe('ClaudeSessionsView', () => {
         sessions={[session]}
       />
     )
+    await screen.findByText('no-resume-folder')
     const resumeButtons = screen.queryAllByRole('button', { name: /^Resume$/ })
     expect(resumeButtons).toHaveLength(0)
   })
 
-  it('session with dangerousMode=true shows UNSAFE text', () => {
+  it('session with dangerousMode=true shows UNSAFE text', async () => {
     const session = makeSession({
       id: 'unsafe',
       folderName: 'unsafe-folder',
@@ -195,7 +196,7 @@ describe('ClaudeSessionsView', () => {
         sessions={[session]}
       />
     )
-    expect(screen.getByText('UNSAFE')).toBeInTheDocument()
+    expect(await screen.findByText('UNSAFE')).toBeInTheDocument()
   })
 
   it('session with dangerousMode=false has no UNSAFE text', () => {
@@ -244,7 +245,7 @@ describe('ClaudeSessionsView', () => {
     expect(screen.getByText('Session ended')).toBeInTheDocument()
   })
 
-  it('renders multiple tabs, clicking selects different session', () => {
+  it('renders multiple tabs, clicking selects different session', async () => {
     const sessions = [
       makeSession({ id: 'first', folderName: 'first-folder' }),
       makeSession({ id: 'second', folderName: 'second-folder' }),
@@ -255,7 +256,7 @@ describe('ClaudeSessionsView', () => {
         sessions={sessions}
       />
     )
-    expect(screen.getByText('first-folder')).toBeInTheDocument()
+    expect(await screen.findByText('first-folder')).toBeInTheDocument()
     expect(screen.getByText('second-folder')).toBeInTheDocument()
     expect(screen.getByTestId('terminal-second')).toHaveAttribute(
       'data-active',

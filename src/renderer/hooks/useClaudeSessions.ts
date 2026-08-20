@@ -13,6 +13,7 @@ export interface ClaudeSession {
   pendingRecap?: boolean
   title?: string
   initializing?: boolean
+  columnId?: string
 }
 
 interface UseClaudeSessionsOptions {
@@ -88,6 +89,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
               branchName: result.branchName ?? rec.branchName,
               claudeSessionId: rec.claudeSessionId ?? null,
               dangerousMode: rec.dangerousMode,
+              columnId: (rec as any).columnId,
             })
             // Refresh the active-session record (worktree/branch may have changed)
             window.api.activeSessionsSet({
@@ -98,6 +100,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
               worktreePath: result.worktreePath ?? rec.worktreePath,
               branchName: result.branchName ?? rec.branchName,
               dangerousMode: rec.dangerousMode,
+              columnId: (rec as any).columnId,
             })
           } else {
             window.api.activeSessionsRemove(rec.id)
@@ -125,6 +128,15 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
     const sessionId = `claude-${Date.now().toString(36)}`
     const isDangerous = dangerousMode
 
+    let firstColumnId: string | undefined
+    try {
+      const cols = await window.api.kanbanGetColumns()
+      if (cols.length > 0) {
+        const sorted = [...cols].sort((a, b) => a.order - b.order)
+        firstColumnId = sorted[0].id
+      }
+    } catch { /* kanban not ready yet */ }
+
     // Add session immediately in initializing state so the UI shows progress
     const placeholderSession: ClaudeSession = {
       id: sessionId,
@@ -135,6 +147,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
       claudeSessionId: null,
       dangerousMode: isDangerous,
       initializing: true,
+      columnId: firstColumnId,
     }
     setSessions(prev => [...prev, placeholderSession])
     onNewSessionModalClosed?.()
@@ -171,6 +184,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
           worktreePath: result.worktreePath ?? null,
           branchName: result.branchName ?? null,
           dangerousMode: isDangerous,
+          columnId: firstColumnId,
         })
 
         detectClaudeId(sessionId, result.worktreePath || folder.path, null, setSessions)

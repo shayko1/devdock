@@ -9,12 +9,13 @@ import { PipelineView } from './PipelineView'
 import { SessionInfoBar } from './SessionInfoBar'
 import { ChatInputBar } from './ChatInputBar'
 import { McpSkillsPanel } from './McpSkillsPanel'
-import { ResourceBadge } from './ResourceBadge'
 import { ResourcePanel } from './ResourcePanel'
 import { useResourceMonitor } from '../hooks/useResourceMonitor'
 import { WorkspaceInitProgress } from './WorkspaceInitProgress'
 import { PresetBar, PresetList } from './presets'
 import { SummariesPanel } from './SummariesPanel'
+import { KanbanPanel } from './KanbanPanel'
+import { useKanban } from '../hooks/useKanban'
 import './ClaudeSessionsView.css'
 
 function formatTimeAgo(ts: number): string {
@@ -42,6 +43,7 @@ interface Session {
   pendingRecap?: boolean
   title?: string
   initializing?: boolean
+  columnId?: string
 }
 
 interface HistoryRecord {
@@ -87,6 +89,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
   const [rtkAvailable, setRtkAvailable] = useState(false)
   const [sessionTitles, setSessionTitles] = useState<Map<string, string>>(new Map())
   const { snapshot: resourceSnapshot, getSessionMetrics, isLoading: resourceLoading } = useResourceMonitor()
+  const { columns, addColumn, renameColumn, deleteColumn, moveColumnUp, moveColumnDown, moveSession, getSessionColumn } = useKanban()
   const dragging = useRef(false)
   const bodyRef = useRef<HTMLDivElement>(null)
   const splitPaneToolbarRef = useRef<HTMLDivElement>(null)
@@ -418,104 +421,26 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
 
   return (
     <div className="claude-sessions claude-sessions-horizontal">
-      {/* Vertical sidebar */}
-      <div className="claude-sessions-sidebar">
-        <div className="sidebar-header">
-          <span className="sidebar-header-label">Sessions</span>
-          <button
-            className="sidebar-new-btn"
-            onClick={onNewSession}
-            title="New Claude session"
-          >+</button>
-        </div>
-        <PresetBar
-          scanPath={scanPath}
-          onLaunchPreset={handleLaunchPreset}
-          onShowAllPresets={togglePresets}
-        />
-        <div className="sidebar-session-list">
-          {sessions.map((session) => {
-            const isActive = activeSessionId === session.id
-            const isWaiting = waitingSessions.has(session.id) && !session.exited
-            const isExited = !!session.exited
-            const isInitializing = !!session.initializing
-            return (
-              <div
-                key={session.id}
-                className={`sidebar-session-card ${isActive ? 'active' : ''} ${isExited ? 'exited' : ''} ${isWaiting ? 'waiting' : ''}`}
-                onClick={() => handleSelectSession(session.id)}
-              >
-                <div className="sidebar-card-row1">
-                  <span className={`sidebar-status-dot ${isExited ? 'exited' : isWaiting ? 'waiting' : 'active'}`} />
-                  <span className="sidebar-card-name" title={sessionTitles.get(session.id) || session.folderName}>
-                    {sessionTitles.get(session.id) || session.folderName}
-                  </span>
-                  <button
-                    className="sidebar-card-close"
-                    onClick={(e) => handleClose(session.id, e)}
-                    title="Close session"
-                  >
-                    ×
-                  </button>
-                </div>
-                {sessionTitles.get(session.id) && (
-                  <span className="sidebar-card-project">{session.folderName}</span>
-                )}
-                {session.branchName && (
-                  <div className="sidebar-card-branch">
-                    <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0, opacity: 0.5 }}>
-                      <path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Z"/>
-                    </svg>
-                    {session.branchName.replace('devdock/claude-', '').slice(0, 20)}
-                  </div>
-                )}
-                <div className="sidebar-card-badges">
-                  {!isExited && (
-                    <ResourceBadge
-                      metrics={getSessionMetrics(session.id)}
-                      isLoading={resourceLoading}
-                    />
-                  )}
-                  {isInitializing && (
-                    <span className="sidebar-badge-thinking">
-                      Setting up
-                      <span className="thinking-dots">
-                        <span /><span /><span />
-                      </span>
-                    </span>
-                  )}
-                  {!isExited && !isWaiting && !isInitializing && (
-                    <span className="sidebar-badge-thinking">
-                      Thinking
-                      <span className="thinking-dots">
-                        <span /><span /><span />
-                      </span>
-                    </span>
-                  )}
-                  {session.dangerousMode && (
-                    <span className="sidebar-badge-unsafe" title="Dangerous mode">UNSAFE</span>
-                  )}
-                  {isWaiting && (
-                    <span className="sidebar-badge-waiting">Waiting</span>
-                  )}
-                  {isExited && session.claudeSessionId && (
-                    <button
-                      className="sidebar-badge-resume"
-                      onClick={(e) => { e.stopPropagation(); onResumeSession(session.id) }}
-                      title="Resume session"
-                    >
-                      Resume
-                    </button>
-                  )}
-                  {isExited && !session.claudeSessionId && (
-                    <span className="sidebar-badge-exited">Ended</span>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
+      <KanbanPanel
+        sessions={sessions}
+        columns={columns}
+        sessionTitles={sessionTitles}
+        activeSessionId={activeSessionId}
+        waitingSessions={waitingSessions}
+        getSessionMetrics={(id) => getSessionMetrics(id) ?? undefined}
+        isResourceLoading={resourceLoading}
+        getSessionColumn={getSessionColumn}
+        onSelectSession={handleSelectSession}
+        onCloseSession={handleClose}
+        onResumeSession={onResumeSession}
+        onMoveSession={moveSession}
+        onAddColumn={addColumn}
+        onRenameColumn={renameColumn}
+        onDeleteColumn={deleteColumn}
+        onMoveColumnUp={moveColumnUp}
+        onMoveColumnDown={moveColumnDown}
+        onNewSession={onNewSession}
+      />
 
       {/* Main area (toolbar + info bar + terminal) */}
       <div className="claude-main-area">

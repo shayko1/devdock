@@ -111,6 +111,15 @@ const mockApi = {
   listBranches: vi.fn().mockResolvedValue({ current: null, branches: [] }),
   checkoutBranch: vi.fn().mockResolvedValue({ success: true }),
   findFilesByName: vi.fn().mockResolvedValue([]),
+  // Kanban board
+  kanbanGetColumns: vi.fn().mockResolvedValue([
+    { id: 'backlog', name: 'Backlog', order: 0 },
+    { id: 'in-progress', name: 'In Progress', order: 1 },
+    { id: 'done', name: 'Done', order: 2 },
+    { id: 'monitor', name: 'Monitor', order: 3 },
+  ]),
+  kanbanSaveColumns: vi.fn().mockResolvedValue(undefined),
+  kanbanMoveSession: vi.fn().mockResolvedValue(undefined),
 }
 
 // Only set window.api in jsdom (renderer tests); Node main process tests have no window
