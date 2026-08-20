@@ -5,7 +5,8 @@ import './KanbanPanel.css'
 
 const MIN_WIDTH = 200
 const MAX_WIDTH = 400
-const DEFAULT_WIDTH = 240
+const DEFAULT_WIDTH = 250
+const WIDTH_STORAGE_KEY = 'devdock-kanban-width'
 
 interface Props {
   sessions: KanbanSession[]
@@ -48,7 +49,10 @@ export function KanbanPanel({
   onMoveColumnDown,
   onNewSession,
 }: Props) {
-  const [width, setWidth] = useState(DEFAULT_WIDTH)
+  const [width, setWidth] = useState(() => {
+    const saved = localStorage.getItem(WIDTH_STORAGE_KEY)
+    return saved ? Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Number(saved))) : DEFAULT_WIDTH
+  })
   const [addingColumn, setAddingColumn] = useState(false)
   const [newColumnName, setNewColumnName] = useState('')
 
@@ -85,13 +89,16 @@ export function KanbanPanel({
     e.preventDefault()
     const startX = e.clientX
     const startWidth = width
+    let latestWidth = startWidth
     const onMouseMove = (ev: MouseEvent) => {
       const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + (ev.clientX - startX)))
+      latestWidth = next
       setWidth(next)
     }
     const onMouseUp = () => {
       document.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('mouseup', onMouseUp)
+      localStorage.setItem(WIDTH_STORAGE_KEY, String(latestWidth))
     }
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('mouseup', onMouseUp)

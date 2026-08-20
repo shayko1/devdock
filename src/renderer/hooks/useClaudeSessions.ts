@@ -89,7 +89,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
               branchName: result.branchName ?? rec.branchName,
               claudeSessionId: rec.claudeSessionId ?? null,
               dangerousMode: rec.dangerousMode,
-              columnId: (rec as any).columnId,
+              columnId: rec.columnId,
             })
             // Refresh the active-session record (worktree/branch may have changed)
             window.api.activeSessionsSet({
@@ -100,7 +100,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
               worktreePath: result.worktreePath ?? rec.worktreePath,
               branchName: result.branchName ?? rec.branchName,
               dangerousMode: rec.dangerousMode,
-              columnId: (rec as any).columnId,
+              columnId: rec.columnId,
             })
           } else {
             window.api.activeSessionsRemove(rec.id)
