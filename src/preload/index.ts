@@ -336,6 +336,10 @@ const api = {
   dbListDatabases: (connectionId: string): Promise<{
     success: boolean; databases: string[]; error?: string;
   }> => ipcRenderer.invoke('db-list-databases', connectionId),
+  dbGetSchema: (connectionId: string): Promise<{
+    success: boolean; tables: Record<string, any[]>; tableCount: number;
+    columnCount: number; truncated: boolean; error?: string;
+  }> => ipcRenderer.invoke('db-get-schema', connectionId),
 
   // Kanban session board
   kanbanGetColumns: (): Promise<KanbanColumn[]> =>

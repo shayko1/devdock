@@ -538,6 +538,23 @@
   letter-spacing: 0.3px;
 }
 
+/* Tells the user how much schema SQL autocompletion is armed with. */
+.dbw-schema-status {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dbw-schema-status.loading {
+  opacity: 0.7;
+}
+
+.dbw-schema-status.unavailable {
+  color: var(--warning, #d29922);
+}
+
 .dbw-editor-hint {
   display: flex;
   align-items: center;

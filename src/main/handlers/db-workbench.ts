@@ -93,6 +93,22 @@ export function registerDbWorkbenchHandlers() {
     }
   })
 
+  // Full schema (all tables + columns) for autocompletion and the schema browser
+  ipcMain.handle('db-get-schema', async (_event, connectionId: string) => {
+    try {
+      const schema = await mysqlClient.getSchema(connectionId)
+      console.log(
+        '[db-workbench] schema loaded:',
+        schema.tableCount, 'tables,', schema.columnCount, 'columns',
+        schema.truncated ? '(truncated)' : ''
+      )
+      return { success: true, ...schema }
+    } catch (err: any) {
+      console.error('[db-workbench] getSchema error:', err.message)
+      return { success: false, tables: {}, tableCount: 0, columnCount: 0, truncated: false, error: err.message }
+    }
+  })
+
   // List databases accessible through the connection
   ipcMain.handle('db-list-databases', async (_event, connectionId: string) => {
     try {

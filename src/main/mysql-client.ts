@@ -55,12 +55,28 @@ export interface DbConnection {
   connected: boolean
 }
 
+/**
+ * Every table's columns in one payload, used to drive SQL autocompletion and
+ * to seed the schema browser without a round trip per table.
+ */
+export interface DbSchema {
+  tables: Record<string, ColumnInfo[]>
+  tableCount: number
+  columnCount: number
+  /** True when the database exceeded MAX_SCHEMA_COLUMNS and the tail was dropped. */
+  truncated: boolean
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const MAX_ROWS = 10_000
 const CONNECT_TIMEOUT_MS = 10_000
+
+// Upper bound on the columns pulled for autocompletion. Large enough for any
+// realistic schema; guards against a pathological database freezing the UI.
+const MAX_SCHEMA_COLUMNS = 50_000
 
 // ---------------------------------------------------------------------------
 // MySQL field-type code to human-readable name mapping
@@ -339,6 +355,78 @@ class MysqlClient {
           extra: (row[6] as string) ?? ''
         }
       })
+    } catch (err: any) {
+      if (isConnectionLostError(err)) entry.meta.connected = false
+      throw err
+    }
+  }
+
+  /**
+   * Fetch every table's columns in a single INFORMATION_SCHEMA query.
+   *
+   * Preferred over calling `describeTable` per table: one round trip instead of
+   * N, which matters over an SSH tunnel. Tables with no columns visible to the
+   * connected user are simply absent from the result.
+   */
+  async getSchema(id: string, database?: string): Promise<DbSchema> {
+    const entry = this.connections.get(id)
+    if (!entry) {
+      throw new Error(`No connection found for id "${id}"`)
+    }
+
+    const db = database ?? entry.meta.database
+
+    try {
+      // One row over the cap tells us whether the schema was truncated.
+      const [rows] = await entry.connection.query(
+        `SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY, COLUMN_DEFAULT, EXTRA
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = ?
+         ORDER BY TABLE_NAME, ORDINAL_POSITION
+         LIMIT ${MAX_SCHEMA_COLUMNS + 1}`,
+        [db]
+      )
+
+      const allRows = rows as any[]
+      const truncated = allRows.length > MAX_SCHEMA_COLUMNS
+      const kept = truncated ? allRows.slice(0, MAX_SCHEMA_COLUMNS) : allRows
+
+      const tables: Record<string, ColumnInfo[]> = {}
+      let lastTableName = ''
+
+      for (const r of kept) {
+        // With rowsAsArray the row is a positional array.
+        const row = Array.isArray(r)
+          ? r
+          : [r.TABLE_NAME, r.COLUMN_NAME, r.COLUMN_TYPE, r.IS_NULLABLE, r.COLUMN_KEY, r.COLUMN_DEFAULT, r.EXTRA]
+
+        lastTableName = row[0] as string
+        const columns = tables[lastTableName] ?? (tables[lastTableName] = [])
+        columns.push({
+          name: row[1] as string,
+          type: row[2] as string,
+          nullable: row[3] === 'YES',
+          key: (row[4] as string) ?? '',
+          defaultValue: row[5] != null ? String(row[5]) : null,
+          extra: (row[6] as string) ?? ''
+        })
+      }
+
+      // Rows are ordered by table, so truncation can only cut the final table
+      // in half. Drop it rather than present a table as fully described when
+      // it isn't — the schema browser falls back to DESCRIBE for missing tables.
+      if (truncated && lastTableName) {
+        delete tables[lastTableName]
+      }
+
+      const columnCount = Object.values(tables).reduce((sum, cols) => sum + cols.length, 0)
+
+      return {
+        tables,
+        tableCount: Object.keys(tables).length,
+        columnCount,
+        truncated
+      }
     } catch (err: any) {
       if (isConnectionLostError(err)) entry.meta.connected = false
       throw err

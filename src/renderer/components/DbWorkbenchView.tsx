@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { sql, MySQL } from '@codemirror/lang-sql'
 import { EditorView, keymap } from '@codemirror/view'
+import { toCompletionSchema, formatSchemaSummary } from './db-schema'
+import type { ColumnInfo, SchemaTables, SchemaStats } from './db-schema'
 import './DbWorkbenchView.css'
 
 /* ── Local Types (no shared imports to avoid circular deps) ── */
@@ -29,15 +31,6 @@ interface TableInfo {
   engine: string | null
   rows: number | null
   comment: string
-}
-
-interface ColumnInfo {
-  name: string
-  type: string
-  nullable: boolean
-  key: string
-  defaultValue: string | null
-  extra: string
 }
 
 interface ConnectionState {
@@ -124,8 +117,10 @@ export function DbWorkbenchView() {
   const [tables, setTables] = useState<TableInfo[]>([])
   const [tablesLoading, setTablesLoading] = useState(false)
   const [expandedTable, setExpandedTable] = useState<string | null>(null)
-  const [tableColumns, setTableColumns] = useState<Record<string, ColumnInfo[]>>({})
+  const [tableColumns, setTableColumns] = useState<SchemaTables>({})
   const [columnsLoading, setColumnsLoading] = useState<string | null>(null)
+  const [schemaStats, setSchemaStats] = useState<SchemaStats | null>(null)
+  const [schemaLoading, setSchemaLoading] = useState(false)
 
   // SQL editor
   const [query, setQuery] = useState('')
@@ -222,6 +217,7 @@ export function DbWorkbenchView() {
       // Reset workspace state
       setTables([])
       setTableColumns({})
+      setSchemaStats(null)
       setExpandedTable(null)
       setResult(null)
       setMessages([])
@@ -245,6 +241,7 @@ export function DbWorkbenchView() {
     setConnectPhase('idle')
     setTables([])
     setTableColumns({})
+    setSchemaStats(null)
     setExpandedTable(null)
     setResult(null)
     setMessages([])
@@ -276,11 +273,58 @@ export function DbWorkbenchView() {
     }
   }, [connection])
 
+  /* ── Fetch Schema (all columns, for autocomplete + sidebar) ── */
+
+  const fetchSchema = useCallback(async () => {
+    if (!connection) return
+    setSchemaLoading(true)
+    try {
+      const res = await window.api.dbGetSchema(connection.connectionId)
+      if (!res.success) {
+        // Non-fatal: the editor keeps keyword-only completion.
+        setSchemaStats(null)
+        setMessages((prev) => [
+          ...prev,
+          `Column autocomplete unavailable — failed to load schema: ${res.error ?? 'Unknown error'}`,
+        ])
+        return
+      }
+
+      setTableColumns(res.tables as SchemaTables)
+      setSchemaStats({
+        tableCount: res.tableCount,
+        columnCount: res.columnCount,
+        truncated: res.truncated,
+      })
+
+      if (res.truncated) {
+        setMessages((prev) => [
+          ...prev,
+          `Schema is very large — autocomplete covers the first ${res.tableCount.toLocaleString('en-US')} tables only.`,
+        ])
+      }
+    } catch (err) {
+      setSchemaStats(null)
+      setMessages((prev) => [
+        ...prev,
+        `Column autocomplete unavailable — failed to load schema: ${err instanceof Error ? err.message : String(err)}`,
+      ])
+    } finally {
+      setSchemaLoading(false)
+    }
+  }, [connection])
+
+  const handleRefresh = useCallback(() => {
+    fetchTables()
+    fetchSchema()
+  }, [fetchTables, fetchSchema])
+
   useEffect(() => {
     if (connection) {
       fetchTables()
+      fetchSchema()
     }
-  }, [connection, fetchTables])
+  }, [connection, fetchTables, fetchSchema])
 
   /* ── Expand Table (describe) ── */
 
@@ -302,7 +346,7 @@ export function DbWorkbenchView() {
           setMessages((prev) => [...prev, `Error describing ${tableName}: ${res.error ?? 'Unknown error'}`])
           setActiveResultTab('messages')
         } else {
-          setTableColumns((prev) => ({ ...prev, [tableName]: res.columns ?? [] }))
+          setTableColumns((prev) => ({ ...prev, [tableName]: (res.columns ?? []) as ColumnInfo[] }))
         }
       } catch (err) {
         setMessages((prev) => [
@@ -373,10 +417,25 @@ export function DbWorkbenchView() {
     ]),
   )
 
+  /* ── Autocomplete schema ── */
+
+  // Table names come from the sidebar listing so they complete even when their
+  // columns are still loading (or failed to load); columns fill in from the
+  // schema cache, which lang-sql resolves through FROM-clause aliases.
+  const completionSchema = useMemo(() => {
+    const merged: SchemaTables = { ...tableColumns }
+    for (const t of tables) {
+      if (!(t.name in merged)) merged[t.name] = []
+    }
+    return toCompletionSchema(merged)
+  }, [tables, tableColumns])
+
   /* ── CodeMirror extensions ── */
 
-  const cmExtensions = useRef([
-    sql({ dialect: MySQL }),
+  // Rebuilt whenever the schema changes so the editor reconfigures with the
+  // newly available completions.
+  const cmExtensions = useMemo(() => [
+    sql({ dialect: MySQL, schema: completionSchema }),
     EditorView.theme({
       '&': { backgroundColor: 'var(--bg-primary)', fontSize: '13px' },
       '.cm-content': { fontFamily: "'SF Mono', 'Menlo', monospace" },
@@ -391,7 +450,7 @@ export function DbWorkbenchView() {
       '.cm-selectionBackground': { backgroundColor: 'rgba(88,166,255,0.18) !important' },
     }),
     cmRunKeymap.current,
-  ])
+  ], [completionSchema])
 
   /* ── Render: Not Connected ── */
 
@@ -601,7 +660,7 @@ export function DbWorkbenchView() {
           <button className="btn btn-sm btn-danger" onClick={handleDisconnect}>
             Disconnect
           </button>
-          <button className="btn btn-sm" onClick={fetchTables}>
+          <button className="btn btn-sm" onClick={handleRefresh}>
             Refresh
           </button>
         </div>
@@ -691,6 +750,22 @@ export function DbWorkbenchView() {
           <div className="dbw-editor-panel">
             <div className="dbw-editor-toolbar">
               <span className="dbw-editor-label">SQL Editor</span>
+              <span
+                className={`dbw-schema-status ${schemaLoading ? 'loading' : !schemaStats ? 'unavailable' : ''}`}
+                title={
+                  schemaLoading
+                    ? 'Loading table and column names for autocomplete'
+                    : schemaStats
+                      ? 'Autocomplete knows these tables and columns — type a table name or alias followed by "." '
+                      : 'Autocomplete is limited to SQL keywords — see Messages'
+                }
+              >
+                {schemaLoading
+                  ? 'Loading schema…'
+                  : schemaStats
+                    ? formatSchemaSummary(schemaStats)
+                    : 'Schema unavailable'}
+              </span>
               <span className="dbw-editor-hint">
                 <kbd className="kbd">&#8984;</kbd>
                 <span className="kbd-plus">+</span>
@@ -709,7 +784,7 @@ export function DbWorkbenchView() {
               <CodeMirror
                 value={query}
                 onChange={(val) => setQuery(val)}
-                extensions={cmExtensions.current}
+                extensions={cmExtensions}
                 theme="dark"
                 height="100%"
                 basicSetup={{
