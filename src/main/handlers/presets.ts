@@ -3,6 +3,7 @@ import { presetManager, SessionPreset, SessionPresetCreate } from '../preset-man
 import { ptyManager } from '../pty-manager'
 import { loadState } from '../store'
 import { ensureDevDockClaudeMd } from '../claude-md'
+import { resolveClaudeLaunch } from '../claude-launch'
 import { statuslineWatcher } from '../statusline-watcher'
 import { execSync } from 'child_process'
 import { join } from 'path'
@@ -94,7 +95,13 @@ export function registerPresetHandlers() {
 
     const permFlag = preset.dangerousMode ? ' --dangerously-skip-permissions' : ''
     const modelFlag = preset.model ? ` --model ${preset.model}` : ''
-    const command = `claude${modelFlag}${permFlag}`
+
+    // Preset launches always start a new conversation, so this claims a fresh
+    // session id rather than resuming one.
+    const launch = resolveClaudeLaunch({
+      cwd: sessionCwd,
+      flags: `${modelFlag}${permFlag}`,
+    })
 
     const result = ptyManager.createSession(
       opts.sessionId,
@@ -102,7 +109,7 @@ export function registerPresetHandlers() {
       preset.projectPath,
       worktreePath,
       branchName,
-      command
+      launch.command
     )
 
     if (result.success) {
@@ -124,6 +131,7 @@ export function registerPresetHandlers() {
 
     return {
       ...result,
+      claudeSessionId: launch.claudeSessionId,
       preset,
     }
   })

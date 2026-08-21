@@ -85,8 +85,6 @@ const api = {
     ipcRenderer.invoke('find-files-by-name', rootPath, query),
   getWorktreeDiff: (worktreePath: string): Promise<DiffResult> =>
     ipcRenderer.invoke('get-worktree-diff', worktreePath),
-  detectClaudeSessionId: (cwd: string): Promise<{ sessionId: string | null }> =>
-    ipcRenderer.invoke('detect-claude-session-id', cwd),
   saveTempImage: (opts: SaveTempImageOptions): Promise<{ path?: string; error?: string }> =>
     ipcRenderer.invoke('save-temp-image', opts),
 

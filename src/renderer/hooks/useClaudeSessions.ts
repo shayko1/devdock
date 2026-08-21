@@ -30,28 +30,6 @@ function generateSessionId(): string {
   return `claude-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`
 }
 
-function detectClaudeId(
-  ptySessionId: string,
-  cwd: string,
-  previousClaudeId: string | null,
-  setSessions: React.Dispatch<React.SetStateAction<ClaudeSession[]>>
-) {
-  const detect = async () => {
-    for (let attempt = 0; attempt < 6; attempt++) {
-      await new Promise(r => setTimeout(r, 3000))
-      const { sessionId: claudeId } = await window.api.detectClaudeSessionId(cwd)
-      if (claudeId && claudeId !== previousClaudeId) {
-        setSessions(prev => prev.map(s =>
-          s.id === ptySessionId ? { ...s, claudeSessionId: claudeId } : s
-        ))
-        window.api.activeSessionsUpdateClaudeId(ptySessionId, claudeId)
-        return
-      }
-    }
-  }
-  detect()
-}
-
 export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActivated, onNewSessionModalClosed }: UseClaudeSessionsOptions) {
   const [sessions, setSessions] = useState<ClaudeSession[]>([])
 
@@ -131,6 +109,21 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
     return unsub
   }, [])
 
+  // Claude reports its own session id through the statusline bridge, including
+  // after /clear or /resume changes it. The main process persists it; this only
+  // mirrors it into card state. No polling, no guessing which transcript is ours.
+  useEffect(() => {
+    const unsub = window.api.onStatuslineData(({ sessionId, claudeSessionId }) => {
+      if (!claudeSessionId) return
+      setSessions(prev => prev.map(s =>
+        s.id === sessionId && s.claudeSessionId !== claudeSessionId
+          ? { ...s, claudeSessionId }
+          : s
+      ))
+    })
+    return () => { unsub() }
+  }, [])
+
   const startSession = useCallback(async (folder: WorkspaceFolder, useWorktree: boolean) => {
     const sessionId = `claude-${Date.now().toString(36)}`
     const isDangerous = dangerousMode
@@ -178,6 +171,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
                 folderName: result.folderName || folder.name,
                 worktreePath: result.worktreePath ?? null,
                 branchName: result.branchName ?? null,
+                claudeSessionId: result.claudeSessionId ?? null,
                 initializing: false,
               }
             : s
@@ -185,7 +179,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
 
         window.api.activeSessionsSet({
           id: sessionId,
-          claudeSessionId: null,
+          claudeSessionId: result.claudeSessionId ?? null,
           folderName: result.folderName || folder.name,
           folderPath: folder.path,
           worktreePath: result.worktreePath ?? null,
@@ -193,8 +187,6 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
           dangerousMode: isDangerous,
           columnId: firstColumnId,
         })
-
-        detectClaudeId(sessionId, result.worktreePath || folder.path, null, setSessions)
       } else {
         // Remove the placeholder session on failure
         setSessions(prev => prev.filter(s => s.id !== sessionId))
@@ -234,7 +226,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
         window.api.activeSessionsRemove(sessionId)
         window.api.activeSessionsSet({
           id: newPtyId,
-          claudeSessionId: session.claudeSessionId,
+          claudeSessionId: result.claudeSessionId ?? session.claudeSessionId,
           folderName: session.folderName,
           folderPath: session.folderPath,
           worktreePath: result.worktreePath ?? session.worktreePath,
@@ -244,8 +236,6 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
           title: session.title,
           titleManual: session.titleManual,
         })
-
-        detectClaudeId(newPtyId, session.worktreePath || session.folderPath, session.claudeSessionId, setSessions)
       } else {
         alert(`Failed to resume session: ${result.error}`)
       }
@@ -273,7 +263,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
           folderPath: pipelineFolderPath,
           worktreePath: result.worktreePath ?? worktreePath,
           branchName: result.branchName ?? null,
-          claudeSessionId: null,
+          claudeSessionId: result.claudeSessionId ?? null,
           dangerousMode: isDangerous
         }
         setSessions(prev => [...prev, newSession])
@@ -281,15 +271,13 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
 
         window.api.activeSessionsSet({
           id: sessionId,
-          claudeSessionId: null,
+          claudeSessionId: newSession.claudeSessionId ?? null,
           folderName: newSession.folderName,
           folderPath: newSession.folderPath,
           worktreePath: newSession.worktreePath,
           branchName: newSession.branchName,
           dangerousMode: isDangerous,
         })
-
-        detectClaudeId(sessionId, worktreePath, null, setSessions)
       }
     } catch (err) {
       alert(`Error opening pipeline session: ${err}`)
@@ -374,7 +362,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
           folderPath: preset.projectPath,
           worktreePath: result.worktreePath ?? null,
           branchName: result.branchName ?? null,
-          claudeSessionId: null,
+          claudeSessionId: result.claudeSessionId ?? null,
           dangerousMode: preset.dangerousMode,
         }
         setSessions(prev => [...prev, newSession])
@@ -382,15 +370,13 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
 
         window.api.activeSessionsSet({
           id: sessionId,
-          claudeSessionId: null,
+          claudeSessionId: newSession.claudeSessionId ?? null,
           folderName: newSession.folderName,
           folderPath: newSession.folderPath,
           worktreePath: newSession.worktreePath,
           branchName: newSession.branchName,
           dangerousMode: preset.dangerousMode,
         })
-
-        detectClaudeId(sessionId, result.worktreePath || preset.projectPath, null, setSessions)
       } else {
         alert(`Failed to launch preset: ${result.error}`)
       }

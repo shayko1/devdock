@@ -63,6 +63,11 @@ export interface PtyCreateResult extends IpcResult {
   folderName?: string
   worktreePath?: string | null
   branchName?: string | null
+  /**
+   * The Claude session id this launch claimed, so the caller can persist it
+   * before Claude has written anything. Null when the CLI picks its own id.
+   */
+  claudeSessionId?: string | null
 }
 
 export interface PtySessionInfo {
@@ -237,6 +242,10 @@ export interface CreateCommandOptions {
 
 export interface StatuslineData {
   sessionId: string
+  /** Claude Code's own session id for this DevDock session, when reported. */
+  claudeSessionId?: string
+  /** Path to that session's transcript on disk. */
+  transcriptPath?: string
   model?: string
   modelId?: string
   contextUsedPercent?: number

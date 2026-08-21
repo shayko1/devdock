@@ -6,6 +6,7 @@ import {
   mkdirSync, unlinkSync, watchFile, unwatchFile,
 } from 'fs'
 import type { StatuslineData } from '../shared/ipc-types'
+import { activeSessions } from './session-history'
 
 const DEVDOCK_DIR = join(homedir(), '.devdock')
 const STATUS_DIR = join(DEVDOCK_DIR, 'status')
@@ -15,6 +16,8 @@ const CLAUDE_SETTINGS_PATH = join(homedir(), '.claude', 'settings.json')
 class StatuslineWatcher {
   private mainWindow: BrowserWindow | null = null
   private watchedFiles = new Map<string, string>() // sessionId -> filePath
+  /** Last Claude session id seen per DevDock session, to persist only on change. */
+  private claudeIds = new Map<string, string>()
 
   setMainWindow(win: BrowserWindow) {
     this.mainWindow = win
@@ -45,6 +48,7 @@ class StatuslineWatcher {
 
     unwatchFile(filePath)
     this.watchedFiles.delete(sessionId)
+    this.claudeIds.delete(sessionId)
     try { unlinkSync(filePath) } catch { /* file may not exist */ }
   }
 
@@ -61,8 +65,23 @@ class StatuslineWatcher {
       if (!raw.trim()) return
       const json = JSON.parse(raw)
 
+      // Claude Code reports its own session id here, keyed by DevDock session,
+      // which makes this the authoritative source: it can't confuse two tabs on
+      // the same folder, and it re-reports after /clear, /resume and /branch.
+      const claudeSessionId = typeof json.session_id === 'string' ? json.session_id : undefined
+      const transcriptPath = typeof json.transcript_path === 'string' ? json.transcript_path : undefined
+
+      if (claudeSessionId && this.claudeIds.get(sessionId) !== claudeSessionId) {
+        this.claudeIds.set(sessionId, claudeSessionId)
+        // Persisted immediately rather than at app exit, so a crash or a force
+        // quit still leaves the correct id to resume from.
+        activeSessions.updateClaudeId(sessionId, claudeSessionId, transcriptPath ?? null)
+      }
+
       const data: StatuslineData = {
         sessionId,
+        claudeSessionId,
+        transcriptPath,
         model: json.model?.display_name || json.model?.id || undefined,
         modelId: json.model?.id || undefined,
         contextUsedPercent: json.context_window?.used_percentage ?? undefined,

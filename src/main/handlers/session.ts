@@ -1,6 +1,6 @@
 import { ipcMain, dialog } from 'electron'
 import { join } from 'path'
-import { readdirSync, statSync, mkdirSync, existsSync, writeFileSync, readFileSync } from 'fs'
+import { mkdirSync, existsSync, writeFileSync, readFileSync } from 'fs'
 import { execSync, exec, ChildProcess } from 'child_process'
 import { homedir } from 'os'
 import { ptyManager } from '../pty-manager'
@@ -11,6 +11,7 @@ import { activeSessions, scanProjectSessions, getSessionTitle } from '../session
 import { sessionTitler } from '../session-titler'
 import type { SessionTitleRequest } from '../../shared/ipc-types'
 import { ensureDevDockClaudeMd } from '../claude-md'
+import { resolveClaudeLaunch } from '../claude-launch'
 import { statuslineWatcher } from '../statusline-watcher'
 import { workspaceInitTracker } from '../workspace-init-tracker'
 import { notificationManager } from '../notification-manager'
@@ -213,10 +214,15 @@ export function registerSessionHandlers() {
 
     const permFlag = opts.dangerousMode ? ' --dangerously-skip-permissions' : ''
     const modelFlag = opts.model ? ` --model ${opts.model}` : ''
-    let command = `claude${modelFlag}${permFlag}`
-    if (opts.resumeClaudeId) {
-      command = `claude --resume ${opts.resumeClaudeId}${modelFlag}${permFlag}`
-    }
+
+    // Claim the Claude session id up front so it survives a crash or force
+    // quit — nothing needs to be discovered or saved when the app closes.
+    const launch = resolveClaudeLaunch({
+      cwd: worktreePath || opts.folderPath,
+      resumeClaudeId: opts.resumeClaudeId,
+      storedTranscriptPath: activeSessions.get(opts.sessionId)?.transcriptPath ?? null,
+      flags: `${modelFlag}${permFlag}`,
+    })
 
     const result = ptyManager.createSession(
       opts.sessionId,
@@ -224,7 +230,7 @@ export function registerSessionHandlers() {
       opts.folderPath,
       worktreePath,
       branchName,
-      command
+      launch.command
     )
 
     if (result.success) {
@@ -240,7 +246,7 @@ export function registerSessionHandlers() {
     }
 
     workspaceInitTracker.remove(opts.sessionId)
-    return result
+    return { ...result, claudeSessionId: launch.claudeSessionId }
   })
 
   // Workspace init cancellation
@@ -278,28 +284,6 @@ export function registerSessionHandlers() {
       return { path: filePath }
     } catch (err: unknown) {
       return { error: err instanceof Error ? err.message : String(err) }
-    }
-  })
-
-  ipcMain.handle('detect-claude-session-id', (_event, cwd: string) => {
-    try {
-      const encoded = cwd.replace(/\//g, '-')
-      const claudeProjectDir = join(homedir(), '.claude', 'projects', encoded)
-      if (!existsSync(claudeProjectDir)) return { sessionId: null }
-
-      const files = readdirSync(claudeProjectDir)
-        .filter(f => f.endsWith('.jsonl'))
-        .map(f => {
-          const fullPath = join(claudeProjectDir, f)
-          return { name: f, mtime: statSync(fullPath).mtime.getTime() }
-        })
-        .sort((a, b) => b.mtime - a.mtime)
-
-      if (files.length === 0) return { sessionId: null }
-      const sessionId = files[0].name.replace('.jsonl', '')
-      return { sessionId }
-    } catch {
-      return { sessionId: null }
     }
   })
 

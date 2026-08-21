@@ -30,7 +30,6 @@ const mockApi = {
   readFile: vi.fn(),
   searchFiles: vi.fn(),
   getWorktreeDiff: vi.fn(),
-  detectClaudeSessionId: vi.fn(),
   saveTempImage: vi.fn(),
   selectFolder: vi.fn(),
   openBrowser: vi.fn(),

@@ -1,12 +1,19 @@
 import { join, basename } from 'path'
 import { homedir } from 'os'
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'fs'
+import { claudeProjectDirName } from './claude-launch'
 
 // ── Active session tracking (for auto-resume on restart) ──
 
 export interface ActiveSession {
   id: string
   claudeSessionId: string | null
+  /**
+   * Path to the Claude Code transcript for `claudeSessionId`, as reported by
+   * the statusline bridge. Its existence is what decides whether the next
+   * launch resumes the session or claims the id fresh.
+   */
+  transcriptPath?: string | null
   folderName: string
   folderPath: string
   worktreePath: string | null
@@ -64,15 +71,34 @@ class ActiveSessionStore {
   set(session: ActiveSession) {
     this.load()
     const idx = this.sessions.findIndex(s => s.id === session.id)
-    if (idx >= 0) this.sessions[idx] = session
-    else this.sessions.push(session)
+    if (idx >= 0) {
+      // A known Claude session id must never be lost to a later write that
+      // doesn't carry one — callers refresh these records for other reasons
+      // (worktree, branch, title) and pass null for fields they don't track.
+      const prev = this.sessions[idx]
+      this.sessions[idx] = {
+        ...session,
+        claudeSessionId: session.claudeSessionId ?? prev.claudeSessionId ?? null,
+        transcriptPath: session.transcriptPath ?? prev.transcriptPath ?? null,
+      }
+    } else {
+      this.sessions.push(session)
+    }
     this.save()
   }
 
-  updateClaudeId(id: string, claudeSessionId: string) {
+  get(id: string): ActiveSession | undefined {
+    this.load()
+    return this.sessions.find(s => s.id === id)
+  }
+
+  updateClaudeId(id: string, claudeSessionId: string, transcriptPath?: string | null) {
     this.load()
     const s = this.sessions.find(r => r.id === id)
-    if (s) { s.claudeSessionId = claudeSessionId; this.save() }
+    if (!s) return
+    s.claudeSessionId = claudeSessionId
+    if (transcriptPath !== undefined) s.transcriptPath = transcriptPath
+    this.save()
   }
 
   /**
@@ -140,12 +166,14 @@ export interface ClaudeSessionInfo {
 const CLAUDE_PROJECTS_DIR = join(homedir(), '.claude', 'projects')
 
 /**
- * Claude encodes CWD paths: replace / with -, replace . with -
- * e.g. /Users/shayk/.dev3.0/worktrees/foo → -Users-shayk--dev3-0-worktrees-foo
+ * Claude encodes CWD paths by replacing every non-alphanumeric character with
+ * a dash, e.g. /Users/shayk/.dev3.0/my_app → -Users-shayk--dev3-0-my-app
+ *
+ * Delegates so this rule lives in one place; it previously handled only `/`
+ * and `.`, which mis-encoded any path containing an underscore — including
+ * DevDock's own worktree paths.
  */
-export function encodePath(p: string): string {
-  return p.replace(/\//g, '-').replace(/\./g, '-')
-}
+export const encodePath = claudeProjectDirName
 
 /**
  * Build a lookup map: encoded-dir-name → real filesystem path
