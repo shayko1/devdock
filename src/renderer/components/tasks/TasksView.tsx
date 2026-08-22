@@ -1,10 +1,14 @@
 import { useMemo } from 'react'
 import { useTasks } from '../../hooks/useTasks'
 import { CaptureBar } from './CaptureBar'
+import { TaskCard, TASK_DRAG_TYPE } from './TaskCard'
 import './TasksView.css'
 
 export function TasksView() {
-  const { tasks, columns, loading, columnFor, createTask } = useTasks()
+  const {
+    tasks, columns, loading, columnFor,
+    createTask, updateTask, deleteTask,
+  } = useTasks()
 
   const sortedColumns = useMemo(
     () => [...columns].sort((a, b) => a.order - b.order),
@@ -42,7 +46,16 @@ export function TasksView() {
       />
       <div className="tasks-board">
         {sortedColumns.map(column => (
-          <div className="tasks-column" key={column.id}>
+          <div
+            className="tasks-column"
+            key={column.id}
+            onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+            onDrop={e => {
+              e.preventDefault()
+              const taskId = e.dataTransfer.getData(TASK_DRAG_TYPE)
+              if (taskId) updateTask(taskId, { columnId: column.id })
+            }}
+          >
             <div className="tasks-column-header">
               <span className="tasks-column-name" data-testid="task-column-name">
                 {column.name}
@@ -50,6 +63,16 @@ export function TasksView() {
               <span className="tasks-column-count">
                 {tasksByColumn.get(column.id)?.length ?? 0}
               </span>
+            </div>
+            <div className="tasks-column-body">
+              {(tasksByColumn.get(column.id) ?? []).map(task => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onToggleDone={(id, done) => updateTask(id, { status: done ? 'done' : 'open' })}
+                  onDelete={deleteTask}
+                />
+              ))}
             </div>
           </div>
         ))}
