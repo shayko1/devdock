@@ -50,6 +50,7 @@ export function NewSessionModal({ scanPath, onStart, onClose }: Props) {
           <button
             className="btn btn-sm"
             onClick={onClose}
+            aria-label="Close"
             style={{ fontSize: 16, lineHeight: 1, padding: '2px 8px' }}
           >x</button>
         </h2>

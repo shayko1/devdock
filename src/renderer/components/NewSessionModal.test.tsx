@@ -51,7 +51,10 @@ describe('NewSessionModal', () => {
     const onStart = vi.fn()
     render(<NewSessionModal scanPath="/tmp" onStart={onStart} onClose={vi.fn()} />)
     const folderA = await screen.findByText('project-a')
-    fireEvent.click(folderA.closest('.new-session-folder-item')!)
+    // The row's click handler lives on the inner div wrapping name and path,
+    // so clicking the name bubbles into it. Clicking the outer .new-session-folder-item
+    // hits no handler at all.
+    fireEvent.click(folderA)
     expect(onStart).toHaveBeenCalledWith(mockFolders[0], false)
   })
 
@@ -59,7 +62,7 @@ describe('NewSessionModal', () => {
     const onClose = vi.fn()
     render(<NewSessionModal scanPath="/tmp" onStart={vi.fn()} onClose={onClose} />)
     await screen.findByText('project-a')
-    const closeBtn = screen.getByRole('button', { name: '×' })
+    const closeBtn = screen.getByRole('button', { name: 'Close' })
     fireEvent.click(closeBtn)
     expect(onClose).toHaveBeenCalledTimes(1)
   })
