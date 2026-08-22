@@ -135,3 +135,88 @@
 }
 
 .task-card:hover .task-card-delete { color: var(--text-primary); }
+
+.tasks-panes {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.tasks-panes .tasks-board {
+  flex: 1;
+  min-width: 0;
+}
+
+.day-canvas {
+  width: 320px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.day-canvas-grid {
+  position: relative;
+}
+
+.day-canvas-hour {
+  position: relative;
+  height: 60px;
+  border-bottom: 1px solid var(--border);
+}
+
+.day-canvas-hour-label {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.day-canvas-busy,
+.day-canvas-block {
+  position: absolute;
+  left: 48px;
+  right: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.day-canvas-busy {
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border);
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 2px 4px;
+}
+
+.day-canvas-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 3px 5px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  cursor: grab;
+  user-select: none;
+}
+
+.day-canvas-block-title { flex: 1; min-width: 0; }
+
+.day-canvas-block-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.day-canvas-block-resize {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: ns-resize;
+}
