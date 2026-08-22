@@ -16,11 +16,12 @@ import { SettingsModal } from './components/SettingsModal'
 import { Toast } from './components/Toast'
 import { AgentsView } from './components/AgentsView'
 import { DbWorkbenchView } from './components/DbWorkbenchView'
+import { TasksView } from './components/tasks/TasksView'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Skeleton } from './components/Skeleton'
 import { Project } from '../shared/types'
 
-type TabId = 'launchpad' | 'folders' | 'claude' | 'agents' | 'db-access'
+type TabId = 'launchpad' | 'folders' | 'claude' | 'agents' | 'db-access' | 'tasks'
 
 export function App() {
   const {
@@ -121,6 +122,7 @@ export function App() {
     onTab2: () => setActiveTab('folders'),
     onTab3: () => setActiveTab('claude'),
     onTab4: () => setActiveTab('agents'),
+    onTab6: () => setActiveTab('tasks'),
     onEscape: () => {
       // Don't close modals if user is typing in an input inside the modal
       const active = document.activeElement as HTMLElement | null
@@ -461,6 +463,12 @@ export function App() {
         >
           DB Access
         </div>
+        <div
+          className={`tab ${activeTab === 'tasks' ? 'active' : ''}`}
+          onClick={() => setActiveTab('tasks')}
+        >
+          Tasks
+        </div>
       </div>
 
       {/* Claude and DB tabs are always mounted so terminal/connection state survives tab switches */}
@@ -503,7 +511,11 @@ export function App() {
         </ErrorBoundary>
       </div>
 
-      {activeTab === 'claude' || activeTab === 'db-access' ? null : activeTab === 'agents' ? (
+      {activeTab === 'claude' || activeTab === 'db-access' ? null : activeTab === 'tasks' ? (
+        <ErrorBoundary name="Tasks">
+          <TasksView />
+        </ErrorBoundary>
+      ) : activeTab === 'agents' ? (
         <ErrorBoundary name="Agents">
           <AgentsView />
         </ErrorBoundary>
