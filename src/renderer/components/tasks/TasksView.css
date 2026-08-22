@@ -48,3 +48,32 @@
   font-size: 11px;
   color: var(--text-muted);
 }
+
+.tasks-capture {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tasks-capture-input {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.tasks-capture-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.tasks-capture-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}

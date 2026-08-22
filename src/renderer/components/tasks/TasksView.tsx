@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
 import { useTasks } from '../../hooks/useTasks'
+import { CaptureBar } from './CaptureBar'
 import './TasksView.css'
 
 export function TasksView() {
-  const { tasks, columns, loading, columnFor } = useTasks()
+  const { tasks, columns, loading, columnFor, createTask } = useTasks()
 
   const sortedColumns = useMemo(
     () => [...columns].sort((a, b) => a.order - b.order),
@@ -26,6 +27,19 @@ export function TasksView() {
 
   return (
     <div className="tasks-view">
+      <CaptureBar
+        onCapture={parsed => {
+          // parsed.scheduleAt is honoured once the day canvas exists (Task 8);
+          // until then a captured time only sets the task's due date.
+          createTask({
+            title: parsed.title,
+            priority: parsed.priority,
+            estimateMinutes: parsed.estimateMinutes,
+            dueAt: parsed.dueAt,
+            status: 'open',
+          })
+        }}
+      />
       <div className="tasks-board">
         {sortedColumns.map(column => (
           <div className="tasks-column" key={column.id}>
