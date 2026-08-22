@@ -220,3 +220,114 @@
   height: 6px;
   cursor: ns-resize;
 }
+
+.tasks-sweep-btn {
+  align-self: flex-start;
+  margin: 0 12px 8px;
+  padding: 5px 10px;
+  font-size: 11px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--orange);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sweep-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 100;
+}
+
+.sweep-modal {
+  width: 480px;
+  max-width: calc(100vw - 48px);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sweep-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sweep-modal-header button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.sweep-modal-body {
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.sweep-empty {
+  padding: 20px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.sweep-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sweep-row:last-child { border-bottom: none; }
+
+.sweep-row-info { min-width: 0; }
+
+.sweep-row-title {
+  font-size: 13px;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.sweep-row-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.sweep-pushed { color: var(--orange); }
+
+.sweep-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sweep-row-actions button {
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sweep-row-actions button:hover { background: var(--bg-tertiary); }

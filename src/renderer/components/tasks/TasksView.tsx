@@ -1,5 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useTasks } from '../../hooks/useTasks'
+import { sweepDay, pushCount, type StaleBlock } from '../../../shared/task-rollover'
+import { SweepModal, type SweepAction } from './SweepModal'
 import { CaptureBar } from './CaptureBar'
 import { TaskCard, TASK_DRAG_TYPE } from './TaskCard'
 import { DayCanvas } from './DayCanvas'
@@ -35,6 +37,33 @@ export function TasksView() {
   const removeBlock = async (id: string) => {
     if (await window.api.tasksDeleteBlock(id)) {
       setBlocks(prev => prev.filter(b => b.id !== id))
+    }
+  }
+
+  const [sweeping, setSweeping] = useState(false)
+
+  const sweep = useMemo(
+    () => sweepDay({ tasks, blocks, now: Date.now() }),
+    [tasks, blocks]
+  )
+
+  const pushCounts = useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const item of sweep.stale) out[item.block.id] = pushCount(item.block.id, blocks)
+    return out
+  }, [sweep, blocks])
+
+  const applySweep = async (item: StaleBlock, action: SweepAction) => {
+    if (action === 'rollover') {
+      const created = await window.api.tasksSetBlock({
+        taskId: item.task.id,
+        startsAt: item.suggestedStartsAt,
+        endsAt: item.suggestedEndsAt,
+        rolledFrom: item.block.id,
+      })
+      setBlocks(prev => [...prev, created])
+    } else {
+      await updateTask(item.task.id, { status: action === 'done' ? 'done' : 'dropped' })
     }
   }
 
@@ -74,6 +103,19 @@ export function TasksView() {
           }
         }}
       />
+      {sweep.stale.length > 0 && (
+        <button type="button" className="tasks-sweep-btn" onClick={() => setSweeping(true)}>
+          Review {sweep.stale.length} unfinished
+        </button>
+      )}
+      {sweeping && (
+        <SweepModal
+          items={sweep.stale}
+          pushCounts={pushCounts}
+          onApply={applySweep}
+          onClose={() => setSweeping(false)}
+        />
+      )}
       <div className="tasks-panes">
       <div className="tasks-board">
         {sortedColumns.map(column => (
