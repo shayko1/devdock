@@ -20,7 +20,15 @@
 - **Do not modify** `KanbanPanel.tsx`, `KanbanColumn.tsx`, `KanbanCard.tsx`, `kanban-manager.ts`, `useKanban.ts`, or `ActiveSession.columnId`.
 - **Priority is `1 | 2 | 3 | 4`**, 1 highest, default 3.
 - **IPC channel prefix is `tasks:`** with a colon, matching `kanban:`.
-- Run the full suite with `npx vitest run` before every commit. It must be green.
+- Run the full suite with `npx vitest run` before every commit. **The repo is not green at baseline:** as of `f7ce879` it has **4 pre-existing failures in 2 files** (`SettingsModal.test.tsx` and one other) out of 433 tests, and `npx tsc --noEmit` emits ~60 lines of pre-existing errors in `pipeline-manager.ts`, `App.tsx`, `AkeylessView.tsx`, `pty-manager.test.ts`, and `__mocks__/node-pty.ts`. The bar is therefore **no new failures and no new type errors**, not zero. Compare against a clean checkout when in doubt:
+
+  ```bash
+  git worktree add /tmp/baseline f7ce879
+  ln -s "$PWD/node_modules" /tmp/baseline/node_modules
+  cd /tmp/baseline && npx vitest run
+  ```
+
+  Fixing the pre-existing failures is out of scope for this plan.
 
 ---
 
@@ -331,8 +339,8 @@ One intentional, benign behaviour difference: a worktree failure now returns `pr
 
 - [ ] **Step 6: Run the full suite and typecheck**
 
-Run: `npx vitest run && npx tsc --noEmit`
-Expected: all green. Preset launching is unchanged; no test touched it before, and now six cover it.
+Run: `npx vitest run; npx tsc --noEmit`
+Expected: no failures or type errors beyond the documented baseline (4 failing tests, ~60 tsc error lines). Preset launching is unchanged; no test touched it before, and now six cover it.
 
 - [ ] **Step 7: Commit**
 
@@ -810,7 +818,7 @@ Expected: PASS, 10 tests.
 - [ ] **Step 6: Run the full suite and typecheck, then commit**
 
 ```bash
-npx vitest run && npx tsc --noEmit
+npx vitest run; npx tsc --noEmit
 git add src/shared/ipc-types.ts src/main/task-manager.ts src/main/task-manager.test.ts
 git commit -m "feat(tasks): add task types and TaskManager with atomic persistence"
 ```
@@ -1017,7 +1025,7 @@ Add `Task, TaskBlock, TaskBlockInput, TaskCreate, TasksFile` to the existing typ
 - [ ] **Step 7: Run the full suite, typecheck, and commit**
 
 ```bash
-npx vitest run && npx tsc --noEmit
+npx vitest run; npx tsc --noEmit
 git add src/main/handlers/tasks.ts src/main/handlers/tasks.test.ts src/main/handlers/index.ts src/main/index.ts src/preload/index.ts
 git commit -m "feat(tasks): add tasks IPC handlers and preload bridge"
 ```
@@ -1345,7 +1353,7 @@ Expected: a Tasks tab appears after DB Access; clicking it shows four columns (B
 - [ ] **Step 9: Run the full suite, typecheck, and commit**
 
 ```bash
-npx vitest run && npx tsc --noEmit
+npx vitest run; npx tsc --noEmit
 git add src/renderer/hooks/useTasks.ts src/renderer/components/tasks src/shared/types.ts src/renderer/App.tsx src/renderer/hooks/useKeyboardShortcuts.ts
 git commit -m "feat(tasks): add Tasks tab with board columns and empty state"
 ```
@@ -1633,7 +1641,7 @@ Expected: PASS. If the `1:1 with Dana tomorrow 2pm` case fails because `TIME_RE`
 - [ ] **Step 5: Commit**
 
 ```bash
-npx vitest run && npx tsc --noEmit
+npx vitest run; npx tsc --noEmit
 git add src/shared/task-parse.ts src/shared/task-parse.test.ts
 git commit -m "feat(tasks): add deterministic one-line capture parser"
 ```
@@ -1820,7 +1828,7 @@ Add to `TasksView.css`:
 Run: `npm run dev` — type `p1 Review the deck tomorrow 2pm 45m` and press Enter. A card-less count appears in the first column, and the task survives a restart.
 
 ```bash
-npx vitest run && npx tsc --noEmit
+npx vitest run; npx tsc --noEmit
 git add src/renderer/components/tasks
 git commit -m "feat(tasks): add capture bar with live parse hint"
 ```
@@ -2064,7 +2072,7 @@ Priority colours use `--red` and `--orange`; both are defined already, alongside
 Run: `npm run dev` — capture two tasks, drag one to another column, mark one done, delete one. Restart and confirm all three stuck.
 
 ```bash
-npx vitest run && npx tsc --noEmit
+npx vitest run; npx tsc --noEmit
 git add src/renderer/components/tasks
 git commit -m "feat(tasks): add task cards with priority, done toggle, and column drag"
 ```
@@ -2594,7 +2602,7 @@ Add to `TasksView.css`:
 Run: `npm run dev` — drag a card onto the canvas, drag the block to a new time, drag its bottom edge to resize, click × to unschedule. Capture `Deep work today 2pm 90m` and confirm a 90-minute block appears at 14:00. Restart; everything persists.
 
 ```bash
-npx vitest run && npx tsc --noEmit
+npx vitest run; npx tsc --noEmit
 git add src/shared/task-time.ts src/shared/task-time.test.ts src/renderer/components/tasks
 git commit -m "feat(tasks): add day canvas with drag-to-schedule, move, and resize"
 ```
@@ -3097,7 +3105,7 @@ Add to `TasksView.css`:
 Run: `npm run dev` — schedule a block in the past (drag one to an early hour), leave it open, and confirm the review button appears. Roll it over and check the new block lands tomorrow with a push count of 1 on the next sweep.
 
 ```bash
-npx vitest run && npx tsc --noEmit
+npx vitest run; npx tsc --noEmit
 git add src/shared/task-rollover.ts src/shared/task-rollover.test.ts src/renderer/components/tasks
 git commit -m "feat(tasks): add daily sweep with explicit rollover choices"
 ```
@@ -3106,7 +3114,7 @@ git commit -m "feat(tasks): add daily sweep with explicit rollover choices"
 
 ## Done When
 
-- `npx vitest run` and `npx tsc --noEmit` are both clean.
+- `npx vitest run` and `npx tsc --noEmit` show no failures or errors beyond the documented baseline.
 - A Tasks tab exists, reachable by click and by `Cmd+6`, surviving restart.
 - You can capture a task in one line, see it parsed live, drag it between columns, drag it onto the day canvas, move and resize the block, run the focus-free core loop, and review unfinished work at the end of a day.
 - `~/.devdock/tasks.json` holds tasks, blocks and columns and is written atomically.
