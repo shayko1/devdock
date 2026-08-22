@@ -45,7 +45,7 @@ The `preset-launch` handler inlines ~90 lines of worktree creation, CLAUDE.md se
 - Consumes: `ptyManager.createSession(sessionId, folderName, folderPath, worktreePath, branchName, command)` from `./pty-manager`; `resolveClaudeLaunch({ cwd, flags })` from `./claude-launch`; `ensureDevDockClaudeMd(cwd, rtkEnabled)` from `./claude-md`; `statuslineWatcher.watchSession(id)`; `loadState()` from `./store`.
 - Produces: `launchClaudeSession(input: LaunchSessionInput): LaunchSessionResult` — used by `preset-launch` here and by `tasks:delegate` in plan 2.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/main/session-launcher.test.ts`:
 
@@ -167,12 +167,12 @@ describe('launchClaudeSession', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test and confirm it fails**
+- [x] **Step 2: Run the test and confirm it fails**
 
 Run: `cd /Users/shayk/Workspace/devdock && npx vitest run src/main/session-launcher.test.ts`
 Expected: FAIL — cannot resolve `./session-launcher`.
 
-- [ ] **Step 3: Create `src/main/session-launcher.ts`**
+- [x] **Step 3: Create `src/main/session-launcher.ts`**
 
 This is a faithful move of `handlers/presets.ts:54-134`. Keep the `execSync` calls, timeouts and `stdio` triples identical — they are load-bearing.
 
@@ -296,12 +296,12 @@ export function launchClaudeSession(input: LaunchSessionInput): LaunchSessionRes
 }
 ```
 
-- [ ] **Step 4: Run the test and confirm it passes**
+- [x] **Step 4: Run the test and confirm it passes**
 
 Run: `npx vitest run src/main/session-launcher.test.ts`
 Expected: PASS, 6 tests.
 
-- [ ] **Step 5: Replace the handler body in `src/main/handlers/presets.ts`**
+- [x] **Step 5: Replace the handler body in `src/main/handlers/presets.ts`**
 
 Delete the whole `ipcMain.handle('preset-launch', ...)` block (lines 45-134) and put this in its place:
 
@@ -337,12 +337,12 @@ Then fix the imports at the top of the file: add `import { launchClaudeSession }
 
 One intentional, benign behaviour difference: a worktree failure now returns `preset` alongside `success: false`, where before it returned only `{ success, error }`. Extra field, no consumer relies on its absence.
 
-- [ ] **Step 6: Run the full suite and typecheck**
+- [x] **Step 6: Run the full suite and typecheck**
 
 Run: `npx vitest run; npx tsc --noEmit`
 Expected: no failures or type errors beyond the documented baseline (4 failing tests, ~60 tsc error lines). Preset launching is unchanged; no test touched it before, and now six cover it.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/main/session-launcher.ts src/main/session-launcher.test.ts src/main/handlers/presets.ts
@@ -362,7 +362,7 @@ git commit -m "refactor(sessions): extract launchClaudeSession from preset-launc
 - Consumes: `KanbanColumn` from `../shared/ipc-types` (reused as a type; column *data* is stored separately).
 - Produces: `taskManager` singleton and the `TaskManager` class with `getAll()`, `createTask()`, `updateTask()`, `deleteTask()`, `saveColumns()`, `setBlock()`, `deleteBlock()`, `batchBlocks()`, `setFocus()`. Types `Task`, `TaskBlock`, `TaskDelegation`, `TasksFile`, `TaskCreate`, `TaskBlockInput`.
 
-- [ ] **Step 1: Add the types to `src/shared/ipc-types.ts`**
+- [x] **Step 1: Add the types to `src/shared/ipc-types.ts`**
 
 Append at the end of the file:
 
@@ -432,7 +432,7 @@ export interface TaskBlockInput {
 }
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `src/main/task-manager.test.ts`:
 
@@ -581,12 +581,12 @@ describe('TaskManager', () => {
 })
 ```
 
-- [ ] **Step 3: Run the test and confirm it fails**
+- [x] **Step 3: Run the test and confirm it fails**
 
 Run: `npx vitest run src/main/task-manager.test.ts`
 Expected: FAIL — cannot resolve `./task-manager`.
 
-- [ ] **Step 4: Create `src/main/task-manager.ts`**
+- [x] **Step 4: Create `src/main/task-manager.ts`**
 
 ```ts
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'fs'
@@ -810,12 +810,12 @@ export class TaskManager {
 export const taskManager = new TaskManager()
 ```
 
-- [ ] **Step 5: Run the test and confirm it passes**
+- [x] **Step 5: Run the test and confirm it passes**
 
 Run: `npx vitest run src/main/task-manager.test.ts`
 Expected: PASS, 10 tests.
 
-- [ ] **Step 6: Run the full suite and typecheck, then commit**
+- [x] **Step 6: Run the full suite and typecheck, then commit**
 
 ```bash
 npx vitest run; npx tsc --noEmit
@@ -838,7 +838,7 @@ git commit -m "feat(tasks): add task types and TaskManager with atomic persisten
 - Consumes: `taskManager` from `../task-manager`; types from `../../shared/ipc-types`.
 - Produces: `registerTaskHandlers()`; and on `window.api`: `tasksGetAll`, `tasksCreate`, `tasksUpdate`, `tasksDelete`, `tasksSaveColumns`, `tasksSetBlock`, `tasksDeleteBlock`, `tasksBatchBlocks`, `tasksFocus`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/main/handlers/tasks.test.ts`:
 
@@ -921,12 +921,12 @@ describe('task IPC handlers', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test and confirm it fails**
+- [x] **Step 2: Run the test and confirm it fails**
 
 Run: `npx vitest run src/main/handlers/tasks.test.ts`
 Expected: FAIL — cannot resolve `./tasks`.
 
-- [ ] **Step 3: Create `src/main/handlers/tasks.ts`**
+- [x] **Step 3: Create `src/main/handlers/tasks.ts`**
 
 ```ts
 import { ipcMain } from 'electron'
@@ -975,12 +975,12 @@ export function registerTaskHandlers() {
 }
 ```
 
-- [ ] **Step 4: Run the test and confirm it passes**
+- [x] **Step 4: Run the test and confirm it passes**
 
 Run: `npx vitest run src/main/handlers/tasks.test.ts`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 5: Wire the handlers into the app**
+- [x] **Step 5: Wire the handlers into the app**
 
 In `src/main/handlers/index.ts`, append:
 
@@ -994,7 +994,7 @@ In `src/main/index.ts`, add `registerTaskHandlers,` to the import list from `./h
   registerTaskHandlers()
 ```
 
-- [ ] **Step 6: Add the preload bridge**
+- [x] **Step 6: Add the preload bridge**
 
 In `src/preload/index.ts`, extend the type import to include the task types, then add these after the two `kanban*` methods:
 
@@ -1022,7 +1022,7 @@ In `src/preload/index.ts`, extend the type import to include the task types, the
 
 Add `Task, TaskBlock, TaskBlockInput, TaskCreate, TasksFile` to the existing type import from `../shared/ipc-types` at the top of the file. `window.api` types flow automatically — `global.d.ts` derives `Window['api']` from `ElectronAPI`, so no separate declaration is needed.
 
-- [ ] **Step 7: Run the full suite, typecheck, and commit**
+- [x] **Step 7: Run the full suite, typecheck, and commit**
 
 ```bash
 npx vitest run; npx tsc --noEmit
@@ -1049,7 +1049,7 @@ Ends with a real, navigable tab showing an empty board. No capture or canvas yet
 - Consumes: `window.api.tasksGetAll/tasksCreate/tasksUpdate/tasksDelete/tasksSaveColumns` from Task 3.
 - Produces: `useTasks()` returning `{ tasks, blocks, columns, loading, createTask, updateTask, deleteTask, saveColumns, columnFor }`; `<TasksView />`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/renderer/components/tasks/TasksView.test.tsx`:
 
@@ -1089,12 +1089,12 @@ describe('TasksView', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test and confirm it fails**
+- [x] **Step 2: Run the test and confirm it fails**
 
 Run: `npx vitest run src/renderer/components/tasks/TasksView.test.tsx`
 Expected: FAIL — cannot resolve `./TasksView`.
 
-- [ ] **Step 3: Create `src/renderer/hooks/useTasks.ts`**
+- [x] **Step 3: Create `src/renderer/hooks/useTasks.ts`**
 
 ```ts
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -1162,7 +1162,7 @@ export function useTasks() {
 }
 ```
 
-- [ ] **Step 4: Create `src/renderer/components/tasks/TasksView.tsx`**
+- [x] **Step 4: Create `src/renderer/components/tasks/TasksView.tsx`**
 
 ```tsx
 import { useMemo } from 'react'
@@ -1217,7 +1217,7 @@ export function TasksView() {
 }
 ```
 
-- [ ] **Step 5: Create `src/renderer/components/tasks/TasksView.css`**
+- [x] **Step 5: Create `src/renderer/components/tasks/TasksView.css`**
 
 ```css
 .tasks-view {
@@ -1274,12 +1274,12 @@ export function TasksView() {
 
 Every custom property used here is already defined in the app's stylesheets: `--accent`, `--bg-primary`, `--bg-secondary`, `--border`, `--text-primary`, `--text-secondary`, `--text-muted`, `--red`, `--orange`. Do not introduce new tokens.
 
-- [ ] **Step 6: Run the test and confirm it passes**
+- [x] **Step 6: Run the test and confirm it passes**
 
 Run: `npx vitest run src/renderer/components/tasks/TasksView.test.tsx`
 Expected: PASS, 2 tests.
 
-- [ ] **Step 7: Register the tab**
+- [x] **Step 7: Register the tab**
 
 In `src/shared/types.ts:34`, extend the union:
 
@@ -1345,12 +1345,12 @@ Then wire it in `App.tsx` next to `onTab4`:
 
 `Cmd+5` stays unbound on purpose — db-access, the fifth tab, has never had a shortcut, and adding one is unrelated to this feature. The number stays positional.
 
-- [ ] **Step 8: Verify by hand**
+- [x] **Step 8: Verify by hand**
 
 Run: `npm run dev`
 Expected: a Tasks tab appears after DB Access; clicking it shows four columns (Backlog, Today, Doing, Done) and the "No tasks yet" empty state. `Cmd+6` switches to it. Quit and relaunch — the tab is still selected, because `activeTab` persists through the existing `persist()` effect. Confirm `~/.devdock/tasks.json` now exists with four columns.
 
-- [ ] **Step 9: Run the full suite, typecheck, and commit**
+- [x] **Step 9: Run the full suite, typecheck, and commit**
 
 ```bash
 npx vitest run; npx tsc --noEmit
@@ -1382,7 +1382,7 @@ export interface ParsedTask {
 }
 ```
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/shared/task-parse.test.ts`:
 
@@ -1485,12 +1485,12 @@ describe('parseTaskInput', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test and confirm it fails**
+- [x] **Step 2: Run the test and confirm it fails**
 
 Run: `npx vitest run src/shared/task-parse.test.ts`
 Expected: FAIL — cannot resolve `./task-parse`.
 
-- [ ] **Step 3: Create `src/shared/task-parse.ts`**
+- [x] **Step 3: Create `src/shared/task-parse.ts`**
 
 ```ts
 export interface ParsedTask {
@@ -1633,12 +1633,12 @@ function stripRanges(text: string, cuts: Array<[number, number]>): string {
 }
 ```
 
-- [ ] **Step 4: Run the test and confirm it passes**
+- [x] **Step 4: Run the test and confirm it passes**
 
 Run: `npx vitest run src/shared/task-parse.test.ts`
 Expected: PASS. If the `1:1 with Dana tomorrow 2pm` case fails because `TIME_RE` matches `1:1` before `2pm`, that is a genuine ambiguity in the grammar — fix it by requiring the 24-hour alternative to have a first group of 2 digits or a value above 12, and re-run. Do not weaken the test.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 npx vitest run; npx tsc --noEmit
@@ -1660,7 +1660,7 @@ git commit -m "feat(tasks): add deterministic one-line capture parser"
 - Consumes: `parseTaskInput` from `../../../shared/task-parse`; `useTasks().createTask`.
 - Produces: `<CaptureBar onCapture={(parsed, rawText) => void} />`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/renderer/components/tasks/CaptureBar.test.tsx`:
 
@@ -1708,12 +1708,12 @@ describe('CaptureBar', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test and confirm it fails**
+- [x] **Step 2: Run the test and confirm it fails**
 
 Run: `npx vitest run src/renderer/components/tasks/CaptureBar.test.tsx`
 Expected: FAIL — cannot resolve `./CaptureBar`.
 
-- [ ] **Step 3: Create `src/renderer/components/tasks/CaptureBar.tsx`**
+- [x] **Step 3: Create `src/renderer/components/tasks/CaptureBar.tsx`**
 
 ```tsx
 import { useMemo, useState } from 'react'
@@ -1765,12 +1765,12 @@ export function CaptureBar({ onCapture }: Props) {
 }
 ```
 
-- [ ] **Step 4: Run the test and confirm it passes**
+- [x] **Step 4: Run the test and confirm it passes**
 
 Run: `npx vitest run src/renderer/components/tasks/CaptureBar.test.tsx`
 Expected: PASS, 3 tests.
 
-- [ ] **Step 5: Wire it into `TasksView`**
+- [x] **Step 5: Wire it into `TasksView`**
 
 Add the import, render `<CaptureBar>` above `.tasks-board`, and handle capture by creating the task. Pull `createTask` out of `useTasks()`:
 
@@ -1823,7 +1823,7 @@ Add to `TasksView.css`:
 }
 ```
 
-- [ ] **Step 6: Verify by hand, then commit**
+- [x] **Step 6: Verify by hand, then commit**
 
 Run: `npm run dev` — type `p1 Review the deck tomorrow 2pm 45m` and press Enter. A card-less count appears in the first column, and the task survives a restart.
 
@@ -1849,7 +1849,7 @@ git commit -m "feat(tasks): add capture bar with live parse hint"
 
 Uses native HTML5 drag-and-drop, matching how `KanbanColumn` already handles `onDrop`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/renderer/components/tasks/TaskCard.test.tsx`:
 
@@ -1905,12 +1905,12 @@ describe('TaskCard', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test and confirm it fails**
+- [x] **Step 2: Run the test and confirm it fails**
 
 Run: `npx vitest run src/renderer/components/tasks/TaskCard.test.tsx`
 Expected: FAIL — cannot resolve `./TaskCard`.
 
-- [ ] **Step 3: Create `src/renderer/components/tasks/TaskCard.tsx`**
+- [x] **Step 3: Create `src/renderer/components/tasks/TaskCard.tsx`**
 
 ```tsx
 import React from 'react'
@@ -1968,12 +1968,12 @@ export function TaskCard({ task, onToggleDone, onDelete }: Props) {
 }
 ```
 
-- [ ] **Step 4: Run the test and confirm it passes**
+- [x] **Step 4: Run the test and confirm it passes**
 
 Run: `npx vitest run src/renderer/components/tasks/TaskCard.test.tsx`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 5: Render cards and accept drops in `TasksView`**
+- [x] **Step 5: Render cards and accept drops in `TasksView`**
 
 Import `TaskCard` and `TASK_DRAG_TYPE`, pull `updateTask` and `deleteTask` from `useTasks()`, then inside each column render its cards and accept drops:
 
@@ -2067,7 +2067,7 @@ Add to `TasksView.css`:
 
 Priority colours use `--red` and `--orange`; both are defined already, alongside `--red-dim` and `--green-dim` if a softer treatment reads better.
 
-- [ ] **Step 6: Verify by hand, then commit**
+- [x] **Step 6: Verify by hand, then commit**
 
 Run: `npm run dev` — capture two tasks, drag one to another column, mark one done, delete one. Restart and confirm all three stuck.
 
@@ -2093,7 +2093,7 @@ git commit -m "feat(tasks): add task cards with priority, done toggle, and colum
 - Consumes: `TaskBlock`, `Task`; `window.api.tasksSetBlock`, `tasksDeleteBlock`.
 - Produces: `snapToSlot(ms, slotMinutes)`, `offsetToTime(offsetPx, pxPerMinute, dayStart)`, `timeToOffset(ms, pxPerMinute, dayStart)` in `task-time.ts`; `<DayCanvas day tasks blocks onSchedule onMoveBlock onResizeBlock />`.
 
-- [ ] **Step 1: Write the failing test for the pure slot maths**
+- [x] **Step 1: Write the failing test for the pure slot maths**
 
 Create `src/shared/task-time.test.ts`:
 
@@ -2138,12 +2138,12 @@ describe('task-time', () => {
 })
 ```
 
-- [ ] **Step 2: Run it and confirm it fails**
+- [x] **Step 2: Run it and confirm it fails**
 
 Run: `npx vitest run src/shared/task-time.test.ts`
 Expected: FAIL — cannot resolve `./task-time`.
 
-- [ ] **Step 3: Create `src/shared/task-time.ts`**
+- [x] **Step 3: Create `src/shared/task-time.ts`**
 
 ```ts
 /** Canvas granularity. Blocks always start and end on a slot boundary. */
@@ -2171,12 +2171,12 @@ export function timeToOffset(ms: number, pxPerMinute: number, dayStart: number):
 
 Note `snapToSlot` floors against the epoch, which is only slot-aligned because 15 minutes divides an hour and all supported timezone offsets are whole quarter-hours. That holds for every current zone; if it ever stops holding, snap relative to `dayStart` instead.
 
-- [ ] **Step 4: Run it and confirm it passes**
+- [x] **Step 4: Run it and confirm it passes**
 
 Run: `npx vitest run src/shared/task-time.test.ts`
 Expected: PASS, 6 tests.
 
-- [ ] **Step 5: Write the failing DayCanvas test**
+- [x] **Step 5: Write the failing DayCanvas test**
 
 Create `src/renderer/components/tasks/DayCanvas.test.tsx`:
 
@@ -2268,12 +2268,12 @@ describe('DayCanvas', () => {
 })
 ```
 
-- [ ] **Step 6: Run it and confirm it fails**
+- [x] **Step 6: Run it and confirm it fails**
 
 Run: `npx vitest run src/renderer/components/tasks/DayCanvas.test.tsx`
 Expected: FAIL — cannot resolve `./DayCanvas`.
 
-- [ ] **Step 7: Create `src/renderer/components/tasks/DayCanvas.tsx`**
+- [x] **Step 7: Create `src/renderer/components/tasks/DayCanvas.tsx`**
 
 ```tsx
 import React, { useRef } from 'react'
@@ -2430,12 +2430,12 @@ export function DayCanvas({
 }
 ```
 
-- [ ] **Step 8: Run it and confirm it passes**
+- [x] **Step 8: Run it and confirm it passes**
 
 Run: `npx vitest run src/renderer/components/tasks/DayCanvas.test.tsx`
 Expected: PASS, 5 tests. jsdom reports zero-size rects, which is why the position test asserts on inline styles rather than measured geometry.
 
-- [ ] **Step 9: Put the canvas beside the board in `TasksView`**
+- [x] **Step 9: Put the canvas beside the board in `TasksView`**
 
 Wrap the board and canvas in a two-pane container, add block handlers using `window.api` directly plus the `setBlocks` returned by `useTasks`, and pass `busy={[]}` for now — the calendar arrives in plan 2.
 
@@ -2597,7 +2597,7 @@ Add to `TasksView.css`:
 }
 ```
 
-- [ ] **Step 10: Verify by hand, then commit**
+- [x] **Step 10: Verify by hand, then commit**
 
 Run: `npm run dev` — drag a card onto the canvas, drag the block to a new time, drag its bottom edge to resize, click × to unschedule. Capture `Deep work today 2pm 90m` and confirm a 90-minute block appears at 14:00. Restart; everything persists.
 
@@ -2623,7 +2623,7 @@ git commit -m "feat(tasks): add day canvas with drag-to-schedule, move, and resi
 - Consumes: `Task`, `TaskBlock`; `window.api.tasksSetBlock`, `tasksUpdate`.
 - Produces: `sweepDay({ tasks, blocks, now }): SweepResult` with `StaleBlock[]`; `pushCount(blockId, blocks): number`; `<SweepModal items onApply onClose />`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/shared/task-rollover.test.ts`:
 
@@ -2720,12 +2720,12 @@ describe('pushCount', () => {
 })
 ```
 
-- [ ] **Step 2: Run it and confirm it fails**
+- [x] **Step 2: Run it and confirm it fails**
 
 Run: `npx vitest run src/shared/task-rollover.test.ts`
 Expected: FAIL — cannot resolve `./task-rollover`.
 
-- [ ] **Step 3: Create `src/shared/task-rollover.ts`**
+- [x] **Step 3: Create `src/shared/task-rollover.ts`**
 
 ```ts
 import type { Task, TaskBlock } from './ipc-types'
@@ -2799,12 +2799,12 @@ export function pushCount(blockId: string, blocks: TaskBlock[]): number {
 
 Note the suggestion adds exactly 24 hours rather than reconstructing a local wall-clock time. Across a DST boundary that shifts the suggested hour by one; the user sees and confirms every suggestion, so it is visible rather than silent. Reconstructing local time is the fix if it ever matters.
 
-- [ ] **Step 4: Run it and confirm it passes**
+- [x] **Step 4: Run it and confirm it passes**
 
 Run: `npx vitest run src/shared/task-rollover.test.ts`
 Expected: PASS, 10 tests.
 
-- [ ] **Step 5: Write the failing SweepModal test**
+- [x] **Step 5: Write the failing SweepModal test**
 
 Create `src/renderer/components/tasks/SweepModal.test.tsx`:
 
@@ -2863,12 +2863,12 @@ describe('SweepModal', () => {
 })
 ```
 
-- [ ] **Step 6: Run it and confirm it fails**
+- [x] **Step 6: Run it and confirm it fails**
 
 Run: `npx vitest run src/renderer/components/tasks/SweepModal.test.tsx`
 Expected: FAIL — cannot resolve `./SweepModal`.
 
-- [ ] **Step 7: Create `src/renderer/components/tasks/SweepModal.tsx`**
+- [x] **Step 7: Create `src/renderer/components/tasks/SweepModal.tsx`**
 
 ```tsx
 import type { StaleBlock } from '../../../shared/task-rollover'
@@ -2923,12 +2923,12 @@ export function SweepModal({ items, pushCounts, onApply, onClose }: Props) {
 }
 ```
 
-- [ ] **Step 8: Run it and confirm it passes**
+- [x] **Step 8: Run it and confirm it passes**
 
 Run: `npx vitest run src/renderer/components/tasks/SweepModal.test.tsx`
 Expected: PASS, 4 tests.
 
-- [ ] **Step 9: Wire the sweep into `TasksView`**
+- [x] **Step 9: Wire the sweep into `TasksView`**
 
 Add a "Review unfinished" button in the capture row that opens the modal, computed from `sweepDay`:
 
@@ -3100,7 +3100,7 @@ Add to `TasksView.css`:
 }
 ```
 
-- [ ] **Step 10: Verify by hand, then commit**
+- [x] **Step 10: Verify by hand, then commit**
 
 Run: `npm run dev` — schedule a block in the past (drag one to an early hour), leave it open, and confirm the review button appears. Roll it over and check the new block lands tomorrow with a push count of 1 on the next sweep.
 
