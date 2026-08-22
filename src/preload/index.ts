@@ -15,6 +15,7 @@ import type {
   SessionPreset, SessionPresetCreate, PresetLaunchOptions, PresetLaunchResult,
   SessionSummary, SaveSummaryOptions,
   KanbanColumn,
+  Task, TaskBlock, TaskBlockInput, TaskCreate, TasksFile,
 } from '../shared/ipc-types'
 
 const api = {
@@ -346,6 +347,26 @@ const api = {
     ipcRenderer.invoke('kanban:save-columns', columns),
   kanbanMoveSession: (sessionId: string, columnId: string): Promise<void> =>
     ipcRenderer.invoke('kanban:move-session', sessionId, columnId),
+
+  // Tasks
+  tasksGetAll: (): Promise<TasksFile> =>
+    ipcRenderer.invoke('tasks:get-all'),
+  tasksCreate: (input: TaskCreate): Promise<Task> =>
+    ipcRenderer.invoke('tasks:create', input),
+  tasksUpdate: (id: string, partial: Partial<Task>): Promise<Task | null> =>
+    ipcRenderer.invoke('tasks:update', id, partial),
+  tasksDelete: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('tasks:delete', id),
+  tasksSaveColumns: (columns: KanbanColumn[]): Promise<KanbanColumn[]> =>
+    ipcRenderer.invoke('tasks:save-columns', columns),
+  tasksSetBlock: (input: TaskBlockInput): Promise<TaskBlock> =>
+    ipcRenderer.invoke('tasks:set-block', input),
+  tasksDeleteBlock: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('tasks:delete-block', id),
+  tasksBatchBlocks: (inputs: TaskBlockInput[]): Promise<TaskBlock[]> =>
+    ipcRenderer.invoke('tasks:batch-blocks', inputs),
+  tasksFocus: (blockId: string, action: 'start' | 'stop'): Promise<TaskBlock | null> =>
+    ipcRenderer.invoke('tasks:focus', { blockId, action }),
 }
 
 contextBridge.exposeInMainWorld('api', api)
