@@ -400,6 +400,70 @@ export interface SaveSummaryOptions {
   sessionPtyId: string | null
 }
 
+// ── Tasks ──
+
+export interface TaskDelegation {
+  /** DevDock pty session id. */
+  sessionId: string
+  claudeSessionId: string | null
+  worktreePath: string | null
+  branchName: string | null
+  launchedAt: number
+  prompt: string
+}
+
+export interface Task {
+  id: string
+  title: string
+  notes?: string
+  /** 1 = highest. */
+  priority: 1 | 2 | 3 | 4
+  estimateMinutes?: number
+  status: 'open' | 'done' | 'dropped' | 'delegated'
+  dueAt?: number
+  /** Board column. Falls back to the first column when unset or dangling. */
+  columnId?: string
+  /** Absolute path of the DevDock project this task belongs to. Required to delegate. */
+  projectPath?: string
+  projectName?: string
+  delegation?: TaskDelegation
+  createdAt: number
+  updatedAt: number
+  completedAt?: number
+}
+
+export interface TaskBlock {
+  id: string
+  taskId: string
+  startsAt: number
+  endsAt: number
+  /** Non-null means the focus timer is running for this block. */
+  focusStartedAt?: number
+  /** Accumulated focus seconds, excluding any currently running stretch. */
+  focusSeconds: number
+  /** Block this one was rolled over from, for push-count provenance. */
+  rolledFrom?: string
+}
+
+export interface TasksFile {
+  version: 1
+  tasks: Task[]
+  blocks: TaskBlock[]
+  /** Task board columns — independent of the session Kanban's columns. */
+  columns: KanbanColumn[]
+}
+
+export type TaskCreate = Omit<Task, 'id' | 'createdAt' | 'updatedAt'>
+
+export interface TaskBlockInput {
+  /** Omit to create; supply to move or resize an existing block. */
+  id?: string
+  taskId: string
+  startsAt: number
+  endsAt: number
+  rolledFrom?: string
+}
+
 // ── Re-exports for convenience ──
 
 export type {
