@@ -20,15 +20,7 @@
 - **Do not modify** `KanbanPanel.tsx`, `KanbanColumn.tsx`, `KanbanCard.tsx`, `kanban-manager.ts`, `useKanban.ts`, or `ActiveSession.columnId`.
 - **Priority is `1 | 2 | 3 | 4`**, 1 highest, default 3.
 - **IPC channel prefix is `tasks:`** with a colon, matching `kanban:`.
-- Run the full suite with `npx vitest run` before every commit. **The repo is not green at baseline:** as of `f7ce879` it has **4 pre-existing failures in 2 files** (`SettingsModal.test.tsx` and one other) out of 433 tests, and `npx tsc --noEmit` emits ~60 lines of pre-existing errors in `pipeline-manager.ts`, `App.tsx`, `AkeylessView.tsx`, `pty-manager.test.ts`, and `__mocks__/node-pty.ts`. The bar is therefore **no new failures and no new type errors**, not zero. Compare against a clean checkout when in doubt:
-
-  ```bash
-  git worktree add /tmp/baseline f7ce879
-  ln -s "$PWD/node_modules" /tmp/baseline/node_modules
-  cd /tmp/baseline && npx vitest run
-  ```
-
-  Fixing the pre-existing failures is out of scope for this plan.
+- Run the full suite with `npx vitest run` before every commit. **The suite is green as of `f199b32` (521 passing).** It was not green when this plan was written — 4 tests in `NewSessionModal.test.tsx` and `SettingsModal.test.tsx` were failing on stale assertions; those were repaired in `f199b32`. `npx tsc --noEmit` still emits ~60 lines of pre-existing errors in `pipeline-manager.ts`, `App.tsx`, `AkeylessView.tsx`, `pty-manager.test.ts`, and `__mocks__/node-pty.ts`, which remain out of scope. So: **the test suite must stay fully green, and no new type errors.**
 
 ---
 
