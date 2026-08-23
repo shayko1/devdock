@@ -1,0 +1,19 @@
+# GitHub Pages builds this directory as the public DevDock site (index.html).
+#
+# Internal engineering docs under superpowers/ are not part of that site —
+# nothing in index.html links to them, and they only ever appeared on it by
+# accident. They are also actively hostile to Jekyll: specs and plans quote
+# real source, and JSX like `style={{ top: ... }}` is read by Liquid as an
+# unterminated `{{ variable }}`, which fails the whole Pages build. That is
+# what broke the build on 30ae1e3.
+#
+# Excluding the directory decouples the public site from whatever we write in
+# internal docs, so a future spec containing Liquid-like syntax cannot take
+# the site down. Anything meant to be published belongs outside superpowers/.
+#
+# theme is set explicitly because adding this file makes Jekyll stop falling
+# back to the Pages default, and docs/plans/*.md are rendered with it today.
+theme: jekyll-theme-primer
+
+exclude:
+  - superpowers
