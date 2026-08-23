@@ -52,13 +52,13 @@ describe('TaskCard', () => {
 
   it('shows when the work is scheduled instead of "unscheduled"', () => {
     renderCard({ block: makeBlock() })
-    expect(screen.getByText('Today 14:00–15:00')).toBeTruthy()
+    expect(screen.getByText('Today 14:00')).toBeTruthy()
     expect(screen.queryByText('Unscheduled')).toBeNull()
   })
 
   it('labels a block on another day relatively', () => {
     renderCard({ block: makeBlock({ startsAt: at(9) + 86_400_000, endsAt: at(10) + 86_400_000 }) })
-    expect(screen.getByText('Tomorrow 09:00–10:00')).toBeTruthy()
+    expect(screen.getByText('Tomorrow 09:00')).toBeTruthy()
   })
 
   it('shows a live elapsed timer while the block is running', () => {

@@ -1,6 +1,6 @@
 import React from 'react'
 import type { Task, TaskBlock } from '../../../shared/ipc-types'
-import { formatDuration, formatElapsed, formatTimeRange, dayLabel, isOverdue } from '../../../shared/task-format'
+import { formatClock, formatDuration, formatElapsed, dayLabel, isOverdue } from '../../../shared/task-format'
 import { focusElapsedSeconds } from '../../../shared/task-time'
 
 interface Props {
@@ -41,9 +41,11 @@ export function TaskCard({ task, block, pushedCount = 0, now, onToggleDone, onDe
       </span>
     )
   } else if (block) {
+    // Start time only. The full range does not fit a narrow column, and the
+    // canvas block already carries the duration.
     facts.push(
       <span className="task-card-when" key="when">
-        {dayLabel(block.startsAt, now)} {formatTimeRange(block.startsAt, block.endsAt)}
+        {dayLabel(block.startsAt, now)} {formatClock(block.startsAt)}
       </span>
     )
   } else if (!done && task.status !== 'delegated') {
@@ -100,12 +102,9 @@ export function TaskCard({ task, block, pushedCount = 0, now, onToggleDone, onDe
           >
             P{task.priority}
           </span>
-          {facts.map((fact, i) => (
-            <React.Fragment key={i}>
-              <span className="task-card-sep" aria-hidden="true">·</span>
-              {fact}
-            </React.Fragment>
-          ))}
+          {/* Separators are drawn in CSS between siblings, so a narrow column
+              can never leave a dangling dot at the end of a wrapped line. */}
+          {facts}
         </div>
       </div>
 

@@ -236,6 +236,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .tasks-column-empty {
@@ -274,7 +275,14 @@
   border-color: color-mix(in srgb, var(--green) 55%, transparent);
 }
 
-.task-card-done { opacity: 0.55; cursor: default; }
+/* Finished work stops shouting: the urgency rail is dropped once it's done.
+   Declared after the priority rules so it wins at equal specificity. */
+.task-card-done {
+  opacity: 0.55;
+  cursor: default;
+  border-left: 1px solid var(--border);
+}
+
 .task-card-done .task-card-title { text-decoration: line-through; }
 
 .task-card-check {
@@ -292,17 +300,35 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * Wrapping needs both halves of this to be right.
+ *
+ * The separator is generated on the fact that follows it, so it travels with
+ * that fact and can never be stranded at the end of a wrapped line — which is
+ * what happened when the dots were their own elements.
+ *
+ * The container stays flex because the facts are rendered adjacent with no
+ * whitespace between them. In normal inline flow that means no soft-wrap
+ * opportunity at all, and the row overflowed and clipped instead of wrapping.
+ * Flex items wrap without needing whitespace.
+ */
 .task-card-meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 5px;
+  row-gap: 2px;
   margin-top: 5px;
   font-size: 11px;
   color: var(--text-muted);
 }
 
-.task-card-sep { color: var(--border); }
+.task-card-meta > * { white-space: nowrap; }
+
+.task-card-meta > * + *::before {
+  content: '·';
+  margin: 0 5px;
+  color: var(--border);
+}
 
 .task-card-priority {
   font-family: var(--task-mono);
