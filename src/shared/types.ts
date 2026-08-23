@@ -31,7 +31,7 @@ export interface AppState {
   chatInputEnabled?: boolean
   defaultModel?: string
   workspaceChosen?: boolean
-  activeTab?: 'launchpad' | 'folders' | 'claude' | 'agents' | 'db-access'
+  activeTab?: 'launchpad' | 'folders' | 'claude' | 'agents' | 'db-access' | 'tasks'
   selectedProjectId?: string | null
   kanbanColumns?: KanbanColumn[]
 }

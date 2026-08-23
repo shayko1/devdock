@@ -1,0 +1,333 @@
+.tasks-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tasks-view-loading {
+  padding: 24px;
+  color: var(--text-secondary);
+}
+
+.tasks-board {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  overflow-x: auto;
+  align-items: flex-start;
+}
+
+.tasks-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 240px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.tasks-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tasks-column-name {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.tasks-column-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.tasks-capture {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tasks-capture-input {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.tasks-capture-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.tasks-capture-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.tasks-column-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  min-height: 40px;
+}
+
+.task-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 8px 8px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 4px;
+  cursor: grab;
+}
+
+.task-card-p1 { border-left-color: var(--red); }
+.task-card-p2 { border-left-color: var(--orange); }
+.task-card-p3 { border-left-color: var(--border); }
+.task-card-p4 { border-left-color: transparent; }
+
+.task-card-done { opacity: 0.5; }
+.task-card-done .task-card-title { text-decoration: line-through; }
+
+.task-card-body { flex: 1; min-width: 0; }
+
+.task-card-title {
+  font-size: 13px;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.task-card-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.task-card-delegated { color: var(--purple); }
+
+.task-card-delete {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.task-card:hover .task-card-delete { color: var(--text-primary); }
+
+.tasks-panes {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.tasks-panes .tasks-board {
+  flex: 1;
+  min-width: 0;
+}
+
+.day-canvas {
+  width: 320px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.day-canvas-grid {
+  position: relative;
+}
+
+.day-canvas-hour {
+  position: relative;
+  height: 60px;
+  border-bottom: 1px solid var(--border);
+}
+
+.day-canvas-hour-label {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.day-canvas-busy,
+.day-canvas-block {
+  position: absolute;
+  left: 48px;
+  right: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.day-canvas-busy {
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border);
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 2px 4px;
+}
+
+.day-canvas-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 3px 5px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  cursor: grab;
+  user-select: none;
+}
+
+.day-canvas-block-title { flex: 1; min-width: 0; }
+
+.day-canvas-block-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.day-canvas-block-resize {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.tasks-sweep-btn {
+  align-self: flex-start;
+  margin: 0 12px 8px;
+  padding: 5px 10px;
+  font-size: 11px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--orange);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sweep-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 100;
+}
+
+.sweep-modal {
+  width: 480px;
+  max-width: calc(100vw - 48px);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sweep-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sweep-modal-header button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.sweep-modal-body {
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.sweep-empty {
+  padding: 20px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.sweep-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sweep-row:last-child { border-bottom: none; }
+
+.sweep-row-info { min-width: 0; }
+
+.sweep-row-title {
+  font-size: 13px;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.sweep-row-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.sweep-pushed { color: var(--orange); }
+
+.sweep-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sweep-row-actions button {
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sweep-row-actions button:hover { background: var(--bg-tertiary); }

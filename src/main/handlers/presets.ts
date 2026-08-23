@@ -1,22 +1,8 @@
 import { ipcMain } from 'electron'
 import { presetManager, SessionPreset, SessionPresetCreate } from '../preset-manager'
-import { ptyManager } from '../pty-manager'
-import { loadState } from '../store'
-import { ensureDevDockClaudeMd } from '../claude-md'
-import { resolveClaudeLaunch } from '../claude-launch'
-import { statuslineWatcher } from '../statusline-watcher'
-import { execSync } from 'child_process'
-import { join } from 'path'
-import { homedir } from 'os'
-import { mkdirSync } from 'fs'
+import { launchClaudeSession } from '../session-launcher'
 
-/**
- * IPC handlers for session preset CRUD and launch.
- *
- * Note: execSync usage here mirrors the existing session.ts pattern.
- * All interpolated values (branch names, paths) are derived from the
- * filesystem — not from untrusted user input.
- */
+/** IPC handlers for session preset CRUD and launch. */
 export function registerPresetHandlers() {
   ipcMain.handle('preset-list', () => {
     return presetManager.getAll()
@@ -51,88 +37,20 @@ export function registerPresetHandlers() {
       return { success: false, error: 'Preset not found' }
     }
 
-    let worktreePath: string | null = null
-    let branchName: string | null = null
-
-    if (preset.useWorktree) {
-      let isGitRepo = false
-      try {
-        execSync('git rev-parse --is-inside-work-tree', {
-          cwd: preset.projectPath, encoding: 'utf-8', timeout: 3000,
-          stdio: ['ignore', 'pipe', 'ignore']
-        })
-        isGitRepo = true
-      } catch { /* not a git repo */ }
-
-      if (isGitRepo) {
-        try {
-          const baseBranch = execSync('git rev-parse --abbrev-ref HEAD', {
-            cwd: preset.projectPath, encoding: 'utf-8', timeout: 3000,
-            stdio: ['ignore', 'pipe', 'ignore']
-          }).trim()
-
-          const timestamp = Date.now().toString(36)
-          const slug = preset.projectName.replace(/[^a-zA-Z0-9-_]/g, '-').toLowerCase()
-          const worktreeBase = join(homedir(), '.devdock', 'worktrees', slug)
-          worktreePath = join(worktreeBase, timestamp, 'worktree')
-          branchName = `devdock/claude-${slug}-${timestamp}`
-
-          mkdirSync(join(worktreeBase, timestamp), { recursive: true })
-          execSync(
-            `git worktree add -b "${branchName}" "${worktreePath}" "${baseBranch}"`,
-            { cwd: preset.projectPath, encoding: 'utf-8', timeout: 15000, stdio: ['ignore', 'pipe', 'pipe'] }
-          )
-        } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : String(err)
-          return { success: false, error: message }
-        }
-      }
-    }
-
-    const sessionCwd = worktreePath || preset.projectPath
-    const currentState = loadState()
-    ensureDevDockClaudeMd(sessionCwd, currentState.rtkEnabled)
-
-    const permFlag = preset.dangerousMode ? ' --dangerously-skip-permissions' : ''
-    const modelFlag = preset.model ? ` --model ${preset.model}` : ''
-
-    // Preset launches always start a new conversation, so this claims a fresh
-    // session id rather than resuming one.
-    const launch = resolveClaudeLaunch({
-      cwd: sessionCwd,
-      flags: `${modelFlag}${permFlag}`,
+    const result = launchClaudeSession({
+      sessionId: opts.sessionId,
+      projectPath: preset.projectPath,
+      projectName: preset.projectName,
+      useWorktree: preset.useWorktree,
+      dangerousMode: preset.dangerousMode,
+      model: preset.model,
+      initialCommands: preset.initialCommands,
     })
 
-    const result = ptyManager.createSession(
-      opts.sessionId,
-      preset.projectName,
-      preset.projectPath,
-      worktreePath,
-      branchName,
-      launch.command
-    )
-
     if (result.success) {
-      statuslineWatcher.watchSession(opts.sessionId)
       presetManager.recordUsage(opts.presetId)
-
-      // Run initial commands after a brief delay to let the shell start
-      if (preset.initialCommands && preset.initialCommands.length > 0) {
-        const commands = preset.initialCommands.filter(c => c.trim().length > 0)
-        if (commands.length > 0) {
-          setTimeout(() => {
-            for (const cmd of commands) {
-              ptyManager.write(opts.sessionId, cmd + '\n')
-            }
-          }, 1500)
-        }
-      }
     }
 
-    return {
-      ...result,
-      claudeSessionId: launch.claudeSessionId,
-      preset,
-    }
+    return { ...result, preset }
   })
 }
