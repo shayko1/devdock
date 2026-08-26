@@ -102,6 +102,18 @@
   cursor: grabbing;
 }
 
+/* Collapsed column acting as its own drop zone — same cue as .kanban-column-body
+   so a fold-away column reads as droppable rather than inert. */
+.kanban-column-header.drag-over {
+  background: var(--bg-tertiary);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  border-radius: 4px;
+}
+.kanban-column-header.drag-over .kanban-column-count {
+  background: var(--accent);
+  color: #fff;
+}
+
 /* "Doesn't load on startup" marker */
 .kanban-column-manual {
   display: inline-flex;

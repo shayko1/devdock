@@ -153,6 +153,33 @@ export function KanbanColumnSection({
     if (sessionId) onDrop(sessionId, column.id)
   }
 
+  // A collapsed column has no body, so the header stands in as its drop zone.
+  // Without this a collapsed column is simply not a drop target, and the only
+  // way to file a card into one is to expand it first.
+
+  const handleHeaderDragOver = (e: React.DragEvent) => {
+    if (!collapsed || isColumnDrag(e)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setIsDragOver(true)
+  }
+
+  const handleHeaderDragLeave = (e: React.DragEvent) => {
+    // The header has children; ignore the leaves fired while crossing them.
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+    setIsDragOver(false)
+  }
+
+  const handleHeaderDrop = (e: React.DragEvent) => {
+    if (!collapsed || isColumnDrag(e)) return
+    e.preventDefault()
+    setIsDragOver(false)
+    const sessionId = e.dataTransfer.getData('text/plain')
+    // Stays collapsed on purpose — filing a card away should not unfold the
+    // column you were keeping shut. The count badge is the confirmation.
+    if (sessionId) onDrop(sessionId, column.id)
+  }
+
   const handleCardDragStart = (e: React.DragEvent, sessionId: string) => {
     e.dataTransfer.setData('text/plain', sessionId)
     e.dataTransfer.effectAllowed = 'move'
@@ -215,10 +242,13 @@ export function KanbanColumnSection({
       onDrop={handleColumnDrop}
     >
       <div
-        className="kanban-column-header"
+        className={`kanban-column-header ${collapsed && isDragOver ? 'drag-over' : ''}`}
         draggable={!renaming}
         onDragStart={handleColumnDragStart}
         onDragEnd={handleColumnDragEnd}
+        onDragOver={handleHeaderDragOver}
+        onDragLeave={handleHeaderDragLeave}
+        onDrop={handleHeaderDrop}
         onContextMenu={handleContextMenu}
         onDoubleClick={startRename}
         title="Drag to reorder · double-click to rename · right-click for options"
