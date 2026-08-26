@@ -13,6 +13,8 @@ interface Props {
     initializing?: boolean
     title?: string
     titleManual?: boolean
+    dormant?: boolean
+    loading?: boolean
   }
   isActive: boolean
   isWaiting: boolean
@@ -23,6 +25,8 @@ interface Props {
   onSelect: (id: string) => void
   onClose: (id: string, e: React.MouseEvent) => void
   onResume: (id: string) => void
+  /** Starts the PTY for a session parked in a manual-load column. */
+  onLoad: (id: string) => void
   onRename: (id: string, title: string) => void
   onRegenerateTitle: (id: string) => void
   onResetTitle: (id: string) => void
@@ -39,6 +43,7 @@ export function KanbanCard({
   onSelect,
   onClose,
   onResume,
+  onLoad,
   onRename,
   onRegenerateTitle,
   onResetTitle,
@@ -46,6 +51,8 @@ export function KanbanCard({
 }: Props) {
   const isExited = !!session.exited
   const isInitializing = !!session.initializing
+  const isDormant = !!session.dormant
+  const isLoading = !!session.loading
   const label = session.title || session.folderName
   /** Only show the folder sub-line once the card is showing something else on top. */
   const showProject = !!session.title && session.title !== session.folderName
@@ -93,14 +100,14 @@ export function KanbanCard({
 
   return (
     <div
-      className={`kanban-card ${isActive ? 'active' : ''} ${isExited ? 'exited' : ''} ${isWaiting ? 'waiting' : ''}`}
+      className={`kanban-card ${isActive ? 'active' : ''} ${isExited ? 'exited' : ''} ${isDormant ? 'dormant' : ''} ${isWaiting ? 'waiting' : ''}`}
       draggable={!renaming}
       onDragStart={(e) => onDragStart(e, session.id)}
       onClick={() => { if (!renaming) onSelect(session.id) }}
       onContextMenu={handleContextMenu}
     >
       <div className="kanban-card-row1">
-        <span className={`sidebar-status-dot ${isExited ? 'exited' : isWaiting ? 'waiting' : 'active'}`} />
+        <span className={`sidebar-status-dot ${isExited || isDormant ? 'exited' : isWaiting ? 'waiting' : 'active'}`} />
         {renaming ? (
           <input
             ref={inputRef}
@@ -151,7 +158,7 @@ export function KanbanCard({
         </div>
       )}
       <div className="kanban-card-badges">
-        {!isExited && (
+        {!isExited && !isDormant && (
           <ResourceBadge
             metrics={metrics ?? null}
             isLoading={isResourceLoading}
@@ -165,7 +172,7 @@ export function KanbanCard({
             </span>
           </span>
         )}
-        {!isExited && !isWaiting && !isInitializing && (
+        {!isExited && !isDormant && !isWaiting && !isInitializing && (
           <span className="sidebar-badge-thinking">
             Thinking
             <span className="thinking-dots">
@@ -173,10 +180,26 @@ export function KanbanCard({
             </span>
           </span>
         )}
-        {session.dangerousMode && (
+        {isDormant && (
+          isLoading ? (
+            <span className="sidebar-badge-thinking">
+              Loading
+              <span className="thinking-dots"><span /><span /><span /></span>
+            </span>
+          ) : (
+            <button
+              className="sidebar-badge-resume"
+              onClick={(e) => { e.stopPropagation(); onLoad(session.id) }}
+              title="Start this session and resume its conversation"
+            >
+              Load
+            </button>
+          )
+        )}
+        {session.dangerousMode && !isDormant && (
           <span className="sidebar-badge-unsafe" title="Dangerous mode">UNSAFE</span>
         )}
-        {isWaiting && (
+        {isWaiting && !isDormant && (
           <span className="sidebar-badge-waiting">Waiting</span>
         )}
         {isExited && session.claudeSessionId && (

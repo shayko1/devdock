@@ -88,6 +88,7 @@ export function App() {
     sessions: claudeSessions,
     startSession: handleStartClaudeSession,
     resumeSession: handleResumeClaudeSession,
+    loadSession: handleLoadClaudeSession,
     openPipelineSession: handleOpenPipelineSession,
     resumeFromHistory: handleResumeFromHistory,
     closeSession: handleCloseClaudeSession,
@@ -487,6 +488,7 @@ export function App() {
             onNewSession={() => setShowNewSession(true)}
             onCloseSession={handleCloseClaudeSession}
             onResumeSession={handleResumeClaudeSession}
+            onLoadSession={handleLoadClaudeSession}
             onResumeFromHistory={handleResumeFromHistory}
             onOpenPipelineSession={handleOpenPipelineSession}
             onLaunchPreset={handleLaunchPreset}

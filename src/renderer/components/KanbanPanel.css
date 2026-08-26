@@ -60,9 +60,30 @@
 
 /* ── Column ── */
 .kanban-column {
+  position: relative;
   display: flex;
   flex-direction: column;
   border-bottom: 1px solid var(--border);
+}
+
+/* Insertion line shown while another column is dragged over this one. */
+.kanban-column.drop-before::before,
+.kanban-column.drop-after::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  z-index: 3;
+  pointer-events: none;
+}
+.kanban-column.drop-before::before { top: -1px; }
+.kanban-column.drop-after::after { bottom: -1px; }
+
+.kanban-column.dragging {
+  opacity: 0.45;
 }
 
 .kanban-column-header {
@@ -74,8 +95,20 @@
   gap: 6px;
   padding: 6px 8px;
   background: var(--bg-secondary);
-  cursor: default;
+  cursor: grab;
   user-select: none;
+}
+.kanban-column-header:active {
+  cursor: grabbing;
+}
+
+/* "Doesn't load on startup" marker */
+.kanban-column-manual {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  opacity: 0.75;
 }
 
 .kanban-column-toggle {
@@ -287,6 +320,17 @@
 }
 .kanban-card.exited:hover {
   opacity: 0.8;
+}
+
+/* Parked by a manual-load column — present, but nothing is running. */
+.kanban-card.dormant {
+  opacity: 0.65;
+}
+.kanban-card.dormant:hover {
+  opacity: 1;
+}
+.kanban-card.dormant .kanban-card-name {
+  font-weight: 500;
 }
 
 .kanban-card[draggable='true']:active {

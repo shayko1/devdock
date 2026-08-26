@@ -2,6 +2,12 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { KanbanCard } from './KanbanCard'
 import type { KanbanColumn, SessionMetrics } from '../../shared/ipc-types'
 
+/**
+ * Drag payload key for a column being reordered. Session cards drag as
+ * `text/plain`, so the two gestures never get confused for one another.
+ */
+export const COLUMN_DRAG_TYPE = 'application/x-devdock-column'
+
 export interface KanbanSession {
   id: string
   folderName: string
@@ -13,6 +19,10 @@ export interface KanbanSession {
   columnId?: string
   title?: string
   titleManual?: boolean
+  /** Parked in a manual-load column: no PTY yet, the card offers "Load". */
+  dormant?: boolean
+  /** A dormant session whose PTY is currently being started. */
+  loading?: boolean
 }
 
 interface Props {
@@ -30,10 +40,15 @@ interface Props {
   onRegenerateSessionTitle: (id: string) => void
   onResetSessionTitle: (id: string) => void
   onDrop: (sessionId: string, columnId: string) => void
+  /** Starts a dormant session's PTY on demand. */
+  onLoadSession: (id: string) => void
   onRename: (columnId: string, name: string) => void
   onDelete: (columnId: string) => void
   onMoveUp: (columnId: string) => void
   onMoveDown: (columnId: string) => void
+  /** Drops the dragged column immediately before or after this one. */
+  onReorder: (draggedId: string, targetId: string, place: 'before' | 'after') => void
+  onToggleManualLoad: (columnId: string) => void
   isFirst: boolean
   isLast: boolean
 }
@@ -53,15 +68,20 @@ export function KanbanColumnSection({
   onRegenerateSessionTitle,
   onResetSessionTitle,
   onDrop,
+  onLoadSession,
   onRename,
   onDelete,
   onMoveUp,
   onMoveDown,
+  onReorder,
+  onToggleManualLoad,
   isFirst,
   isLast,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [dropEdge, setDropEdge] = useState<'before' | 'after' | null>(null)
+  const [isDraggingSelf, setIsDraggingSelf] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [nameValue, setNameValue] = useState(column.name)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
@@ -107,7 +127,14 @@ export function KanbanColumnSection({
     setContextMenu(null)
   }
 
+  const isColumnDrag = (e: React.DragEvent) =>
+    e.dataTransfer.types.includes(COLUMN_DRAG_TYPE)
+
+  // ── Session card drops (column body) ──
+
   const handleDragOver = (e: React.DragEvent) => {
+    // Let a column drag bubble to the wrapper, which handles reordering.
+    if (isColumnDrag(e)) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     setIsDragOver(true)
@@ -116,6 +143,7 @@ export function KanbanColumnSection({
   const handleDragLeave = () => setIsDragOver(false)
 
   const handleDropZone = (e: React.DragEvent) => {
+    if (isColumnDrag(e)) return
     e.preventDefault()
     setIsDragOver(false)
     const sessionId = e.dataTransfer.getData('text/plain')
@@ -127,12 +155,70 @@ export function KanbanColumnSection({
     e.dataTransfer.effectAllowed = 'move'
   }
 
+  // ── Column reordering (whole column is the drop zone) ──
+
+  const handleColumnDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData(COLUMN_DRAG_TYPE, column.id)
+    // Some browsers refuse a drag with no text/plain; keep it human-readable.
+    e.dataTransfer.setData('text/plain', '')
+    e.dataTransfer.effectAllowed = 'move'
+    setIsDraggingSelf(true)
+  }
+
+  const handleColumnDragEnd = () => {
+    setIsDraggingSelf(false)
+    setDropEdge(null)
+  }
+
+  /** Which half of this column the cursor sits in — the insertion side. */
+  const edgeAt = (e: React.DragEvent): 'before' | 'after' => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    return e.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+  }
+
+  const handleColumnDragOver = (e: React.DragEvent) => {
+    if (!isColumnDrag(e) || isDraggingSelf) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDropEdge(edgeAt(e))
+  }
+
+  const handleColumnDragLeave = (e: React.DragEvent) => {
+    // Ignore the leave events fired while crossing this column's own children.
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+    setDropEdge(null)
+  }
+
+  const handleColumnDrop = (e: React.DragEvent) => {
+    if (!isColumnDrag(e)) return
+    e.preventDefault()
+    const draggedId = e.dataTransfer.getData(COLUMN_DRAG_TYPE)
+    // Read the edge off the drop event itself — the indicator state can lag a
+    // render behind on a fast drop.
+    const place = edgeAt(e)
+    setDropEdge(null)
+    if (draggedId) onReorder(draggedId, column.id, place)
+  }
+
   return (
-    <div className="kanban-column">
+    <div
+      className={[
+        'kanban-column',
+        isDraggingSelf ? 'dragging' : '',
+        dropEdge ? `drop-${dropEdge}` : '',
+      ].filter(Boolean).join(' ')}
+      onDragOver={handleColumnDragOver}
+      onDragLeave={handleColumnDragLeave}
+      onDrop={handleColumnDrop}
+    >
       <div
         className="kanban-column-header"
+        draggable={!renaming}
+        onDragStart={handleColumnDragStart}
+        onDragEnd={handleColumnDragEnd}
         onContextMenu={handleContextMenu}
         onDoubleClick={startRename}
+        title="Drag to reorder · double-click to rename · right-click for options"
       >
         <button
           className="kanban-column-toggle"
@@ -160,6 +246,16 @@ export function KanbanColumnSection({
             {column.name}
           </span>
         )}
+        {column.manualLoad && (
+          <span
+            className="kanban-column-manual"
+            title="Sessions here stay unloaded on startup until you open them"
+          >
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM.5 8a7.5 7.5 0 1 1 15 0 7.5 7.5 0 0 1-15 0zM6 5.25c0-.14.11-.25.25-.25h1c.14 0 .25.11.25.25v5.5a.25.25 0 0 1-.25.25h-1a.25.25 0 0 1-.25-.25v-5.5zm2.5 0c0-.14.11-.25.25-.25h1c.14 0 .25.11.25.25v5.5a.25.25 0 0 1-.25.25h-1a.25.25 0 0 1-.25-.25v-5.5z"/>
+            </svg>
+          </span>
+        )}
         <span className="kanban-column-count">{sessions.length}</span>
         {contextMenu && (
           <div
@@ -174,6 +270,12 @@ export function KanbanColumnSection({
             {!isLast && (
               <button onClick={() => { onMoveDown(column.id); setContextMenu(null) }}>Move Down</button>
             )}
+            <button
+              onClick={() => { onToggleManualLoad(column.id); setContextMenu(null) }}
+              title="Keep these conversations on disk and off the CPU until you open them"
+            >
+              {column.manualLoad ? '✓ ' : ''}Don't load on startup
+            </button>
             <button className="danger" onClick={handleDelete}>Delete</button>
           </div>
         )}
@@ -200,6 +302,7 @@ export function KanbanColumnSection({
                 onSelect={onSelectSession}
                 onClose={onCloseSession}
                 onResume={onResumeSession}
+                onLoad={onLoadSession}
                 onRename={onRenameSession}
                 onRegenerateTitle={onRegenerateSessionTitle}
                 onResetTitle={onResetSessionTitle}

@@ -194,6 +194,12 @@ export interface KanbanColumn {
   name: string
   order: number
   color?: string
+  /**
+   * Parking column: sessions here are *not* started when DevDock launches.
+   * Their card and transcript survive, but no PTY is spawned and Claude is not
+   * resumed until the user loads the card by hand. Absent/false restores as usual.
+   */
+  manualLoad?: boolean
 }
 
 // ── Session history ──

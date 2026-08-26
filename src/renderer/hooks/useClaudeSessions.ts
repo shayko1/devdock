@@ -17,6 +17,13 @@ export interface ClaudeSession {
   titleManual?: boolean
   initializing?: boolean
   columnId?: string
+  /**
+   * Restored into a manual-load column, so no PTY was spawned. The transcript
+   * is intact on disk; `loadSession` starts it when the user asks.
+   */
+  dormant?: boolean
+  /** A dormant session whose PTY is being started right now. */
+  loading?: boolean
 }
 
 interface UseClaudeSessionsOptions {
@@ -45,12 +52,37 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
       if (saved.length === 0) return
       onSessionActivated?.()
 
+      // Columns flagged manual-load park their sessions instead of starting
+      // them. If the lookup fails we fall back to restoring everything, which
+      // is the old behaviour — never silently drop a session.
+      let manualColumns = new Set<string>()
+      try {
+        const cols = await window.api.kanbanGetColumns()
+        manualColumns = new Set(cols.filter(c => c.manualLoad).map(c => c.id))
+      } catch { /* restore everything */ }
+
       // Restore all sessions first, then batch-add to state so the
       // active-session effect can find the preferred session in one pass.
       // IMPORTANT: reuse the original session id so ChatInputBar's per-session
       // cache (model, effort, context) rehydrates correctly.
       const restored: ClaudeSession[] = []
       for (const rec of saved) {
+        if (rec.columnId && manualColumns.has(rec.columnId)) {
+          restored.push({
+            id: rec.id,
+            folderName: rec.folderName,
+            folderPath: rec.folderPath,
+            worktreePath: rec.worktreePath ?? null,
+            branchName: rec.branchName ?? null,
+            claudeSessionId: rec.claudeSessionId ?? null,
+            dangerousMode: rec.dangerousMode,
+            columnId: rec.columnId,
+            title: rec.title,
+            titleManual: rec.titleManual,
+            dormant: true,
+          })
+          continue
+        }
         try {
           const result = await window.api.ptyCreate({
             sessionId: rec.id,
@@ -244,6 +276,56 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
     }
   }, [sessions])
 
+  /**
+   * Start a session that was parked by a manual-load column. Reuses the
+   * original id so per-session UI state (chat model, effort, context) and the
+   * saved active-session record stay pointed at the same card.
+   */
+  const loadSession = useCallback(async (sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId)
+    if (!session?.dormant || session.loading) return
+
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, loading: true } : s))
+    try {
+      const result = await window.api.ptyCreate({
+        sessionId,
+        folderName: session.folderName,
+        folderPath: session.folderPath,
+        useWorktree: false,
+        resumeClaudeId: session.claudeSessionId || undefined,
+        existingWorktreePath: session.worktreePath || undefined,
+        dangerousMode: session.dangerousMode,
+      })
+      if (!result.success) {
+        setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, loading: false } : s))
+        alert(`Failed to load session: ${result.error}`)
+        return
+      }
+
+      const worktreePath = result.worktreePath ?? session.worktreePath
+      const branchName = result.branchName ?? session.branchName
+      setSessions(prev => prev.map(s => s.id === sessionId
+        ? { ...s, dormant: false, loading: false, exited: false, worktreePath, branchName }
+        : s
+      ))
+      window.api.activeSessionsSet({
+        id: sessionId,
+        claudeSessionId: session.claudeSessionId ?? null,
+        folderName: session.folderName,
+        folderPath: session.folderPath,
+        worktreePath,
+        branchName,
+        dangerousMode: session.dangerousMode,
+        columnId: session.columnId,
+        title: session.title,
+        titleManual: session.titleManual,
+      })
+    } catch (err) {
+      setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, loading: false } : s))
+      alert(`Error loading session: ${err}`)
+    }
+  }, [sessions])
+
   const openPipelineSession = useCallback(async (pipelineFolderName: string, pipelineFolderPath: string, worktreePath: string) => {
     const sessionId = `claude-${Date.now().toString(36)}`
     const isDangerous = dangerousMode
@@ -420,6 +502,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
     sessions,
     startSession,
     resumeSession,
+    loadSession,
     openPipelineSession,
     resumeFromHistory,
     closeSession,

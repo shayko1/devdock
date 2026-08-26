@@ -45,6 +45,10 @@ interface Session {
   titleManual?: boolean
   initializing?: boolean
   columnId?: string
+  /** Parked by a manual-load column — no PTY until the user loads it. */
+  dormant?: boolean
+  /** A dormant session whose PTY is being started right now. */
+  loading?: boolean
 }
 
 interface HistoryRecord {
@@ -70,6 +74,8 @@ interface Props {
   onNewSession: () => void
   onCloseSession: (sessionId: string) => void
   onResumeSession: (sessionId: string) => void
+  /** Starts a session parked in a manual-load column. */
+  onLoadSession: (sessionId: string) => void
   onResumeFromHistory: (claudeSessionId: string, folderName: string, folderPath: string, worktreePath?: string | null) => void
   onOpenPipelineSession?: (folderName: string, folderPath: string, worktreePath: string) => void
   onLaunchPreset?: (presetId: string) => void
@@ -88,7 +94,7 @@ interface Props {
 
 type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'mcp' | 'history' | 'resources' | 'presets' | 'summaries'
 
-export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, scanPath, onNewSession, onCloseSession, onResumeSession, onResumeFromHistory, onOpenPipelineSession, onLaunchPreset, onUpdateSessionColumn, onSetSessionTitle, onClearSessionTitle, titleGeneratingIds, onRegenerateSessionTitle, onWaitingSessionsChange }: Props) {
+export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, scanPath, onNewSession, onCloseSession, onResumeSession, onLoadSession, onResumeFromHistory, onOpenPipelineSession, onLaunchPreset, onUpdateSessionColumn, onSetSessionTitle, onClearSessionTitle, titleGeneratingIds, onRegenerateSessionTitle, onWaitingSessionsChange }: Props) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidePanel, setSidePanel] = useState<SidePanel>('none')
   const [viewingFile, setViewingFile] = useState<string | null>(null)
@@ -98,7 +104,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
   const [rtkDisabledSessions, setRtkDisabledSessions] = useState<Set<string>>(new Set())
   const [rtkAvailable, setRtkAvailable] = useState(false)
   const { snapshot: resourceSnapshot, getSessionMetrics, isLoading: resourceLoading } = useResourceMonitor()
-  const { columns, addColumn, renameColumn, deleteColumn, moveColumnUp, moveColumnDown, getSessionColumn } = useKanban()
+  const { columns, addColumn, renameColumn, deleteColumn, moveColumnUp, moveColumnDown, reorderColumn, toggleColumnManualLoad, getSessionColumn } = useKanban()
   const dragging = useRef(false)
   const bodyRef = useRef<HTMLDivElement>(null)
   const splitPaneToolbarRef = useRef<HTMLDivElement>(null)
@@ -163,19 +169,24 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
     // to matching by claudeSessionId, then to the last session.
     let cancelled = false
     const pick = async () => {
+      // Never auto-open a parked card while a live one exists — that would
+      // greet the user with a "Load conversation" wall instead of a terminal.
+      const live = sessions.filter(s => !s.dormant)
+      const candidates = live.length > 0 ? live : sessions
+
       let resolved: string | null = null
       try {
         const savedActiveId = await window.api.activeSessionsGetActiveId()
-        if (savedActiveId && sessions.find(s => s.id === savedActiveId)) {
+        if (savedActiveId && candidates.some(s => s.id === savedActiveId)) {
           resolved = savedActiveId
         }
       } catch { /* ignore */ }
       if (!resolved) {
         const savedClaudeId = localStorage.getItem('devdock-last-active-claude-session')
         const preferred = savedClaudeId
-          ? sessions.find(s => s.claudeSessionId === savedClaudeId)
+          ? candidates.find(s => s.claudeSessionId === savedClaudeId)
           : null
-        resolved = preferred?.id ?? sessions[sessions.length - 1].id
+        resolved = preferred?.id ?? candidates[candidates.length - 1].id
       }
       if (!cancelled) setActiveSessionId(resolved)
     }
@@ -433,6 +444,7 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
         onSelectSession={handleSelectSession}
         onCloseSession={handleClose}
         onResumeSession={onResumeSession}
+        onLoadSession={onLoadSession}
         onRenameSession={handleRenameSession}
         onRegenerateSessionTitle={onRegenerateSessionTitle}
         onResetSessionTitle={onClearSessionTitle}
@@ -442,6 +454,8 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
         onDeleteColumn={deleteColumn}
         onMoveColumnUp={moveColumnUp}
         onMoveColumnDown={moveColumnDown}
+        onReorderColumn={reorderColumn}
+        onToggleColumnManualLoad={toggleColumnManualLoad}
         onNewSession={onNewSession}
         onLaunchPreset={handleLaunchPreset}
         onShowAllPresets={togglePresets}
@@ -498,7 +512,24 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
               className={`claude-session-terminal-wrapper ${chatInputEnabled ? 'with-chat-input' : ''}`}
               style={{ display: activeSessionId === session.id ? 'flex' : 'none', flex: 1, minHeight: 0 }}
             >
-              {session.initializing ? (
+              {session.dormant ? (
+                <div className="claude-session-dormant">
+                  <div className="claude-session-dormant-title">
+                    {session.title || session.folderName}
+                  </div>
+                  <div className="claude-session-dormant-hint">
+                    This board column is set to not load on startup, so the
+                    conversation is still on disk and nothing is running.
+                  </div>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => onLoadSession(session.id)}
+                    disabled={session.loading}
+                  >
+                    {session.loading ? 'Loading…' : 'Load conversation'}
+                  </button>
+                </div>
+              ) : session.initializing ? (
                 <WorkspaceInitProgress
                   sessionId={session.id}
                   onReady={() => {

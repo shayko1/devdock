@@ -23,6 +23,8 @@ interface Props {
   onSelectSession: (id: string) => void
   onCloseSession: (id: string, e: React.MouseEvent) => void
   onResumeSession: (id: string) => void
+  /** Starts a dormant session parked in a manual-load column. */
+  onLoadSession: (id: string) => void
   onRenameSession: (id: string, title: string) => void
   onRegenerateSessionTitle: (id: string) => void
   onResetSessionTitle: (id: string) => void
@@ -32,6 +34,8 @@ interface Props {
   onDeleteColumn: (columnId: string) => void
   onMoveColumnUp: (columnId: string) => void
   onMoveColumnDown: (columnId: string) => void
+  onReorderColumn: (draggedId: string, targetId: string, place: 'before' | 'after') => void
+  onToggleColumnManualLoad: (columnId: string) => void
   onNewSession: () => void
   onLaunchPreset: (preset: SessionPreset) => void
   onShowAllPresets: () => void
@@ -50,6 +54,7 @@ export function KanbanPanel({
   onSelectSession,
   onCloseSession,
   onResumeSession,
+  onLoadSession,
   onRenameSession,
   onRegenerateSessionTitle,
   onResetSessionTitle,
@@ -59,6 +64,8 @@ export function KanbanPanel({
   onDeleteColumn,
   onMoveColumnUp,
   onMoveColumnDown,
+  onReorderColumn,
+  onToggleColumnManualLoad,
   onNewSession,
   onLaunchPreset,
   onShowAllPresets,
@@ -147,6 +154,7 @@ export function KanbanPanel({
             onSelectSession={onSelectSession}
             onCloseSession={onCloseSession}
             onResumeSession={onResumeSession}
+            onLoadSession={onLoadSession}
             onRenameSession={onRenameSession}
             onRegenerateSessionTitle={onRegenerateSessionTitle}
             onResetSessionTitle={onResetSessionTitle}
@@ -155,6 +163,8 @@ export function KanbanPanel({
             onDelete={onDeleteColumn}
             onMoveUp={onMoveColumnUp}
             onMoveDown={onMoveColumnDown}
+            onReorder={onReorderColumn}
+            onToggleManualLoad={onToggleColumnManualLoad}
             isFirst={index === 0}
             isLast={index === sortedColumns.length - 1}
           />

@@ -55,6 +55,38 @@ export function useKanban() {
     persistColumns(sorted)
   }, [persistColumns])
 
+  /**
+   * Drop `draggedId` immediately before or after `targetId` and renumber the
+   * whole list, so drag-reordering can span any distance in one gesture
+   * (unlike the one-step moveColumnUp/Down).
+   */
+  const reorderColumn = useCallback(
+    (draggedId: string, targetId: string, place: 'before' | 'after') => {
+      if (draggedId === targetId) return
+      const sorted = [...columnsRef.current].sort((a, b) => a.order - b.order)
+      const from = sorted.findIndex((c) => c.id === draggedId)
+      if (from === -1 || !sorted.some((c) => c.id === targetId)) return
+
+      const next = [...sorted]
+      const [moved] = next.splice(from, 1)
+      // Re-find the target after the removal so 'after' lands past it either way.
+      const anchor = next.findIndex((c) => c.id === targetId)
+      next.splice(place === 'before' ? anchor : anchor + 1, 0, moved)
+
+      if (next.every((c, i) => c.id === sorted[i].id)) return
+      persistColumns(next.map((c, i) => ({ ...c, order: i })))
+    },
+    [persistColumns]
+  )
+
+  /** Toggle whether sessions parked in this column are skipped at startup. */
+  const toggleColumnManualLoad = useCallback((columnId: string) => {
+    const next = columnsRef.current.map((c) =>
+      c.id === columnId ? { ...c, manualLoad: !c.manualLoad } : c
+    )
+    persistColumns(next)
+  }, [persistColumns])
+
   const getSessionColumn = useCallback((columnId?: string) => {
     if (columnId && columnsRef.current.some((c) => c.id === columnId)) return columnId
     const sorted = [...columnsRef.current].sort((a, b) => a.order - b.order)
@@ -68,6 +100,8 @@ export function useKanban() {
     deleteColumn,
     moveColumnUp,
     moveColumnDown,
+    reorderColumn,
+    toggleColumnManualLoad,
     getSessionColumn
   }
 }
