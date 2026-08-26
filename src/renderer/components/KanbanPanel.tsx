@@ -25,6 +25,8 @@ interface Props {
   onResumeSession: (id: string) => void
   /** Starts a dormant session parked in a manual-load column. */
   onLoadSession: (id: string) => void
+  /** Closes a session's PTY but keeps its card and transcript. */
+  onParkSession: (id: string) => void
   onRenameSession: (id: string, title: string) => void
   onRegenerateSessionTitle: (id: string) => void
   onResetSessionTitle: (id: string) => void
@@ -55,6 +57,7 @@ export function KanbanPanel({
   onCloseSession,
   onResumeSession,
   onLoadSession,
+  onParkSession,
   onRenameSession,
   onRegenerateSessionTitle,
   onResetSessionTitle,
@@ -155,6 +158,7 @@ export function KanbanPanel({
             onCloseSession={onCloseSession}
             onResumeSession={onResumeSession}
             onLoadSession={onLoadSession}
+            onParkSession={onParkSession}
             onRenameSession={onRenameSession}
             onRegenerateSessionTitle={onRegenerateSessionTitle}
             onResetSessionTitle={onResetSessionTitle}

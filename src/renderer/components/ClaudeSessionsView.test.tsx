@@ -58,6 +58,7 @@ const defaultViewProps = {
   onCloseSession: vi.fn(),
   onResumeSession: vi.fn(),
   onLoadSession: vi.fn(),
+  onParkSession: vi.fn(),
   onResumeFromHistory: vi.fn(),
   onUpdateSessionColumn: vi.fn(),
   onSetSessionTitle: vi.fn(),

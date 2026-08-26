@@ -27,6 +27,8 @@ interface Props {
   onResume: (id: string) => void
   /** Starts the PTY for a session parked in a manual-load column. */
   onLoad: (id: string) => void
+  /** Closes the PTY but keeps the card and transcript. */
+  onPark: (id: string) => void
   onRename: (id: string, title: string) => void
   onRegenerateTitle: (id: string) => void
   onResetTitle: (id: string) => void
@@ -44,6 +46,7 @@ export function KanbanCard({
   onClose,
   onResume,
   onLoad,
+  onPark,
   onRename,
   onRegenerateTitle,
   onResetTitle,
@@ -222,6 +225,14 @@ export function KanbanCard({
           style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
+          {!isDormant && !isExited && !isInitializing && session.claudeSessionId && (
+            <button
+              onClick={() => runMenuAction(() => onPark(session.id))}
+              title="Stop the process and free its memory. The conversation is kept — press Load to pick it back up."
+            >
+              Close, keep conversation
+            </button>
+          )}
           <button onClick={() => runMenuAction(startRename)}>Rename</button>
           <button onClick={() => runMenuAction(() => onRegenerateTitle(session.id))}>
             Rename with AI

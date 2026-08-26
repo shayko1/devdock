@@ -76,6 +76,8 @@ interface Props {
   onResumeSession: (sessionId: string) => void
   /** Starts a session parked in a manual-load column. */
   onLoadSession: (sessionId: string) => void
+  /** Closes a session's PTY but keeps its card and transcript. */
+  onParkSession: (sessionId: string) => void
   onResumeFromHistory: (claudeSessionId: string, folderName: string, folderPath: string, worktreePath?: string | null) => void
   onOpenPipelineSession?: (folderName: string, folderPath: string, worktreePath: string) => void
   onLaunchPreset?: (presetId: string) => void
@@ -94,7 +96,7 @@ interface Props {
 
 type SidePanel = 'none' | 'files' | 'file-view' | 'changes' | 'search' | 'browser' | 'pipeline' | 'mcp' | 'history' | 'resources' | 'presets' | 'summaries'
 
-export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, scanPath, onNewSession, onCloseSession, onResumeSession, onLoadSession, onResumeFromHistory, onOpenPipelineSession, onLaunchPreset, onUpdateSessionColumn, onSetSessionTitle, onClearSessionTitle, titleGeneratingIds, onRegenerateSessionTitle, onWaitingSessionsChange }: Props) {
+export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, scanPath, onNewSession, onCloseSession, onResumeSession, onLoadSession, onParkSession, onResumeFromHistory, onOpenPipelineSession, onLaunchPreset, onUpdateSessionColumn, onSetSessionTitle, onClearSessionTitle, titleGeneratingIds, onRegenerateSessionTitle, onWaitingSessionsChange }: Props) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidePanel, setSidePanel] = useState<SidePanel>('none')
   const [viewingFile, setViewingFile] = useState<string | null>(null)
@@ -215,6 +217,31 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
   const handleRenameSession = useCallback((sessionId: string, title: string) => {
     onSetSessionTitle(sessionId, title, true)
   }, [onSetSessionTitle])
+
+  /**
+   * Moving a card into a parking column closes its session: that is the point
+   * of dropping work in Done. The transcript survives, so the card's "Load"
+   * puts it back. Parking is skipped for sessions with no transcript to
+   * resume — see parkSession.
+   */
+  const handleMoveSession = useCallback((sessionId: string, columnId: string) => {
+    onUpdateSessionColumn(sessionId, columnId)
+    const target = columns.find(c => c.id === columnId)
+    if (target?.manualLoad) onParkSession(sessionId)
+  }, [columns, onUpdateSessionColumn, onParkSession])
+
+  // A parked session has no terminal, so it can never be "waiting for input".
+  // SessionSplitPane unmounts without reporting that, so prune it here.
+  useEffect(() => {
+    const dormantIds = sessions.filter(s => s.dormant).map(s => s.id)
+    if (dormantIds.length === 0) return
+    setWaitingSessions(prev => {
+      if (!dormantIds.some(id => prev.has(id))) return prev
+      const next = new Set(prev)
+      for (const id of dormantIds) next.delete(id)
+      return next
+    })
+  }, [sessions])
 
   const activeSession = sessions.find(s => s.id === activeSessionId)
   const sessionRoot = activeSession?.worktreePath || activeSession?.folderPath || ''
@@ -445,10 +472,11 @@ export function ClaudeSessionsView({ sessions, rtkEnabled, chatInputEnabled, sca
         onCloseSession={handleClose}
         onResumeSession={onResumeSession}
         onLoadSession={onLoadSession}
+        onParkSession={onParkSession}
         onRenameSession={handleRenameSession}
         onRegenerateSessionTitle={onRegenerateSessionTitle}
         onResetSessionTitle={onClearSessionTitle}
-        onMoveSession={onUpdateSessionColumn}
+        onMoveSession={handleMoveSession}
         onAddColumn={addColumn}
         onRenameColumn={renameColumn}
         onDeleteColumn={deleteColumn}

@@ -42,6 +42,8 @@ interface Props {
   onDrop: (sessionId: string, columnId: string) => void
   /** Starts a dormant session's PTY on demand. */
   onLoadSession: (id: string) => void
+  /** Closes a session's PTY but keeps its card and transcript. */
+  onParkSession: (id: string) => void
   onRename: (columnId: string, name: string) => void
   onDelete: (columnId: string) => void
   onMoveUp: (columnId: string) => void
@@ -69,6 +71,7 @@ export function KanbanColumnSection({
   onResetSessionTitle,
   onDrop,
   onLoadSession,
+  onParkSession,
   onRename,
   onDelete,
   onMoveUp,
@@ -272,9 +275,9 @@ export function KanbanColumnSection({
             )}
             <button
               onClick={() => { onToggleManualLoad(column.id); setContextMenu(null) }}
-              title="Keep these conversations on disk and off the CPU until you open them"
+              title="Closes a session when you move it here, and skips loading it on startup. Conversations are kept either way."
             >
-              {column.manualLoad ? '✓ ' : ''}Don't load on startup
+              {column.manualLoad ? '✓ ' : ''}Close &amp; park sessions here
             </button>
             <button className="danger" onClick={handleDelete}>Delete</button>
           </div>
@@ -303,6 +306,7 @@ export function KanbanColumnSection({
                 onClose={onCloseSession}
                 onResume={onResumeSession}
                 onLoad={onLoadSession}
+                onPark={onParkSession}
                 onRename={onRenameSession}
                 onRegenerateTitle={onRegenerateSessionTitle}
                 onResetTitle={onResetSessionTitle}

@@ -133,10 +133,13 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
     restoreSessions()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Listen for PTY exits
+  // Listen for PTY exits. A parked session's PTY is killed on purpose, so its
+  // exit is expected — leave it dormant rather than flipping it to "ended".
   useEffect(() => {
     const unsub = window.api.onPtyExit(({ sessionId }) => {
-      setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, exited: true } : s))
+      setSessions(prev => prev.map(s =>
+        s.id === sessionId && !s.dormant ? { ...s, exited: true } : s
+      ))
     })
     return unsub
   }, [])
@@ -274,6 +277,28 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
     } catch (err) {
       alert(`Error resuming session: ${err}`)
     }
+  }, [sessions])
+
+  /**
+   * Close a running session's PTY but keep its card and transcript, so it can
+   * be reopened later with `loadSession`. This is what a parking column does
+   * on drop, and what the card's "Close & keep conversation" action does.
+   *
+   * Refuses when Claude has not yet reported a session id: without one there is
+   * no transcript to resume, so killing the PTY would lose the conversation
+   * outright. Leaving it running is the recoverable choice.
+   */
+  const parkSession = useCallback(async (sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId)
+    if (!session || session.dormant || session.initializing) return false
+    if (!session.claudeSessionId) return false
+
+    await window.api.ptyDestroy(sessionId)
+    setSessions(prev => prev.map(s => s.id === sessionId
+      ? { ...s, dormant: true, loading: false, exited: false }
+      : s
+    ))
+    return true
   }, [sessions])
 
   /**
@@ -503,6 +528,7 @@ export function useClaudeSessions({ dangerousMode, defaultModel, onSessionActiva
     startSession,
     resumeSession,
     loadSession,
+    parkSession,
     openPipelineSession,
     resumeFromHistory,
     closeSession,

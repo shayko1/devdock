@@ -89,6 +89,7 @@ export function App() {
     startSession: handleStartClaudeSession,
     resumeSession: handleResumeClaudeSession,
     loadSession: handleLoadClaudeSession,
+    parkSession: handleParkClaudeSession,
     openPipelineSession: handleOpenPipelineSession,
     resumeFromHistory: handleResumeFromHistory,
     closeSession: handleCloseClaudeSession,
@@ -489,6 +490,7 @@ export function App() {
             onCloseSession={handleCloseClaudeSession}
             onResumeSession={handleResumeClaudeSession}
             onLoadSession={handleLoadClaudeSession}
+            onParkSession={handleParkClaudeSession}
             onResumeFromHistory={handleResumeFromHistory}
             onOpenPipelineSession={handleOpenPipelineSession}
             onLaunchPreset={handleLaunchPreset}
