@@ -84,6 +84,15 @@ export function XTerminal({ sessionId, active, onWaitingChange }: Props) {
       allowProposedApi: true,
       rightClickSelectsWord: true,
       scrollback: 10000,
+      // OSC 8 hyperlinks (what Claude Code's full-screen TUI emits) are handled
+      // by xterm's own link provider, which is registered ahead of the custom
+      // one below and therefore always wins. Without a handler here it falls
+      // back to `window.open()` with no URL — which Electron's
+      // setWindowOpenHandler denies, so the click silently does nothing.
+      // xterm already restricts this callback to http/https URIs.
+      linkHandler: {
+        activate: (_event, uri) => { window.api.openInBrowser(uri) },
+      },
     })
 
     const fitAddon = new FitAddon()
